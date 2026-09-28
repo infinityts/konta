@@ -363,3 +363,38 @@ def test_exportar_y_restaurar(client):
     r = client.get("/exportar/transacciones.csv", headers=h)
     assert r.status_code == 200
     assert "fecha,tipo,monto" in r.text
+
+
+def test_flujo_caja(client):
+    _, h = _registrar(client)
+    hoy = date.today()
+
+    def mes_atras(n: int) -> date:
+        y, m = hoy.year, hoy.month - n
+        while m <= 0:
+            m += 12
+            y -= 1
+        return date(y, m, 15)
+
+    # 3 gastos variables (sin suscripción) en meses anteriores -> promedio 300.000
+    for n in (1, 2, 3):
+        client.post("/transacciones", headers=h, json={"tipo": "gasto", "monto": "300000", "fecha": mes_atras(n).isoformat()})
+
+    client.post("/ingresos-recurrentes", headers=h, json={"nombre": "Sueldo", "monto": "1000000", "periodicidad": "mensual", "dia": 1})
+    client.post("/suscripciones", headers=h, json={"nombre": "Netflix", "monto": "50000", "periodicidad": "mensual", "proximo_pago": hoy.isoformat()})
+
+    r = client.get("/flujo-caja?meses=6", headers=h)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert len(d["meses"]) == 6
+    assert d["gasto_variable_promedio"] == 300000.0
+    assert d["meses"][0]["gastos_variables"] == 300000.0
+    assert d["meses"][0]["gastos_fijos"] == 50000.0
+    assert d["meses"][0]["gastos"] == 350000.0
+    assert d["total_ingresos"] > 0
+
+    # el acumulado es la suma de los balances
+    acum = 0.0
+    for m in d["meses"]:
+        acum += m["balance"]
+        assert abs(m["acumulado"] - acum) < 0.01

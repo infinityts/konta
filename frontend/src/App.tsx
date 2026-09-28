@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Etiquetas from './pages/Etiquetas'
 import Facturas from './pages/Facturas'
+import FlujoCaja from './pages/FlujoCaja'
 import Importar from './pages/Importar'
 import IngresosRecurrentes from './pages/IngresosRecurrentes'
 import Login from './pages/Login'
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/ingresos-recurrentes" element={<IngresosRecurrentes />} />
         <Route path="/etiquetas" element={<Etiquetas />} />
         <Route path="/reportes" element={<Reportes />} />
+        <Route path="/flujo" element={<FlujoCaja />} />
         <Route path="/presupuestos" element={<Presupuestos />} />
         <Route path="/facturas" element={<Facturas />} />
         <Route path="/importar" element={<Importar />} />

@@ -34,6 +34,8 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Reportes**: evolución mensual (últimos 6 meses) y desglose por categoría.
 - **Alertas de pagos**: próximos vencimientos de suscripciones y de tarjetas (pago/corte).
 - **Presupuestos**: límite mensual por categoría, con gasto real, % consumido y aviso de exceso.
+- **Flujo de caja**: proyección a 3/6/12 meses combinando ingresos recurrentes,
+  suscripciones activas y el gasto variable promedio; muestra balance y acumulado.
 
 ### Documentos
 - **Facturas PDF**: subida, extracción de texto (**pypdf** + **OCR tesseract** en
@@ -141,6 +143,7 @@ aislados por usuario.
 | **Lista de compras** | `GET/POST /lista-mercado`, `PATCH/DELETE /lista-mercado/{id}` |
 | **Monedas / tasas** | `GET /monedas`, `GET/POST /tasas`, `DELETE /tasas/{id}`, `POST /tasas/actualizar`, `GET /convertir?de=&a=&monto=` |
 | **Respaldo** | `GET /exportar/json`, `GET /exportar/transacciones.csv`, `POST /respaldar/restaurar` |
+| **Flujo de caja** | `GET /flujo-caja?meses=6` |
 
 ---
 
@@ -174,8 +177,8 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo
-- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja
+- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja
 - [x] Despliegue con Docker/Podman
-- [ ] Proyección de flujo de caja, metas de ahorro
+- [ ] Metas de ahorro
 - [ ] Notificaciones de alarmas por email/Telegram

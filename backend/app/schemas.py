@@ -469,3 +469,24 @@ class SimulacionOut(BaseModel):
     total_intereses: Decimal
     total_pagado: Decimal
     viable: bool
+
+
+# --- proyección de flujo de caja ---
+
+
+class FlujoMesOut(BaseModel):
+    mes: str
+    ingresos: float
+    gastos_fijos: float
+    gastos_variables: float
+    gastos: float
+    balance: float
+    acumulado: float
+
+
+class FlujoCajaOut(BaseModel):
+    meses: list[FlujoMesOut]
+    gasto_variable_promedio: float
+    total_ingresos: float
+    total_gastos: float
+    balance_final: float

@@ -175,6 +175,24 @@ export interface Simulacion {
   viable: boolean
 }
 
+export interface FlujoMes {
+  mes: string
+  ingresos: number
+  gastos_fijos: number
+  gastos_variables: number
+  gastos: number
+  balance: number
+  acumulado: number
+}
+
+export interface FlujoCaja {
+  meses: FlujoMes[]
+  gasto_variable_promedio: number
+  total_ingresos: number
+  total_gastos: number
+  balance_final: number
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string
