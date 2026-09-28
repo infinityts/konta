@@ -6,6 +6,17 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 
 ---
 
+## Documentación
+
+| Documento | Contenido |
+|---|---|
+| [`README.md`](README.md) | Funcionalidades, stack, endpoints y modelo de datos (este archivo) |
+| [`docs/arquitectura.md`](docs/arquitectura.md) | Arquitectura, módulos, scheduler, notificaciones y relaciones |
+| [`docs/despliegue.md`](docs/despliegue.md) | Local, Docker/Podman, administración, respaldo y variables de entorno |
+| [`CHANGELOG.md`](CHANGELOG.md) | Historial de cambios commit por commit |
+
+---
+
 ## Funcionalidades
 
 ### Cuentas y accesos
