@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -20,6 +21,7 @@ from .models import (
     IngresoRecurrente,
     Periodicidad,
     PeriodicidadIngreso,
+    Poliza,
     Suscripcion,
     TipoTransaccion,
     Transaccion,
@@ -113,13 +115,14 @@ MAX_CATCHUP = 24  # tope de periodos que se ponen al día en una sola pasada
 
 
 def siguiente_pago(periodicidad: Periodicidad, desde: date) -> date:
-    """Siguiente fecha de cobro de una suscripción."""
+    """Siguiente fecha de cobro de una suscripción o póliza."""
     if periodicidad == Periodicidad.SEMANAL:
         return desde + timedelta(days=7)
 
     meses = {
         Periodicidad.MENSUAL: 1,
         Periodicidad.TRIMESTRAL: 3,
+        Periodicidad.SEMESTRAL: 6,
         Periodicidad.ANUAL: 12,
     }.get(periodicidad, 1)
 
@@ -129,6 +132,21 @@ def siguiente_pago(periodicidad: Periodicidad, desde: date) -> date:
         year += 1
     ultimo = calendar.monthrange(year, month)[1]
     return date(year, month, min(desde.day, ultimo))
+
+
+def factor_mensual(periodicidad: Periodicidad) -> Decimal:
+    """Cuánto pesa al mes un pago según su periodicidad.
+
+    Es lo que permite sumar peras con manzanas cuando se compara el gasto fijo:
+    una póliza anual no cuesta lo mismo al mes que una mensual.
+    """
+    return {
+        Periodicidad.SEMANAL: Decimal("52") / Decimal("12"),
+        Periodicidad.MENSUAL: Decimal("1"),
+        Periodicidad.TRIMESTRAL: Decimal("1") / Decimal("3"),
+        Periodicidad.SEMESTRAL: Decimal("1") / Decimal("6"),
+        Periodicidad.ANUAL: Decimal("1") / Decimal("12"),
+    }.get(periodicidad, Decimal("1"))
 
 
 def procesar_suscripciones(s: Session, hoy_: date) -> int:
@@ -176,7 +194,7 @@ def procesar_suscripciones(s: Session, hoy_: date) -> int:
 def procesar_suscripciones_vencidas() -> int:
     """Envoltorio del scheduler: abre su propia sesión y aplica la lógica.
 
-    La transacción hereda cuenta, categoría, etiqueta y tarjeta de la suscripción.
+    La transacción hereda categoría, etiqueta y tarjeta de la suscripción.
     Es idempotente: cada periodo procesado avanza `proximo_pago`.
     """
     engine = make_engine()
@@ -184,5 +202,65 @@ def procesar_suscripciones_vencidas() -> int:
     try:
         with sf.begin() as s:
             return procesar_suscripciones(s, hoy())
+    finally:
+        engine.dispose()
+
+
+# --------------------------------------------------------------------------- #
+# Pólizas de seguro: generan su gasto al vencer la prima
+# --------------------------------------------------------------------------- #
+
+
+def procesar_polizas(s: Session, hoy_: date) -> int:
+    """Genera las transacciones de las pólizas con la prima vencida (lógica pura).
+
+    Recibe la sesión y la fecha para poder probarla sin arrancar el scheduler.
+    El gasto hereda categoría, etiqueta, tarjeta y cuenta de la póliza, y queda
+    enlazado a ella (`poliza_id`). Idempotente: cada periodo avanza `proximo_pago`.
+    """
+    vencidas = s.scalars(
+        select(Poliza).where(
+            Poliza.estado == EstadoSuscripcion.ACTIVA,
+            Poliza.proximo_pago.is_not(None),
+            Poliza.proximo_pago <= hoy_,
+        )
+    ).all()
+
+    generadas = 0
+    for pol in vencidas:
+        periodos = 0
+        while (
+            pol.proximo_pago is not None
+            and pol.proximo_pago <= hoy_
+            and periodos < MAX_CATCHUP
+        ):
+            s.add(
+                Transaccion(
+                    usuario_id=pol.usuario_id,
+                    tipo=TipoTransaccion.GASTO,
+                    monto=pol.prima,
+                    moneda=pol.moneda,
+                    fecha=pol.proximo_pago,
+                    descripcion=f"Seguro {pol.titulo}",
+                    categoria_id=pol.categoria_id,
+                    etiqueta_id=pol.etiqueta_id,
+                    tarjeta_id=pol.tarjeta_id,
+                    cuenta_id=pol.cuenta_id,
+                    poliza_id=pol.id,
+                )
+            )
+            pol.proximo_pago = siguiente_pago(pol.periodicidad, pol.proximo_pago)
+            generadas += 1
+            periodos += 1
+    return generadas
+
+
+def procesar_polizas_vencidas() -> int:
+    """Envoltorio del scheduler para las pólizas."""
+    engine = make_engine()
+    sf = make_session_factory(engine)
+    try:
+        with sf.begin() as s:
+            return procesar_polizas(s, hoy())
     finally:
         engine.dispose()

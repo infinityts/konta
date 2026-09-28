@@ -12,42 +12,66 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
 from .models import (
+    AporteMeta,
+    Beneficiario,
     Categoria,
+    ConfigNotificaciones,
+    Cuenta,
+    DeudaTarjeta,
     Etiqueta,
     Factura,
+    FacturaLinea,
     IngresoRecurrente,
     ItemLista,
+    MetaAhorro,
+    Poliza,
     PrecioMercado,
     Presupuesto,
     Producto,
+    ReglaOcr,
     Suscripcion,
     Tarjeta,
     Transaccion,
 )
 
-# Orden de borrado (hijos primero) y de creación (padres primero)
+# Orden de borrado (hijos primero) y de creación (padres primero).
+# `FacturaLinea` no se lista en el borrado: no tiene `usuario_id` y cae por la
+# cascada al borrar su factura.
 MODELOS_BORRADO = [
-    Factura, Transaccion, PrecioMercado, ItemLista, Presupuesto,
-    Suscripcion, IngresoRecurrente, Etiqueta, Tarjeta, Categoria, Producto,
+    Factura, ReglaOcr, Transaccion, Beneficiario, Poliza, AporteMeta, MetaAhorro,
+    DeudaTarjeta, PrecioMercado, ItemLista, Presupuesto, Suscripcion,
+    IngresoRecurrente, Etiqueta, Tarjeta, Categoria, Cuenta, Producto,
+    ConfigNotificaciones,
 ]
 MODELOS_CREACION = [
-    Categoria, Tarjeta, Producto, Etiqueta, Suscripcion, IngresoRecurrente,
-    Presupuesto, PrecioMercado, ItemLista, Transaccion, Factura,
+    Categoria, Cuenta, Tarjeta, Producto, Etiqueta, ConfigNotificaciones,
+    MetaAhorro, AporteMeta, Poliza, Beneficiario, Suscripcion, IngresoRecurrente,
+    Presupuesto, DeudaTarjeta, PrecioMercado, ItemLista, Transaccion, ReglaOcr,
+    Factura, FacturaLinea,
 ]
 NOMBRES = {
     Categoria: "categorias",
+    Cuenta: "cuentas",
     Tarjeta: "tarjetas",
     Producto: "productos",
     Etiqueta: "etiquetas",
+    ConfigNotificaciones: "config_notificaciones",
+    MetaAhorro: "metas_ahorro",
+    AporteMeta: "aportes_meta",
+    Poliza: "polizas",
+    Beneficiario: "beneficiarios",
     Suscripcion: "suscripciones",
     IngresoRecurrente: "ingresos_recurrentes",
     Presupuesto: "presupuestos",
+    DeudaTarjeta: "deudas_tarjeta",
     PrecioMercado: "precios",
     ItemLista: "lista_mercado",
     Transaccion: "transacciones",
+    ReglaOcr: "reglas_ocr",
     Factura: "facturas",
-    }
-VERSION = 1
+    FacturaLinea: "factura_lineas",
+}
+VERSION = 2
 
 
 def _dump(obj) -> dict:
@@ -60,12 +84,24 @@ def _dump(obj) -> dict:
     return out
 
 
+def _filas_del_usuario(db: Session, modelo, usuario_id) -> list:
+    """Filas del usuario. `FacturaLinea` no tiene `usuario_id`: se llega por su factura."""
+    if modelo is FacturaLinea:
+        return list(
+            db.scalars(
+                select(FacturaLinea)
+                .join(Factura, FacturaLinea.factura_id == Factura.id)
+                .where(Factura.usuario_id == usuario_id)
+            ).all()
+        )
+    return list(db.scalars(select(modelo).where(modelo.usuario_id == usuario_id)).all())
+
+
 def exportar(db: Session, usuario_id) -> dict:
     """Devuelve un dict con todos los datos del usuario (para respaldo)."""
     datos: dict = {"version": VERSION, "exportado_en": datetime.now(timezone.utc).isoformat()}
     for modelo in MODELOS_CREACION:
-        filas = db.scalars(select(modelo).where(modelo.usuario_id == usuario_id)).all()
-        datos[NOMBRES[modelo]] = [_dump(f) for f in filas]
+        datos[NOMBRES[modelo]] = [_dump(f) for f in _filas_del_usuario(db, modelo, usuario_id)]
     return datos
 
 
@@ -122,8 +158,14 @@ def restaurar(db: Session, usuario_id, datos: dict) -> dict:
 
         for fila in filas:
             campos = _convertir(modelo, fila)
-            campos["usuario_id"] = usuario_id  # seguridad: siempre el usuario actual
+            # `FacturaLinea` cuelga de su factura: no tiene `usuario_id` propio.
+            if modelo is not FacturaLinea:
+                campos["usuario_id"] = usuario_id  # seguridad: siempre el usuario actual
             db.add(modelo(**campos))
+        # Los modelos no declaran `relationship()`, así que el orden de INSERT no
+        # se deduce solo: se fuerza un flush por modelo y `MODELOS_CREACION` va de
+        # padres a hijos (p. ej. `metas_ahorro` antes de `aportes_meta`).
+        db.flush()
         creadas[NOMBRES[modelo]] = len(filas)
 
     db.commit()

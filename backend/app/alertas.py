@@ -2,6 +2,8 @@
 
 Genera avisos a partir de:
 - suscripciones activas con `proximo_pago`
+- pólizas de seguro activas: la prima (`proximo_pago`) y el fin de vigencia
+  (`fecha_fin`, para avisar de la renovación)
 - tarjetas activas con `dia_pago` o `dia_corte`
 """
 
@@ -13,7 +15,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import EstadoSuscripcion, Suscripcion, Tarjeta
+from .models import EstadoSuscripcion, Poliza, Suscripcion, Tarjeta
 from .recurrencia import hoy
 
 
@@ -55,6 +57,40 @@ def calcular_alertas(db: Session, usuario_id, dias: int = 15) -> list[dict]:
                     "moneda": s.moneda,
                 }
             )
+
+    polizas = db.scalars(
+        select(Poliza).where(
+            Poliza.usuario_id == usuario_id,
+            Poliza.estado == EstadoSuscripcion.ACTIVA,
+        )
+    ).all()
+    for p in polizas:
+        if p.proximo_pago is not None:
+            dr = (p.proximo_pago - hoy_).days
+            if dr <= dias:
+                alertas.append(
+                    {
+                        "tipo": "poliza_pago",
+                        "titulo": f"Prima {p.titulo}",
+                        "fecha": p.proximo_pago,
+                        "dias_restantes": dr,
+                        "monto": p.prima,
+                        "moneda": p.moneda,
+                    }
+                )
+        if p.fecha_fin is not None and not p.renovacion_automatica:
+            dr = (p.fecha_fin - hoy_).days
+            if dr <= dias:
+                alertas.append(
+                    {
+                        "tipo": "poliza_vencimiento",
+                        "titulo": f"Vence la póliza {p.titulo}",
+                        "fecha": p.fecha_fin,
+                        "dias_restantes": dr,
+                        "monto": None,
+                        "moneda": p.moneda,
+                    }
+                )
 
     tarjetas = db.scalars(
         select(Tarjeta).where(Tarjeta.usuario_id == usuario_id, Tarjeta.activa.is_(True))

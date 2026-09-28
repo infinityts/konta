@@ -1049,3 +1049,266 @@ def test_notificaciones_whatsapp(client):
     # Un canal que no existe se rechaza en la validación
     assert client.put("/notificaciones", headers=h, json={"canal": "paloma"}).status_code == 422
 
+
+
+# --- pólizas de seguro (personas y vehículos) ------------------------------ #
+
+
+def test_polizas_crud_y_aislamiento(client):
+    """Póliza de vehículo: datos del bien, vigencia, edición y aislamiento."""
+    _, h = _registrar(client)
+    hoy = date.today()
+
+    r = client.post(
+        "/polizas",
+        headers=h,
+        json={
+            "tipo": "vehiculo",
+            "aseguradora": "Sura",
+            "numero_poliza": "POL-123",
+            "placa": "ABC123",
+            "marca": "Renault",
+            "modelo": "Sandero",
+            "anio": 2019,
+            "valor_asegurado": "45000000",
+            "prima": "1200000",
+            "periodicidad": "semestral",
+            "fecha_inicio": hoy.isoformat(),
+            "fecha_fin": (hoy + timedelta(days=365)).isoformat(),
+            "proximo_pago": (hoy + timedelta(days=10)).isoformat(),
+        },
+    )
+    assert r.status_code == 201, r.text
+    pol = r.json()
+    assert pol["titulo"] == "Vehículo ABC123 (Sura)"
+    assert pol["placa"] == "ABC123"
+    assert pol["valor_asegurado"] == "45000000.00"
+    # semestral: la prima pesa 1/6 al mes
+    assert pol["prima_mensual_cop"] == 200000.0
+
+    assert len(client.get("/polizas", headers=h).json()) == 1
+
+    # Editar: pausar y corregir la placa
+    r = client.patch(f"/polizas/{pol['id']}", headers=h, json={"estado": "pausada", "placa": "XYZ789"})
+    assert r.status_code == 200, r.text
+    assert r.json()["estado"] == "pausada"
+    assert r.json()["titulo"] == "Vehículo XYZ789 (Sura)"
+
+    # Validaciones
+    assert client.post("/polizas", headers=h, json={"aseguradora": "X", "prima": "0"}).status_code == 422
+    assert client.post(
+        "/polizas",
+        headers=h,
+        json={
+            "aseguradora": "X", "prima": "100", "fecha_inicio": hoy.isoformat(),
+            "fecha_fin": (hoy - timedelta(days=1)).isoformat(),
+        },
+    ).status_code == 422
+
+    # Otro usuario no la ve ni la toca
+    _, h2 = _registrar(client)
+    assert client.get(f"/polizas/{pol['id']}", headers=h2).status_code == 404
+    assert client.patch(f"/polizas/{pol['id']}", headers=h2, json={"prima": "1"}).status_code == 404
+    assert client.delete(f"/polizas/{pol['id']}", headers=h2).status_code == 404
+    assert client.get("/polizas", headers=h2).json() == []
+
+    assert client.delete(f"/polizas/{pol['id']}", headers=h).status_code == 204
+    assert client.get("/polizas", headers=h).json() == []
+
+
+def test_poliza_beneficiarios_no_pasan_de_100(client):
+    """Los porcentajes de los beneficiarios no pueden sumar más de 100 (seguro de vida)."""
+    _, h = _registrar(client)
+    pol = client.post(
+        "/polizas",
+        headers=h,
+        json={"tipo": "vida", "aseguradora": "Bolívar", "asegurado_nombre": "Ana", "prima": "90000"},
+    ).json()
+    assert pol["titulo"] == "Ana (Bolívar)"
+
+    primera = client.post(
+        f"/polizas/{pol['id']}/beneficiarios", headers=h,
+        json={"nombre": "Luis", "parentesco": "hijo", "porcentaje": "60"},
+    )
+    assert primera.status_code == 201, primera.text
+
+    # 60 + 50 = 110 -> se rechaza con un mensaje que dice cuánto suma
+    r = client.post(
+        f"/polizas/{pol['id']}/beneficiarios", headers=h,
+        json={"nombre": "Marta", "parentesco": "cónyuge", "porcentaje": "50"},
+    )
+    assert r.status_code == 400
+    assert "110" in r.json()["detail"]
+
+    segunda = client.post(
+        f"/polizas/{pol['id']}/beneficiarios", headers=h,
+        json={"nombre": "Marta", "parentesco": "cónyuge", "porcentaje": "40"},
+    )
+    assert segunda.status_code == 201
+
+    # Editar el primero a 70 sumaría 110 -> rechazado; a 60 sigue válido
+    b1 = primera.json()["id"]
+    assert client.patch(
+        f"/polizas/beneficiarios/{b1}", headers=h,
+        json={"nombre": "Luis", "porcentaje": "70"},
+    ).status_code == 400
+    assert client.patch(
+        f"/polizas/beneficiarios/{b1}", headers=h,
+        json={"nombre": "Luis", "porcentaje": "60"},
+    ).status_code == 200
+
+    # La póliza trae sus beneficiarios
+    detalle = client.get(f"/polizas/{pol['id']}", headers=h).json()
+    assert [b["nombre"] for b in detalle["beneficiarios"]] == ["Luis", "Marta"]
+
+    # Al borrar la póliza se van sus beneficiarios
+    assert client.delete(f"/polizas/{pol['id']}", headers=h).status_code == 204
+    assert client.patch(
+        f"/polizas/beneficiarios/{b1}", headers=h, json={"nombre": "Luis"}
+    ).status_code == 404
+
+
+def test_poliza_genera_su_gasto(client, engine):
+    """La prima vencida genera el gasto (idempotente) y se pone al día."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Poliza, Transaccion
+    from app.recurrencia import hoy, procesar_polizas
+
+    _, h = _registrar(client)
+    cats = client.get("/categorias", headers=h).json()
+    cat = next(c for c in cats if c["nombre"] == "Vivienda")
+    cta = client.post("/cuentas", headers=h, json={"nombre": "Efectivo", "saldo_inicial": "0"}).json()
+    hoy_ = hoy()
+
+    pol = client.post(
+        "/polizas",
+        headers=h,
+        json={
+            "tipo": "hogar", "aseguradora": "Sura", "prima": "180000", "periodicidad": "mensual",
+            "proximo_pago": (hoy_ - timedelta(days=1)).isoformat(),
+            "categoria_id": cat["id"], "cuenta_id": cta["id"],
+        },
+    ).json()
+
+    Session = sessionmaker(bind=engine)
+    with Session.begin() as s:
+        assert procesar_polizas(s, hoy_) == 1
+    with Session.begin() as s:
+        assert procesar_polizas(s, hoy_) == 0  # idempotente: ya avanzó el periodo
+
+    txs = client.get("/transacciones", headers=h).json()
+    assert len(txs) == 1
+    assert txs[0]["tipo"] == "gasto"
+    assert txs[0]["monto"] == "180000.00"
+    assert txs[0]["descripcion"] == "Seguro Hogar (Sura)"
+    assert txs[0]["categoria_id"] == cat["id"]
+    assert txs[0]["cuenta_id"] == cta["id"]
+    assert txs[0]["poliza_id"] == pol["id"]
+
+    # Se pone al día: tres periodos vencidos -> tres gastos
+    with Session.begin() as s:
+        p = s.get(Poliza, __import__("uuid").UUID(pol["id"]))
+        p.proximo_pago = hoy_ - timedelta(days=80)
+    with Session.begin() as s:
+        assert procesar_polizas(s, hoy_) == 3
+    assert len(client.get("/transacciones", headers=h).json()) == 4
+
+    # Una póliza pausada no genera nada
+    client.patch(f"/polizas/{pol['id']}", headers=h, json={"estado": "pausada"})
+    with Session.begin() as s:
+        p = s.get(Poliza, __import__("uuid").UUID(pol["id"]))
+        p.proximo_pago = hoy_ - timedelta(days=1)
+        s.flush()
+        assert procesar_polizas(s, hoy_) == 0
+
+
+def test_polizas_alertas_y_resumen(client):
+    """Alertas de prima y de vencimiento de vigencia, y costo normalizado a COP."""
+    _, h = _registrar(client)
+    hoy_ = date.today()
+
+    client.post("/polizas", headers=h, json={
+        "tipo": "salud", "aseguradora": "Colsanitas", "asegurado_nombre": "Ana",
+        "prima": "600000", "periodicidad": "anual",
+        "proximo_pago": (hoy_ + timedelta(days=5)).isoformat(),
+        "fecha_fin": (hoy_ + timedelta(days=10)).isoformat(),
+    })
+    client.post("/polizas", headers=h, json={
+        "tipo": "vehiculo", "aseguradora": "Sura", "placa": "ABC123",
+        "prima": "100", "moneda": "USD", "periodicidad": "mensual",
+        "proximo_pago": (hoy_ + timedelta(days=3)).isoformat(),
+        "fecha_fin": (hoy_ + timedelta(days=10)).isoformat(),
+        "renovacion_automatica": True,
+    })
+
+    tipos = [a["tipo"] for a in client.get("/alertas", headers=h, params={"dias": 15}).json()]
+    assert tipos.count("poliza_pago") == 2
+    # La de salud avisa del vencimiento; la del vehículo renueva sola, así que no
+    assert tipos.count("poliza_vencimiento") == 1
+
+    resumen = client.get("/polizas/resumen", headers=h).json()
+    assert resumen["polizas_activas"] == 2
+    # 600000 anual = 50000/mes; la de USD no se puede sumar sin tasa
+    assert resumen["prima_mensual_cop"] == 50000.0
+    assert resumen["prima_anual_cop"] == 600000.0
+    assert resumen["sin_tasa"] == ["USD"]
+
+    # Con la tasa registrada ya se puede sumar
+    client.post("/tasas", headers=h, json={"moneda_origen": "USD", "moneda_destino": "COP", "tasa": "4000"})
+    resumen = client.get("/polizas/resumen", headers=h).json()
+    assert resumen["prima_mensual_cop"] == 450000.0  # 50000 + 100*4000
+    assert resumen["sin_tasa"] == []
+
+    # Y entra en el gasto fijo del diagnóstico
+    diag = client.get("/saldos/diagnostico", headers=h).json()
+    assert diag["gastos_fijos"] == 450000.0
+
+
+def test_respaldo_incluye_polizas_y_lo_que_faltaba(client):
+    """El respaldo no debe perder pólizas, cuentas, metas, deudas ni líneas de factura."""
+    _, h = _registrar(client)
+    cat = client.get("/categorias", headers=h).json()[0]
+    cta = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "500000"}).json()
+    meta = client.post("/metas", headers=h, json={"nombre": "Viaje", "monto_objetivo": "3000000"}).json()
+    client.post(f"/metas/{meta['id']}/aportes", headers=h, json={"monto": "100000"})
+    tarjeta = client.post("/tarjetas", headers=h, json={"nombre": "Visa", "tipo": "credito", "banco": "Bogotá"}).json()
+    client.post(f"/tarjetas/{tarjeta['id']}/deudas", headers=h, json={"monto": "250000", "moneda": "COP"})
+    pol = client.post("/polizas", headers=h, json={
+        "tipo": "vida", "aseguradora": "Bolívar", "asegurado_nombre": "Ana", "prima": "90000",
+        "categoria_id": cat["id"], "cuenta_id": cta["id"],
+    }).json()
+    client.post(f"/polizas/{pol['id']}/beneficiarios", headers=h, json={"nombre": "Luis", "porcentaje": "100"})
+
+    backup = client.get("/exportar/json", headers=h).json()
+    for clave in ("polizas", "beneficiarios", "cuentas", "metas_ahorro", "aportes_meta", "deudas_tarjeta"):
+        assert backup[clave], f"el respaldo no incluye {clave}"
+    assert backup["polizas"][0]["placa"] is None
+    assert backup["beneficiarios"][0]["nombre"] == "Luis"
+
+    # Se borra todo y se restaura. Ojo: `GET /cuentas` devuelve el resumen con
+    # totales, no una lista (el listado va en la clave `cuentas`).
+    for ruta in ("/polizas", "/metas", "/tarjetas"):
+        for item in client.get(ruta, headers=h).json():
+            client.delete(f"{ruta}/{item['id']}", headers=h)
+    for item in client.get("/cuentas", headers=h).json()["cuentas"]:
+        client.delete(f"/cuentas/{item['id']}", headers=h)
+    assert client.get("/cuentas", headers=h).json()["cuentas"] == []
+    assert client.get("/polizas", headers=h).json() == []
+
+    import json as _json
+
+    r = client.post(
+        "/respaldar/restaurar", headers=h,
+        files={"archivo": ("respaldo.json", _json.dumps(backup).encode(), "application/json")},
+    )
+    assert r.status_code == 200, r.text
+
+    polizas = client.get("/polizas", headers=h).json()
+    assert len(polizas) == 1
+    assert polizas[0]["beneficiarios"][0]["nombre"] == "Luis"
+    assert len(client.get("/cuentas", headers=h).json()["cuentas"]) == 1
+    assert len(client.get("/metas", headers=h).json()) == 1
+    assert len(client.get("/tarjetas", headers=h).json()) == 1
+    # El saldo de la cuenta sobrevive al respaldo
+    assert client.get("/saldos", headers=h).json()["saldo_inicial_total"] == 500000.0

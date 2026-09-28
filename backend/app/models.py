@@ -52,6 +52,7 @@ class Periodicidad(str, enum.Enum):
     SEMANAL = "semanal"
     MENSUAL = "mensual"
     TRIMESTRAL = "trimestral"
+    SEMESTRAL = "semestral"
     ANUAL = "anual"
 
 
@@ -212,6 +213,10 @@ class Transaccion(Base):
     )
     cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Gasto generado por una póliza (como `suscripcion_id` para las suscripciones)
+    poliza_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("polizas.id", ondelete="SET NULL"), nullable=True, index=True
     )
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -538,4 +543,95 @@ class DeudaTarjeta(Base):
     monto: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     fecha: Mapped[date] = mapped_column(Date, nullable=False, default=_ahora)
     notas: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class Poliza(Base):
+    """Seguro: de vida, salud, vehículo, hogar… (personas y/o bienes).
+
+    Es un compromiso recurrente como una suscripción: tiene prima, periodicidad y
+    `proximo_pago`, y el scheduler genera el gasto al vencer. Además lleva la
+    **vigencia** (inicio/fin) para avisar del vencimiento y la renovación, y los
+    datos del **bien asegurado** cuando es un vehículo (placa, marca, modelo).
+
+    Una póliza cubre a una persona (`asegurado_nombre`) o a un bien (los campos de
+    vehículo); los beneficiarios con su porcentaje viven en `beneficiarios`.
+    """
+
+    __tablename__ = "polizas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # vida | salud | vehiculo | hogar | otro
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, default="vida")
+    aseguradora: Mapped[str] = mapped_column(String(120), nullable=False)
+    numero_poliza: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Persona asegurada (vida/salud/hogar). Para vehículo, el tomador/propietario.
+    asegurado_nombre: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    # Bien asegurado (vehículo)
+    placa: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    marca: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    modelo: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    anio: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    valor_asegurado: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+
+    # Prima (lo que se paga) y cada cuánto
+    prima: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    periodicidad: Mapped[Periodicidad] = mapped_column(_periodicidad, nullable=False, default=Periodicidad.MENSUAL)
+
+    # Vigencia y próximo cobro
+    fecha_inicio: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fecha_fin: Mapped[date | None] = mapped_column(Date, nullable=True)
+    proximo_pago: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    renovacion_automatica: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Igual que una suscripción: el cargo cae en el árbol y puede ir a una tarjeta
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("categorias.id", ondelete="SET NULL"), nullable=True
+    )
+    etiqueta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
+    )
+    tarjeta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tarjetas.id", ondelete="SET NULL"), nullable=True
+    )
+    cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True
+    )
+    # Reutiliza el vocabulario activa | pausada | cancelada de las suscripciones
+    estado: Mapped[EstadoSuscripcion] = mapped_column(
+        _estado_suscripcion, nullable=False, default=EstadoSuscripcion.ACTIVA
+    )
+    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+    @property
+    def titulo(self) -> str:
+        """Etiqueta legible de la póliza: «Vehículo ABC123 (Sura)»."""
+        if self.tipo == "vehiculo" and self.placa:
+            return f"Vehículo {self.placa} ({self.aseguradora})"
+        quien = self.asegurado_nombre or self.tipo.capitalize()
+        return f"{quien} ({self.aseguradora})"
+
+
+class Beneficiario(Base):
+    """Beneficiario de una póliza (típicamente de vida) con su porcentaje."""
+
+    __tablename__ = "beneficiarios"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    poliza_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("polizas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    parentesco: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Porcentaje de la indemnización (0-100). NULL = sin reparto definido.
+    porcentaje: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

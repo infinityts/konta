@@ -211,6 +211,109 @@ class TransaccionOut(TransaccionIn):
 
     id: uuid.UUID
     usuario_id: uuid.UUID
+    # Lo rellena el servidor cuando el gasto lo genera una póliza
+    poliza_id: uuid.UUID | None = None
+
+
+# --- pólizas de seguro y beneficiarios ---
+
+TIPOS_POLIZA = ("vida", "salud", "vehiculo", "hogar", "otro")
+
+
+class BeneficiarioIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    parentesco: str | None = Field(default=None, max_length=60)
+    porcentaje: Decimal | None = Field(default=None, ge=0, le=100)
+
+
+class BeneficiarioOut(BeneficiarioIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    usuario_id: uuid.UUID
+    poliza_id: uuid.UUID
+
+
+class PolizaIn(BaseModel):
+    tipo: Literal["vida", "salud", "vehiculo", "hogar", "otro"] = "vida"
+    aseguradora: str = Field(min_length=1, max_length=120)
+    numero_poliza: str | None = Field(default=None, max_length=60)
+    # Persona asegurada (vida/salud/hogar) o tomador del vehículo
+    asegurado_nombre: str | None = Field(default=None, max_length=120)
+    # Bien asegurado (vehículo)
+    placa: str | None = Field(default=None, max_length=10)
+    marca: str | None = Field(default=None, max_length=60)
+    modelo: str | None = Field(default=None, max_length=60)
+    anio: int | None = Field(default=None, ge=1900, le=2100)
+    valor_asegurado: Decimal | None = Field(default=None, gt=0)
+    # Prima y periodicidad
+    prima: Decimal = Field(gt=0)
+    moneda: str = "COP"
+    periodicidad: Periodicidad = Periodicidad.MENSUAL
+    # Vigencia
+    fecha_inicio: date | None = None
+    fecha_fin: date | None = None
+    proximo_pago: date | None = None
+    renovacion_automatica: bool = False
+    categoria_id: uuid.UUID | None = None
+    etiqueta_id: uuid.UUID | None = None
+    tarjeta_id: uuid.UUID | None = None
+    cuenta_id: uuid.UUID | None = None
+    estado: EstadoSuscripcion = EstadoSuscripcion.ACTIVA
+    notas: str | None = None
+
+    @model_validator(mode="after")
+    def _validar_vigencia(self) -> "PolizaIn":
+        if self.fecha_inicio and self.fecha_fin and self.fecha_fin < self.fecha_inicio:
+            raise ValueError("La fecha de fin no puede ser anterior a la de inicio")
+        return self
+
+
+class PolizaUpdate(BaseModel):
+    tipo: Literal["vida", "salud", "vehiculo", "hogar", "otro"] | None = None
+    aseguradora: str | None = Field(default=None, min_length=1, max_length=120)
+    numero_poliza: str | None = Field(default=None, max_length=60)
+    asegurado_nombre: str | None = Field(default=None, max_length=120)
+    placa: str | None = Field(default=None, max_length=10)
+    marca: str | None = Field(default=None, max_length=60)
+    modelo: str | None = Field(default=None, max_length=60)
+    anio: int | None = Field(default=None, ge=1900, le=2100)
+    valor_asegurado: Decimal | None = Field(default=None, gt=0)
+    prima: Decimal | None = Field(default=None, gt=0)
+    moneda: str | None = None
+    periodicidad: Periodicidad | None = None
+    fecha_inicio: date | None = None
+    fecha_fin: date | None = None
+    proximo_pago: date | None = None
+    renovacion_automatica: bool | None = None
+    categoria_id: uuid.UUID | None = None
+    etiqueta_id: uuid.UUID | None = None
+    tarjeta_id: uuid.UUID | None = None
+    cuenta_id: uuid.UUID | None = None
+    estado: EstadoSuscripcion | None = None
+    notas: str | None = None
+
+
+class PolizaOut(PolizaIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    usuario_id: uuid.UUID
+    creada_en: datetime
+    beneficiarios: list[BeneficiarioOut] = []
+    # Prima normalizada a mes y a COP (None si no hay tasa para su moneda)
+    prima_mensual_cop: float | None = None
+    # Etiqueta legible: «Vehículo ABC123 (Sura)»
+    titulo: str
+
+
+class PolizaResumenOut(BaseModel):
+    """Cuánto cuestan los seguros: prima mensual y anual, normalizada a COP."""
+
+    polizas_activas: int
+    prima_mensual_cop: float
+    prima_anual_cop: float
+    sin_tasa: list[str]  # monedas sin tasa de cambio registrada
 
 
 # --- ingresos recurrentes ---

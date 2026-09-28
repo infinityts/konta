@@ -21,6 +21,7 @@ from .routers import (
     metas,
     monedas,
     notificaciones,
+    polizas,
     presupuestos,
     productos,
     reportes,
@@ -76,6 +77,7 @@ app.include_router(respaldo.router)
 app.include_router(flujo.router)
 app.include_router(metas.router)
 app.include_router(notificaciones.router)
+app.include_router(polizas.router)
 app.include_router(cuentas.router)
 app.include_router(saldos.router)
 

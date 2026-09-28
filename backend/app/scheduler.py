@@ -1,11 +1,15 @@
-"""Scheduler en segundo plano: ingresos recurrentes y notificaciones."""
+"""Scheduler en segundo plano: ingresos recurrentes, cobros y notificaciones."""
 
 from __future__ import annotations
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from .notificaciones import procesar_notificaciones
-from .recurrencia import procesar_ingresos_vencidos, procesar_suscripciones_vencidas
+from .recurrencia import (
+    procesar_ingresos_vencidos,
+    procesar_polizas_vencidas,
+    procesar_suscripciones_vencidas,
+)
 from .tasas import actualizar_trm_diaria
 
 _scheduler: BackgroundScheduler | None = None
@@ -30,6 +34,15 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         hours=1,
         id="suscripciones-vencidas",
+        max_instances=1,
+        coalesce=True,
+    )
+    # Las pólizas de seguro generan su gasto al vencer la prima
+    _scheduler.add_job(
+        procesar_polizas_vencidas,
+        "interval",
+        hours=1,
+        id="polizas-vencidas",
         max_instances=1,
         coalesce=True,
     )
