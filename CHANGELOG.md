@@ -80,16 +80,10 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
     aprobada y método de pago.
   - **Gateway de terceros** (CallMeBot) o librerías no oficiales (Baileys): gratis,
     pero con **riesgo de ban** del número por violar los términos de WhatsApp.
-- **OCR por línea (2/2)**: falta exponer lo que ya existe en el backend (ver v1.12).
-  `factura_lineas` y `reglas_ocr` se crean, y `lineas.py` / `clasificador.py` saben
-  partir un recibo y clasificar cada artículo, pero **ningún router ni pantalla los usa
-  todavía**: hoy son código muerto. Hay que añadir los endpoints (parsear → previsualizar
-  → confirmar líneas como transacciones) y la UI en *Facturas*.
 - **Seguros y pólizas** (personas y vehículos): ver la tarea al final del backlog en el
   Sistema de Contexto. Cubre vida/salud/vehículo/hogar, prima y periodicidad, vigencia y
   renovación, beneficiarios y bien asegurado (placa), alertas de vencimiento y reporte
   del costo anual. *No está implementado.*
-- **CI**: no hay `.github/workflows`; conviene un pipeline mínimo (`pytest` + `pnpm build`).
 
 ## v1.1.1 — Correcciones tras validar con datos reales
 
@@ -299,3 +293,46 @@ Primera mitad de la lectura de recibos **artículo por artículo** (hoy sin expo
   (21 tablas, 17 migraciones, 4 jobs del scheduler, `lineas.py` / `clasificador.py`, el árbol
   único) y el `README` (endpoints y estado). El `docker-compose.yml` usa `postgres:16`:
   pgvector no se usa (solo `pgcrypto`).
+
+## v1.17 — OCR por línea (2/2): de código muerto a funcionalidad
+
+La 1/2 dejó las tablas, el parser y el clasificador, pero **nada los usaba**: subías la
+factura y su texto quedaba guardado sin partirlo. Ahora el flujo está cerrado.
+
+- **Endpoints** (`/facturas`):
+  - `POST /facturas/{id}/lineas` — parte el texto en artículos, los clasifica y los
+    **persiste**. Es idempotente: al re-parsear descarta las líneas no confirmadas y
+    conserva las que ya generaron transacción.
+  - `PATCH /facturas/{id}/lineas/{linea_id}` — corrige descripción, valor o etiqueta.
+    Al asignar etiqueta **aprende** la regla en `reglas_ocr`, así que la próxima factura
+    la clasifica el nivel de historial.
+  - `DELETE /facturas/{id}/lineas/{linea_id}` — descarta una línea.
+  - `POST /facturas/{id}/confirmar` — crea **una transacción de gasto por línea**, con la
+    categoría que sale de la etiqueta y la fecha de la factura (o la de hoy). Una línea ya
+    confirmada no se puede editar ni borrar (409).
+  - `GET /facturas/{id}` — factura con sus líneas y el **tipo de documento** detectado
+    (mercado, gasolina, servicios, restaurante u otro).
+- **Embeddings opcionales** (`app/embeddings.py`): tercer nivel del clasificador vía Ollama,
+  con `FINANZAS_OLLAMA_URL` (vacío = desactivado, sin tocar la red). Los vectores se cachean
+  por texto, así que el perfil de cada etiqueta se pide una vez y no una vez por línea. Si
+  Ollama no responde, el nivel se salta: una factura **nunca** falla por el servicio de
+  embeddings. Se usa `urllib` (biblioteca estándar), sin dependencias nuevas.
+- **Frontend** (*Facturas*): botón **Leer líneas**, tabla editable con descripción,
+  cantidad × valor unitario, valor total, **selector de etiqueta en cascada** por categoría
+  (`Etiqueta › Subetiqueta`), badge del origen de la clasificación (historial / diccionario /
+  embeddings / manual / sin clasificar), descartar línea, elegir cuenta y **Confirmar N
+  líneas**. El input de subida acepta también **fotos** (JPG/PNG), no solo PDF.
+- **Tests**: 35 en verde (antes 32). Cubren el parser (formatos de dos líneas, dinero
+  colombiano, descarte de totales y medios de pago), el flujo completo
+  parsear → clasificar → corregir → **re-clasificar por historial** → confirmar, el
+  aislamiento entre usuarios y que una línea confirmada es inmutable.
+
+## v1.18 — CI y backlog ordenado
+
+- **CI en GitHub Actions** (`.github/workflows/ci.yml`): dos jobs en paralelo.
+  *backend* levanta PostgreSQL 16 (la misma imagen oficial que `compose`, con `pgcrypto`),
+  corre `alembic upgrade head`, **`alembic check`** —el paso que habría cazado la deriva de
+  índices de la 0017— y `pytest`; *frontend* corre `pnpm install --frozen-lockfile` y
+  `pnpm build` (que ya incluye `tsc --noEmit`). Badge en el README.
+- El backlog vive en el Sistema de Contexto (RAG): se cerraron las 3 tareas demo que
+  seguían como «pendientes» estando ya implementadas y se registraron las reales.

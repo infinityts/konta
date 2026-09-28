@@ -75,11 +75,17 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   según la fecha límite.
 
 ### Documentos
-- **Facturas PDF**: subida, extracción de texto (**pypdf** + **OCR tesseract** en
-  español, con preprocesado para fotos de recibos) y detección heurística de **monto** y
-  **fecha**; asociación a transacciones.
-  *(El backend ya sabe partir el recibo en líneas y clasificarlas — `lineas.py` y
-  `clasificador.py` — pero todavía no se expone en la API ni en la UI.)*
+- **Facturas PDF o foto del recibo**: subida, extracción de texto (**pypdf** + **OCR
+  tesseract** en español, con preprocesado para fotos de recibos arrugados) y detección
+  heurística de **monto** y **fecha**; asociación a transacciones.
+- **OCR por línea**: un recibo de mercado o de gasolina no es un gasto único, son N
+  artículos. La app parte el texto en líneas (`lineas.py`), entiende el formato de dinero
+  colombiano (`15.916` son quince mil novecientos dieciséis) y clasifica cada artículo
+  contra tu árbol de etiquetas en cascada:
+  **historial** (lo que ya corregiste) → **diccionario** (palabras típicas de un recibo) →
+  **embeddings** (similitud semántica vía Ollama, opcional). Lo que no sabe decidir queda
+  *sin clasificar* para que lo elijas una vez — y a la próxima ya lo sabe.
+  Al confirmar, **cada línea crea su propia transacción** con su categoría y etiqueta.
 
 ### Datos
 - **Importar estado de cuenta (CSV)**: sube el CSV del banco; detecta las columnas de
@@ -183,7 +189,7 @@ aislados por usuario.
 | **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}` |
 | **Alertas** | `GET /alertas?dias=15` |
 | **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM` |
-| **Facturas** | `GET/POST /facturas`, `POST /facturas/{id}/asociar`, `DELETE /facturas/{id}` |
+| **Facturas** | `GET/POST /facturas`, `GET/DELETE /facturas/{id}`, `POST /facturas/{id}/asociar`, `POST /facturas/{id}/lineas`, `PATCH/DELETE /facturas/{id}/lineas/{linea_id}`, `POST /facturas/{id}/confirmar` |
 | **Presupuestos** | `GET/POST /presupuestos`, `PATCH/DELETE /presupuestos/{id}` |
 | **Importar** | `POST /importar/csv` (previsualizar), `POST /importar/confirmar` |
 | **Mercado** | `GET/POST /productos`, `GET/PATCH/DELETE /productos/{id}`, `GET /productos/{id}/comparativo`, `GET/POST /productos/{id}/precios` |
@@ -220,7 +226,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0013_etiquetas_en_categorias` | `etiquetas.categoria_id` + unicidad entre hermanos |
 | `0014_arbol_unico` | migra subcategorías a etiquetas y elimina `categorias.padre_id` |
 | `0015_suscripcion_etiqueta` | `suscripciones.etiqueta_id` |
-| `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea, backend listo, sin exponer) |
+| `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea) |
 | `0017_nombres_indices_orm` | renombra los índices al nombre que espera el ORM (`alembic check` limpio) |
 
 ---
@@ -235,24 +241,25 @@ FINANZAS_TEST_DATABASE_URL=postgresql+psycopg://finanzas:finanzas@localhost:5433
 
 Cobertura: auth, CRUD core, aislamiento multi-usuario, ingresos recurrentes,
 suscripciones que generan su gasto, etiquetas/subetiquetas (con cascada y unicidad
-entre hermanos), alertas de pagos, reportes, facturas (OCR), presupuestos, importar
+entre hermanos), alertas de pagos, reportes, facturas (OCR y OCR por línea con
+clasificación y aprendizaje), presupuestos, importar
 CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caja,
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**32 tests en verde.** El esquema se mantiene alineado con el ORM:
+**35 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + suscripciones que generan su gasto + árbol Categoría › Etiqueta › Subetiqueta + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda (TRM oficial) + simulador y deuda de tarjeta + respaldo + flujo de caja + metas de ahorro + notificaciones + cuentas/saldos
-- [x] Frontend: login/registro, dashboard con KPIs y motivo del sobregiro, cuentas y consolidado, categorías y etiquetas, transacciones con **edición** y etiquetas, tarjetas con deuda, edición y simulador, suscripciones con edición y pausa, ingresos recurrentes, reportes, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + suscripciones que generan su gasto + árbol Categoría › Etiqueta › Subetiqueta + alertas + reportes + facturas con OCR por línea (clasificación en cascada y aprendizaje) + presupuestos + importar CSV + mercado + multi-moneda (TRM oficial) + simulador y deuda de tarjeta + respaldo + flujo de caja + metas de ahorro + notificaciones + cuentas/saldos
+- [x] Frontend: login/registro, dashboard con KPIs y motivo del sobregiro, cuentas y consolidado, categorías y etiquetas, transacciones con **edición** y etiquetas, tarjetas con deuda, edición y simulador, suscripciones con edición y pausa, ingresos recurrentes, reportes, facturas con líneas OCR editables, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
 - [x] Navegación agrupada: `Resumen` + 5 grupos en barra superior (hover en escritorio, hamburguesa en móvil), definidos en `frontend/src/nav.ts`
 - [x] Loader `AccordionLoader` (alias `@` → `src`) y **carga diferida por página** (bundle inicial 271 kB → 183 kB)
 - [x] Despliegue con Docker/Podman
 - [x] Esquema sin deriva: `alembic check` limpio y `downgrade base` → `upgrade head` sin errores
-- [ ] **OCR por línea (2/2)**: exponer en API y UI lo que ya existe en el backend (`factura_lineas`, `reglas_ocr`, `lineas.py`, `clasificador.py`)
+- [x] **OCR por línea**: `factura_lineas` + `reglas_ocr` expuestos en la API y en la UI de *Facturas*
+- [x] CI: `pytest` (con PostgreSQL 16 y `alembic check`) + `pnpm build` en GitHub Actions
 - [ ] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima, vigencia, beneficiarios, bien asegurado y alertas de vencimiento
 - [ ] WhatsApp como canal de notificaciones (requiere Cloud API de Meta o gateway)
-- [ ] CI (`pytest` + `pnpm build`) en `.github/workflows`

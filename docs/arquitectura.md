@@ -81,8 +81,9 @@ relacionan las piezas.
 | `alertas.py` | Pagos próximos (suscripciones + corte/pago de tarjetas) |
 | `reportes.py` | Agregación mensual y por categoría |
 | `facturas.py` | Extracción de texto (pypdf + OCR tesseract con preprocesado) y heurísticas monto/fecha |
-| `lineas.py` | Parser de recibos: parte un texto OCR en líneas de artículo (descripción, cantidad, valor). **Sin exponer aún** (ver *OCR por línea, 2/2*) |
-| `clasificador.py` | Clasifica un artículo en cascada: historial → diccionario → embeddings |
+| `lineas.py` | Parser de recibos: parte un texto OCR en líneas de artículo (descripción, cantidad, valor) y detecta el tipo de documento |
+| `clasificador.py` | Clasifica un artículo en cascada: historial (`reglas_ocr`) → diccionario → embeddings |
+| `embeddings.py` | Embeddings **opcionales** (Ollama) para el tercer nivel del clasificador; sin `FINANZAS_OLLAMA_URL` no sale a la red |
 | `presupuestos.py` | Límite mensual por categoría vs gasto real |
 | `importacion.py` | Parser CSV flexible (delimitador, columnas, signos, formatos de monto) |
 | `mercado.py` | Comparativo de precios por tienda |
@@ -99,7 +100,8 @@ relacionan las piezas.
 ### Routers (21)
 `auth`, `categorias` (incluye `/arbol`), `cuentas`, `saldos`, `tarjetas`
 (incluye simulador), `suscripciones`, `transacciones`, `ingresos_recurrentes`,
-`etiquetas`, `alertas`, `reportes`, `facturas`, `presupuestos`, `importacion`,
+`etiquetas`, `alertas`, `reportes`, `facturas` (incluye el OCR por línea:
+`/lineas`, `/lineas/{id}` y `/confirmar`), `presupuestos`, `importacion`,
 `productos`, `lista_mercado`, `monedas` (monedas/tasas/convertir), `respaldo`,
 `flujo`, `metas`, `notificaciones`.
 

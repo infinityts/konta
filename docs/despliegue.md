@@ -124,7 +124,18 @@ cat respaldo-2026-09-27.sql | podman exec -i konta-db psql -U finanzas -d finanz
 | `FINANZAS_SECRET_KEY` | *(placeholder)* | Clave para firmar los JWT (**cámbiala**) |
 | `FINANZAS_ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | Duración del token |
 | `FINANZAS_TIMEZONE` | `America/Bogota` | Zona horaria para "hoy" (ingresos recurrentes / alertas) |
-| `FINANZAS_SCHEDULER_ENABLED` | `true` | Activa el scheduler de ingresos recurrentes y notificaciones |
+| `FINANZAS_SCHEDULER_ENABLED` | `true` | Activa el scheduler: ingresos recurrentes, suscripciones, TRM oficial y notificaciones |
+
+### OCR por línea (opcional)
+
+Tercer nivel del clasificador de artículos de una factura. **Sin** estas variables
+la app funciona igual: clasifica con el historial (`reglas_ocr`) y el diccionario.
+
+| Variable | Por defecto | Descripción |
+|---|---|---|
+| `FINANZAS_OLLAMA_URL` | *(vacío = desactivado)* | Base de Ollama, ej. `http://localhost:11434`. Si no responde, el nivel de embeddings se salta sin fallar la factura |
+| `FINANZAS_OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Modelo de embeddings. El perfil de cada etiqueta se cachea en memoria |
+| `FINANZAS_OLLAMA_TIMEOUT` | `5.0` | Segundos de espera por llamada |
 
 ### Notificaciones (opcionales)
 
