@@ -74,8 +74,11 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Reportes**: evolución mensual (últimos 6 meses) y desglose por categoría.
 - **Alertas de pagos**: próximos vencimientos de suscripciones y de tarjetas (pago/corte).
 - **Presupuestos**: límite mensual por categoría, con gasto real, % consumido y aviso de exceso.
-- **Flujo de caja**: proyección a 3/6/12 meses combinando ingresos recurrentes,
-  suscripciones activas y el gasto variable promedio; muestra balance y acumulado.
+- **Flujo de caja**: proyección a 3/6/12 meses combinando ingresos recurrentes, **cobros
+  fijos** (suscripciones **y pólizas de seguro**, cada una en los meses en que toca pagar:
+  una prima semestral aparece cada 6 meses, no todos) y el gasto variable promedio; muestra
+  balance y acumulado. **Todo en COP**: lo que esté en otra moneda se convierte con la tasa
+  registrada, y si falta la tasa se avisa en vez de sumar el número en crudo.
 
 ### Saldo y consolidado
 - **Cuentas** (efectivo, banco, ahorros…) cada una con su **saldo inicial**; el
@@ -270,7 +273,7 @@ clasificación y aprendizaje), presupuestos, importar
 CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caja,
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**41 tests en verde.** El esquema se mantiene alineado con el ORM:
+**44 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---

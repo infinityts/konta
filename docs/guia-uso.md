@@ -178,7 +178,7 @@ Si aparece **SOBREGIRADO** en rojo, debajo vienen los **motivos**:
 | **Cuentas** → *Consolidado mes a mes* | Saldo inicial, ingresos, gastos, balance y **saldo final corrido** |
 | **Reportes** | Evolución de 6 meses y desglose por `Categoría › Etiqueta › Subetiqueta` |
 | **Presupuestos** | Límite mensual por categoría, % consumido y aviso de exceso |
-| **Flujo** | Proyección a 3/6/12 meses con recurrentes y suscripciones |
+| **Flujo** | Proyección a 3/6/12 meses con ingresos recurrentes, suscripciones **y pólizas** (en COP) |
 | **Metas** | Objetivos de ahorro con aportes y aporte mensual sugerido |
 
 ---

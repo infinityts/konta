@@ -399,3 +399,30 @@ configuración de notificaciones** (y las pólizas nuevas). Ahora exporta y rest
 en orden de dependencias y con `flush` por modelo — sin `relationship()` declaradas, el
 orden de INSERT no se deduce solo (fue justo el fallo que apareció en el test: los
 aportes se insertaban antes que su meta).
+
+## v1.21 — Flujo de caja: monedas, pólizas y doble conteo
+
+Tres fallos en la proyección, uno de ellos metido por la v1.20.
+
+- **Monedas mezcladas**: `fijos_por_mes[clave] += sub.monto` sumaba los importes en crudo,
+  así que una suscripción de **USD 10** contaba como **$10** y el balance mezclaba monedas.
+  Ahora cada importe se convierte a COP con la tasa registrada (igual que el gasto fijo del
+  dashboard desde la v1.13) y, si falta la tasa, ese cobro **no se suma** y la moneda sale
+  en el nuevo campo `sin_tasa` — la UI lo avisa y dice dónde registrarla. El endpoint
+  declara `moneda: "COP"`. Lo mismo para los **ingresos** recurrentes, que tenían el
+  problema idéntico.
+- **Las pólizas no aparecían**: el flujo solo miraba las suscripciones, así que la prima de
+  un seguro no salía en la proyección. Ahora entran como cobro fijo, en los meses en que
+  toca pagarlas.
+- **Periodicidad semestral**: `_ocurrencias_suscripcion` no tenía `SEMESTRAL` en su mapa de
+  pasos, así que caía al valor por defecto (1 mes) y **una prima semestral se proyectaba
+  como si se pagara todos los meses**. El mapa ya lo incluye (y la función, ahora
+  `_ocurrencias_cobro`, sirve para suscripciones y pólizas).
+- **Doble conteo (regresión de la v1.20)**: el gasto variable solo excluía las
+  transacciones con `suscripcion_id`, así que las que genera una **póliza** entraban al
+  promedio variable *además* de contar como gasto fijo. Ahora se excluyen también por
+  `poliza_id`.
+
+Tests: 44 en verde (antes 41). Los tres fallos se reprodujeron primero con tests que
+fallaban, y cubren la conversión, el reparto de la prima semestral, el aviso de moneda sin
+tasa y que una prima no se cuente dos veces.

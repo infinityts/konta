@@ -90,7 +90,7 @@ relacionan las piezas.
 | `tasas.py` | Tasas de cambio: consulta, conversión y descarga desde internet |
 | `intereses.py` | Simulador de pago de deuda y conversión **E.A. ↔ mensual** |
 | `respaldo.py` | Exportar/restaurar todos los datos del usuario |
-| `flujo.py` | Proyección de flujo de caja a N meses |
+| `flujo.py` | Proyección de flujo de caja a N meses: ingresos recurrentes + cobros fijos (suscripciones y pólizas) + gasto variable, todo normalizado a COP |
 | `metas.py` | Progreso de metas de ahorro y aporte sugerido |
 | `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro |
 | `jerarquia.py` | Helpers del árbol `Categoría › Etiqueta › Subetiqueta` (rutas para mostrar) |
