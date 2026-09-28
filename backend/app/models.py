@@ -126,6 +126,14 @@ class TasaCambio(Base):
 class Categoria(Base):
     __tablename__ = "categorias"
 
+    # Unicidad del nombre por usuario, sin distinguir mayúsculas. La categoría es
+    # siempre raíz (el anidamiento vive en etiquetas), así que no lleva `WHERE`.
+    # Se declara aquí para que coincida con el índice de la migración 0021: la
+    # 0014 se llevó el índice parcial que creó la 0013 al borrar `padre_id`.
+    __table_args__ = (
+        Index("uq_categorias_raiz", "usuario_id", text("lower(nombre)"), unique=True),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     usuario_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
