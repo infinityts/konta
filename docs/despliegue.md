@@ -100,6 +100,28 @@ podman run -d --name konta-frontend ...
 El backend aplica las migraciones pendientes **solo** al arrancar
 (`alembic upgrade head`).
 
+> **Si vienes de una versión muy antigua (≤ v1.7), lee esto.** Las migraciones `0013` y
+> `0014` reestructuran las categorías y las etiquetas, y **borran las etiquetas que no
+> tengan `categoria_id`** (era el modelo viejo, con etiquetas sueltas fuera de una
+> categoría). El orden es: al arrancar se aplica la `0013`, que solo **añade** la columna
+> `etiquetas.categoria_id` (vacía). Si necesitas conservar esas etiquetas, **re-categorízalas
+> en la app antes de aplicar la `0014`**; si no, se pierden. Es el único punto del historial
+> de migraciones que borra datos del usuario, y está cubierto por
+> `backend/tests/test_migraciones.py`.
+
+### Comprobar el estado del esquema
+
+```bash
+# ¿Los modelos y las migraciones están alineados? (debe decir "No new upgrade operations")
+podman exec konta-backend alembic check
+
+# ¿En qué revisión está la base?
+podman exec konta-backend alembic current
+```
+
+`alembic check` es lo que corre el CI en cada push: si alguien toca un modelo y olvida la
+migración, falla ahí y no en producción.
+
 ---
 
 ## 4. Respaldo y restauración de datos

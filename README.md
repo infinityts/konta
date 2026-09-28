@@ -259,6 +259,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0018_whatsapp` | `config_notificaciones.whatsapp_numero` (canal WhatsApp) |
 | `0019_polizas` | `polizas`, `beneficiarios` + `transacciones.poliza_id` + periodicidad `semestral` |
 | `0020_poliza_asegurados` | `poliza_asegurados` (varias personas cubiertas por póliza) |
+| `0021_uq_categorias_raiz` | recupera la unicidad de categorías por usuario (la 0014 se llevó el índice) y fusiona duplicados |
 
 ---
 
@@ -276,9 +277,10 @@ alertas de vigencia), etiquetas/subetiquetas (con cascada y unicidad
 entre hermanos), alertas de pagos, reportes, facturas (OCR y OCR por línea con
 clasificación y aprendizaje), presupuestos, importar
 CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caja,
+migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**46 tests en verde.** El esquema se mantiene alineado con el ORM:
+**48 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---

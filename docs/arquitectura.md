@@ -111,7 +111,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-24 tablas de negocio (más `alembic_version`), creadas por 20 migraciones:
+24 tablas de negocio (más `alembic_version`), creadas por 21 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -135,6 +135,7 @@ relacionan las piezas.
 | `0018_whatsapp` | `config_notificaciones.whatsapp_numero` (canal WhatsApp) |
 | `0019_polizas` | `polizas`, `beneficiarios` + `transacciones.poliza_id` + `periodicidad.semestral` |
 | `0020_poliza_asegurados` | `poliza_asegurados` (varias personas cubiertas por póliza) |
+| `0021_uq_categorias_raiz` | recupera `uq_categorias_raiz` (sin el `WHERE` que la 0014 se llevó) y fusiona duplicados |
 
 ### Relaciones principales
 

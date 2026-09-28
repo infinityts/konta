@@ -456,3 +456,51 @@ Una **póliza familiar** cubre a varias personas, y no había dónde ponerlas.
   habrían perdido al restaurar, como pasó con las otras tablas en la v1.20).
 - Tests: 46 en verde (antes 45). El nuevo cubre el alta de varias personas, que el titular
   es único, la fecha futura, el aislamiento entre usuarios y el borrado en cascada.
+
+## v1.24 — Test de migraciones con datos (y el bug que destapó)
+
+Todas las pruebas de migraciones migraban una base **vacía**: eso no prueba nada de las
+migraciones que **mueven datos**, que son las que pueden romper un despliegue real. Faltaba
+justo lo que llevo dos rondas diciendo que era el riesgo no cubierto.
+
+- **`tests/test_migraciones.py`**: crea su propia base y reproduce el despliegue por
+  versiones con filas dentro — datos de la `0012` (categorías con hijos, etiquetas sueltas,
+  duplicados), la `0013` fusionando duplicados y repuntando movimientos, el paso en que el
+  usuario re-categoriza sus etiquetas con la app de la v1.7, y la `0014` convirtiendo
+  subcategorías en etiquetas. Comprueba que **no se pierde ninguna transacción**, que la
+  subcategoría queda como etiqueta dentro de su categoría, que las referencias
+  (transacciones, presupuestos, suscripciones, ingresos recurrentes) se repuntan, que el
+  movimiento sin clasificar no se toca y que la base termina en `head` con las tablas nuevas.
+
+### El bug que apareció
+
+Con filas dentro, el test falló al comprobar la unicidad de categorías:
+
+- La `0013` creó `uq_categorias_raiz` como índice **parcial** (`... WHERE padre_id IS NULL`).
+- La `0014` eliminó `categorias.padre_id` y **PostgreSQL se llevó el índice por delante**,
+  porque su cláusula `WHERE` usaba esa columna. La `0014` solo se acordó de borrar
+  `uq_categorias_hija`.
+- Desde entonces las **categorías no tenían ninguna garantía de unicidad en la base**: solo
+  la comprobaba el código de la API. Un script, un `INSERT` a mano o una carrera entre dos
+  peticiones podían dejar dos «Vivienda» sin que nada lo impidiera.
+
+**Migración `0021`**: fusiona los duplicados que se hayan podido crear en ese hueco
+(conserva el id menor y repunta transacciones, suscripciones, ingresos recurrentes,
+presupuestos, etiquetas y **pólizas**) y crea el índice único
+`uq_categorias_raiz (usuario_id, lower(nombre))` — ya sin `WHERE`, porque ahora toda
+categoría es raíz. El índice se declara también en `Categoria.__table_args__` para que
+`alembic check` siga limpio.
+
+Dos tests: el del despliegue completo y uno específico que parte de una base **con
+duplicados ya creados** para comprobar que la `0021` los fusiona en vez de fallar al
+desplegar (que era el riesgo real de "crear el índice a secas").
+
+Tests: 48 en verde (antes 46).
+
+### Aviso de despliegue
+
+Del test sale un aviso que no estaba escrito en ninguna parte: **una etiqueta que llegue a la
+`0014` sin `categoria_id` se borra** (es el comportamiento que documenta el v1.8, pero no su
+implicación operativa). Solo afecta a quien actualice desde la v1.7 o anterior: hay que
+re-categorizar las etiquetas entre la `0013` y la `0014`. Queda anotado en
+`docs/despliegue.md`.
