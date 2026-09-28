@@ -28,6 +28,7 @@ from ..embeddings import make_embedding
 from ..facturas import detectar_fecha, detectar_monto, extraer_texto
 from ..lineas import detectar_tipo, parsear_lineas
 from ..models import (
+    Categoria,
     Cuenta,
     Etiqueta,
     Factura,
@@ -41,6 +42,7 @@ from ..models import (
 )
 from ..recurrencia import hoy
 from ..schemas import (
+    AsignarEtiquetaIn,
     AsociarFacturaIn,
     ConfirmarLineasIn,
     FacturaDetalleOut,
@@ -275,6 +277,53 @@ def descartar_linea(
     db.commit()
 
 
+@router.patch("/{id}/lineas", response_model=FacturaDetalleOut)
+def asignar_etiqueta(
+    id: uuid.UUID,
+    data: AsignarEtiquetaIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Asigna una etiqueta a **muchas líneas** de una vez (una tira larga, de golpe).
+
+    Cada asignación se aprende en `reglas_ocr`: la próxima compra de lo mismo ya
+    se clasifica sola. Por defecto solo toca las líneas **sin clasificar**, para no
+    pisar lo que el diccionario acertó.
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    etiqueta = (
+        get_owned(db, Etiqueta, data.etiqueta_id, user.id) if data.etiqueta_id else None
+    )
+
+    pedidas = set(data.linea_ids) if data.linea_ids else None
+    objetivo = [
+        li
+        for li in _lineas(db, factura.id)
+        if li.transaccion_id is None
+        and (pedidas is None or li.id in pedidas)
+        and (not data.solo_sin_clasificar or li.etiqueta_id is None)
+    ]
+    if not objetivo:
+        raise HTTPException(
+            status_code=400, detail="No hay líneas pendientes que encajen con el filtro"
+        )
+
+    for linea in objetivo:
+        if etiqueta is None:
+            linea.etiqueta_id = None
+            linea.origen = "sin_clasificar"
+            linea.confianza = None
+            continue
+        linea.etiqueta_id = etiqueta.id
+        linea.origen = "manual"
+        linea.confianza = Decimal("1")
+        _aprender(db, user.id, linea.descripcion, etiqueta.id)
+
+    db.commit()
+    db.refresh(factura)
+    return _detalle(db, factura)
+
+
 @router.post("/{id}/confirmar", response_model=FacturaDetalleOut)
 def confirmar(
     id: uuid.UUID,
@@ -316,10 +365,25 @@ def confirmar(
         e.id: e
         for e in db.scalars(select(Etiqueta).where(Etiqueta.usuario_id == user.id)).all()
     }
+    # Respaldo para las líneas sin etiqueta: evita gastos sin categoría
+    respaldo = etiquetas.get(data.etiqueta_id) if data and data.etiqueta_id else None
+    if respaldo is None and data and data.etiqueta_id is not None:
+        respaldo = get_owned(db, Etiqueta, data.etiqueta_id, user.id)
+    categoria_respaldo = data.categoria_id if data else None
+    if categoria_respaldo is not None:
+        get_owned(db, Categoria, categoria_respaldo, user.id)
+
     fecha = (data.fecha if data and data.fecha else None) or factura.fecha_detectada or hoy()
 
     for linea in pendientes:
         etiqueta = etiquetas.get(linea.etiqueta_id) if linea.etiqueta_id else None
+        if etiqueta is None:
+            etiqueta = respaldo  # etiqueta elegida para toda la factura
+        categoria_id = (
+            etiqueta.categoria_id
+            if etiqueta is not None
+            else categoria_respaldo  # categoría elegida para toda la factura
+        )
         transaccion = Transaccion(
             usuario_id=user.id,
             tipo=TipoTransaccion.GASTO,
@@ -327,7 +391,7 @@ def confirmar(
             moneda=user.moneda_principal,
             fecha=fecha,
             descripcion=linea.descripcion,
-            categoria_id=etiqueta.categoria_id if etiqueta else None,
+            categoria_id=categoria_id,
             etiqueta_id=etiqueta.id if etiqueta else None,
             cuenta_id=cuenta_id,
             tarjeta_id=tarjeta.id if tarjeta else None,

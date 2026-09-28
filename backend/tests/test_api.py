@@ -1675,3 +1675,126 @@ def test_diccionario_y_etiquetas_por_defecto_no_se_desincronizan():
     # Y al revés: lo que el diccionario sabe reconocer debería poder sembrarse
     sin_sembrar = sorted(set(DICCIONARIO) - por_defecto)
     assert not sin_sembrar, f"el diccionario reconoce etiquetas que no se siembran: {sin_sembrar}"
+
+
+def test_ocr_asigna_etiqueta_en_bloque(client, engine):
+    """Una tira larga: asignar una etiqueta a las líneas sin clasificar de una vez."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Factura
+
+    _, h = _registrar(client)
+    usuario_id = client.get("/auth/me", headers=h).json()["id"]
+    cat_mercado = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
+    por_nombre = {e["nombre"]: e for e in client.get("/etiquetas", headers=h).json()}
+
+    # Dos artículos que el diccionario NO conoce, mezclados con uno que sí
+    TEXTO = RECIBO + "PILAS AA DURACEL 4 UN        7.300\nVELA AROMATICA VAINILLA      9.900\n"
+    Session = sessionmaker(bind=engine)
+    with Session.begin() as s:
+        f = Factura(usuario_id=usuario_id, nombre_archivo="tira.txt", texto_extraido=TEXTO)
+        s.add(f)
+        s.flush()
+        fid = str(f.id)
+
+    detalle = client.post(f"/facturas/{fid}/lineas", headers=h, json={}).json()
+    por_desc = {li["descripcion"].split()[0]: li for li in detalle["lineas"]}
+    assert por_desc["PECHUGA"]["origen"] == "diccionario"
+    sin_clasificar = [li for li in detalle["lineas"] if li["origen"] == "sin_clasificar"]
+    assert len(sin_clasificar) == 2, [li["descripcion"] for li in detalle["lineas"]]
+
+    # Asignación en bloque: solo toca las que están sin clasificar
+    nueva = client.post(
+        "/etiquetas", headers=h, json={"nombre": "Varios", "categoria_id": cat_mercado["id"]}
+    ).json()
+    r = client.patch(f"/facturas/{fid}/lineas", headers=h, json={"etiqueta_id": nueva["id"]})
+    assert r.status_code == 200, r.text
+    tras = {li["descripcion"].split()[0]: li for li in r.json()["lineas"]}
+    assert tras["PILAS"]["etiqueta_id"] == nueva["id"]
+    assert tras["VELA"]["etiqueta_id"] == nueva["id"]
+    assert all(tras[k]["origen"] == "manual" for k in ("PILAS", "VELA"))
+    # Lo que el diccionario ya acertó no se pisa
+    assert tras["PECHUGA"]["etiqueta_id"] == por_nombre["Carnes"]["id"]
+    assert tras["PECHUGA"]["origen"] == "diccionario"
+
+    # Y se aprendió: al re-parsear se reconocen por historial
+    r = client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    releidas = {li["descripcion"].split()[0]: li for li in r.json()["lineas"]}
+    assert releidas["PILAS"]["origen"] == "historial"
+    assert releidas["VELA"]["origen"] == "historial"
+
+    # Sin filtro: se puede sobrescribir todo (incluido lo que acertó el diccionario)
+    r = client.patch(f"/facturas/{fid}/lineas", headers=h, json={
+        "etiqueta_id": por_nombre["Despensa"]["id"], "solo_sin_clasificar": False,
+    })
+    assert all(li["etiqueta_id"] == por_nombre["Despensa"]["id"] for li in r.json()["lineas"])
+
+    # Y se puede quitar la etiqueta de todas
+    r = client.patch(f"/facturas/{fid}/lineas", headers=h, json={
+        "etiqueta_id": None, "solo_sin_clasificar": False,
+    })
+    assert all(li["etiqueta_id"] is None and li["origen"] == "sin_clasificar" for li in r.json()["lineas"])
+
+    # Con un filtro que no encaja con nada, avisa en vez de fingir que hizo algo
+    assert client.patch(
+        f"/facturas/{fid}/lineas", headers=h, json={"etiqueta_id": nueva["id"], "solo_sin_clasificar": False,
+                                                     "linea_ids": [str(uuid.uuid4())]}
+    ).status_code == 400
+
+
+def test_ocr_confirma_con_categoria_para_toda_la_factura(client, engine):
+    """Una compra que el diccionario no conoce no debe quedar sin categoría."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Factura
+
+    _, h = _registrar(client)
+    usuario_id = client.get("/auth/me", headers=h).json()["id"]
+    cats = {c["nombre"]: c["id"] for c in client.get("/categorias", headers=h).json()}
+    etqs = {e["nombre"]: e["id"] for e in client.get("/etiquetas", headers=h).json()}
+
+    SOLO_DESCONOCIDO = """TIENDA VARIOS
+PILAS AA DURACEL 4 UN        7.300
+VELA AROMATICA VAINILLA      9.900
+TOTAL                       17.200
+"""
+    Session = sessionmaker(bind=engine)
+
+    def nueva(nombre):
+        with Session.begin() as s:
+            f = Factura(usuario_id=usuario_id, nombre_archivo=nombre, texto_extraido=SOLO_DESCONOCIDO)
+            s.add(f)
+            s.flush()
+            return str(f.id)
+
+    # 1) Solo la categoría: el gasto cae ahí en vez de quedarse sin categoría
+    fid = nueva("varios.txt")
+    client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    r = client.post(f"/facturas/{fid}/confirmar", headers=h, json={"categoria_id": cats["Otros gastos"]})
+    assert r.status_code == 200, r.text
+    txs = client.get("/transacciones", headers=h).json()
+    assert len(txs) == 2
+    assert all(t["categoria_id"] == cats["Otros gastos"] for t in txs)
+    assert all(t["etiqueta_id"] is None for t in txs)
+
+    # 2) La etiqueta manda: de ella sale la categoría
+    fid = nueva("varios2.txt")
+    client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    r = client.post(f"/facturas/{fid}/confirmar", headers=h, json={"etiqueta_id": etqs["Ropa"]})
+    assert r.status_code == 200, r.text
+    nuevas = [t for t in client.get("/transacciones", headers=h).json() if t["etiqueta_id"] == etqs["Ropa"]]
+    assert len(nuevas) == 2
+    assert all(t["categoria_id"] == cats["Otros gastos"] for t in nuevas)
+
+    # 3) Una categoría ajena no se puede usar
+    _, h2 = _registrar(client)
+    usuario2 = client.get("/auth/me", headers=h2).json()["id"]
+    with Session.begin() as s:
+        ajena = Factura(usuario_id=usuario2, nombre_archivo="suya.txt", texto_extraido=SOLO_DESCONOCIDO)
+        s.add(ajena)
+        s.flush()
+        fid_ajena = str(ajena.id)
+    client.post(f"/facturas/{fid_ajena}/lineas", headers=h2, json={})
+    assert client.post(f"/facturas/{fid_ajena}/confirmar", headers=h2, json={
+        "categoria_id": cats["Otros gastos"],
+    }).status_code == 404

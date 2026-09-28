@@ -35,6 +35,9 @@ export default function Facturas() {
   const [cuentaSel, setCuentaSel] = useState<Record<string, string>>({})
   const [tarjetaSel, setTarjetaSel] = useState<Record<string, string>>({})
   const [fechaSel, setFechaSel] = useState<Record<string, string>>({})
+  const [bulkCat, setBulkCat] = useState<Record<string, string>>({})
+  const [bulkEtq, setBulkEtq] = useState<Record<string, string>>({})
+  const [respaldoCat, setRespaldoCat] = useState<Record<string, string>>({})
   const [sel, setSel] = useState<Record<string, string>>({})
   const [subiendo, setSubiendo] = useState(false)
   const [ocupado, setOcupado] = useState('')
@@ -146,10 +149,26 @@ export default function Facturas() {
           cuenta_id: cuentaSel[facturaId] || null,
           tarjeta_id: tarjetaSel[facturaId] || null,
           fecha: fechaSel[facturaId] || null,
+          // Para las que sigan sin etiqueta: así no quedan gastos sin categoría
+          categoria_id: respaldoCat[facturaId] || null,
         }),
       })
       setDetalles((d) => ({ ...d, [facturaId]: detalle }))
       await cargar()
+    })
+
+  /** Asigna una etiqueta a todas las líneas sin clasificar de una vez. */
+  const asignarEnBloque = (facturaId: string) =>
+    conOcupado(facturaId, async () => {
+      const detalle = await api<FacturaDetalle>(`/facturas/${facturaId}/lineas`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          etiqueta_id: bulkEtq[facturaId] || null,
+          solo_sin_clasificar: true,
+        }),
+      })
+      setDetalles((d) => ({ ...d, [facturaId]: detalle }))
+      setAviso('Etiqueta aplicada a las líneas sin clasificar (y aprendida para la próxima).')
     })
 
   /** Siembra las etiquetas que el diccionario del OCR reconoce y vuelve a leer. */
@@ -316,6 +335,68 @@ export default function Facturas() {
                           Confirmar {pendientes.length} línea(s)
                         </button>
                       </div>
+                    )}
+                    {pendientes.some((l) => l.origen === 'sin_clasificar') && (
+                      <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-2">
+                        <span className="text-xs text-slate-500">
+                          Asignar a las {pendientes.filter((l) => l.origen === 'sin_clasificar').length} sin
+                          clasificar:
+                        </span>
+                        <select
+                          value={bulkCat[f.id] ?? ''}
+                          onChange={(e) => {
+                            const valor = e.target.value
+                            setBulkCat((s) => ({ ...s, [f.id]: valor }))
+                            setBulkEtq((s) => ({ ...s, [f.id]: '' }))
+                          }}
+                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                        >
+                          <option value="">Categoría…</option>
+                          {categorias.filter((c) => c.tipo === 'gasto').map((c) => (
+                            <option key={c.id} value={c.id}>{c.nombre}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={bulkEtq[f.id] ?? ''}
+                          onChange={(e) => setBulkEtq((s) => ({ ...s, [f.id]: e.target.value }))}
+                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                        >
+                          <option value="">Etiqueta…</option>
+                          {categorias
+                            .filter((c) => c.id === (bulkCat[f.id] ?? ''))
+                            .flatMap((c) => opcionesDeCategoria(c))
+                            .map((o) => (
+                              <option key={o.id} value={o.id}>{o.label}</option>
+                            ))}
+                        </select>
+                        <button
+                          onClick={() => asignarEnBloque(f.id)}
+                          disabled={ocupado === f.id || !bulkEtq[f.id]}
+                          className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                        >
+                          Aplicar
+                        </button>
+                        <span className="text-xs text-slate-400">
+                          (se aprende: la próxima ya sale clasificada)
+                        </span>
+                      </div>
+                    )}
+                    {pendientes.length > 0 && pendientes.some((l) => l.origen === 'sin_clasificar') && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Las que sigan sin clasificar al confirmar: elige una{' '}
+                        <select
+                          value={respaldoCat[f.id] ?? ''}
+                          onChange={(e) => setRespaldoCat((s) => ({ ...s, [f.id]: e.target.value }))}
+                          className="rounded border border-slate-300 px-1 py-0.5 text-xs"
+                        >
+                          <option value="">categoría de respaldo</option>
+                          {categorias.filter((c) => c.tipo === 'gasto').map((c) => (
+                            <option key={c.id} value={c.id}>{c.nombre}</option>
+                          ))}
+                        </select>{' '}
+                        para que el gasto no quede sin categoría (si no, no sale en reportes ni en
+                        presupuestos).
+                      </p>
                     )}
                     {tarjetaSel[f.id] && tarjetas.find((t) => t.id === tarjetaSel[f.id])?.tipo === 'credito' && (
                       <p className="mt-1 text-xs text-slate-500">

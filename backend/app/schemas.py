@@ -512,6 +512,25 @@ class LineaUpdateIn(BaseModel):
     etiqueta_id: uuid.UUID | None = None
 
 
+class AsignarEtiquetaIn(BaseModel):
+    """Asignar **una etiqueta a muchas líneas** de una vez.
+
+    Pensado para una tira larga de mercado: en lugar de corregir 30 líneas una a
+    una, se elige la etiqueta y se aplica a las que están sin clasificar. Cada
+    asignación se **aprende** en `reglas_ocr`, así que la próxima vez el
+    clasificador ya las reconoce por historial.
+
+    - `linea_ids` vacío o ausente = todas las líneas pendientes que encajen.
+    - `solo_sin_clasificar` (por defecto) respeta lo que el diccionario ya acertó:
+      para sobrescribir todo hay que pedirlo explícitamente.
+    - `etiqueta_id: null` sirve para **quitar** la etiqueta de esas líneas.
+    """
+
+    etiqueta_id: uuid.UUID | None = None
+    linea_ids: list[uuid.UUID] | None = None
+    solo_sin_clasificar: bool = True
+
+
 class ConfirmarLineasIn(BaseModel):
     """`linea_ids` vacío o ausente = todas las líneas sin confirmar.
 
@@ -525,6 +544,12 @@ class ConfirmarLineasIn(BaseModel):
     cuenta_id: uuid.UUID | None = None
     tarjeta_id: uuid.UUID | None = None
     fecha: date | None = None
+    # Respaldo para las líneas que sigan sin etiqueta: así una compra que el
+    # diccionario no conoce no genera gastos **sin categoría** (invisibles para
+    # los reportes y los presupuestos). Si se indica `etiqueta_id`, su categoría
+    # manda; si solo hay `categoria_id`, el gasto queda en esa categoría.
+    etiqueta_id: uuid.UUID | None = None
+    categoria_id: uuid.UUID | None = None
 
 
 # --- presupuestos ---
