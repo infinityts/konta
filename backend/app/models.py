@@ -281,3 +281,54 @@ class Presupuesto(Base):
     moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class Producto(Base):
+    """Producto del catálogo de mercado."""
+
+    __tablename__ = "productos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    unidad: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class PrecioMercado(Base):
+    """Precio histórico de un producto en una tienda."""
+
+    __tablename__ = "precios_mercado"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    producto_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("productos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tienda: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    precio: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    fecha: Mapped[date] = mapped_column(Date, nullable=False, default=_ahora)
+
+
+class ItemLista(Base):
+    """Item de la lista de mercado."""
+
+    __tablename__ = "lista_mercado"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    producto_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("productos.id", ondelete="SET NULL"), nullable=True
+    )
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    cantidad: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("1"))
+    precio_estimado: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    comprado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

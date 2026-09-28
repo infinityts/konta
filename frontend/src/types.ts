@@ -107,6 +107,41 @@ export interface ImportarFila {
   categoria_id: string | null
 }
 
+export interface Producto {
+  id: string
+  nombre: string
+  unidad: string | null
+}
+
+export interface ComparativoTienda {
+  tienda: string
+  precio: number | string
+  moneda: string
+  fecha: string
+}
+
+export interface Comparativo {
+  producto_id: string
+  producto_nombre: string
+  tiendas: ComparativoTienda[]
+  mas_barata: string | null
+}
+
+export interface ItemLista {
+  id: string
+  producto_id: string | null
+  nombre: string
+  cantidad: number | string
+  precio_estimado: number | string | null
+  comprado: boolean
+}
+
+export interface ListaMercado {
+  items: ItemLista[]
+  total_estimado: number
+  pendientes: number
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string

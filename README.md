@@ -42,6 +42,12 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   fecha, descripción y monto, y muestra una **previsualización** antes de crear las
   transacciones.
 
+### Mercado
+- **Lista de compras**: items a comprar con cantidad y precio estimado, total estimado
+  y marcado de "comprado".
+- **Comparativo de precios**: registra precios por **producto y tienda** (histórico) y
+  muestra cuál tienda es **más barata**.
+
 ---
 
 ## Stack
@@ -117,6 +123,8 @@ aislados por usuario.
 | **Facturas** | `GET/POST /facturas`, `POST /facturas/{id}/asociar`, `DELETE /facturas/{id}` |
 | **Presupuestos** | `GET/POST /presupuestos`, `PATCH/DELETE /presupuestos/{id}` |
 | **Importar** | `POST /importar/csv` (previsualizar), `POST /importar/confirmar` |
+| **Mercado** | `GET/POST /productos`, `GET/PATCH/DELETE /productos/{id}`, `GET /productos/{id}/comparativo`, `GET/POST /productos/{id}/precios` |
+| **Lista de compras** | `GET/POST /lista-mercado`, `PATCH/DELETE /lista-mercado/{id}` |
 
 ---
 
@@ -131,6 +139,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0003_etiquetas` | `etiquetas` (autojerárquica) + `transacciones.etiqueta_id` |
 | `0004_facturas` | `facturas` |
 | `0005_presupuestos` | `presupuestos` |
+| `0006_mercado` | `productos`, `precios_mercado`, `lista_mercado` |
 
 ---
 
@@ -149,8 +158,8 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos
-- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado
+- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado
 - [x] Despliegue con Docker/Podman
-- [ ] Mercado, multi-moneda (tasas), tasas de tarjetas, export/backup, flujo de caja, metas
+- [ ] Multi-moneda (tasas), tasas de tarjetas, export/backup, flujo de caja, metas
 - [ ] Notificaciones de alarmas por email/Telegram

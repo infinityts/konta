@@ -338,3 +338,83 @@ class ImportarPreviewOut(BaseModel):
 
 class ImportarResultadoOut(BaseModel):
     creadas: int
+
+
+# --- mercado (productos, precios, lista) ---
+
+
+class ProductoIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    unidad: str | None = None
+
+
+class ProductoUpdate(BaseModel):
+    nombre: str | None = None
+    unidad: str | None = None
+
+
+class ProductoOut(ProductoIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    usuario_id: uuid.UUID
+
+
+class PrecioIn(BaseModel):
+    tienda: str | None = None
+    precio: Decimal = Field(gt=0)
+    moneda: str = "COP"
+    fecha: date | None = None
+
+
+class PrecioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    producto_id: uuid.UUID
+    tienda: str | None
+    precio: Decimal
+    moneda: str
+    fecha: date
+
+
+class ComparativoTiendaOut(BaseModel):
+    tienda: str
+    precio: Decimal
+    moneda: str
+    fecha: date
+
+
+class ComparativoOut(BaseModel):
+    producto_id: uuid.UUID
+    producto_nombre: str
+    tiendas: list[ComparativoTiendaOut]
+    mas_barata: str | None = None
+
+
+class ItemListaIn(BaseModel):
+    producto_id: uuid.UUID | None = None
+    nombre: str = Field(min_length=1, max_length=120)
+    cantidad: Decimal = Field(default=Decimal("1"), gt=0)
+    precio_estimado: Decimal | None = None
+
+
+class ItemListaUpdate(BaseModel):
+    nombre: str | None = None
+    cantidad: Decimal | None = Field(None, gt=0)
+    precio_estimado: Decimal | None = None
+    comprado: bool | None = None
+
+
+class ItemListaOut(ItemListaIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    usuario_id: uuid.UUID
+    comprado: bool
+
+
+class ListaMercadoOut(BaseModel):
+    items: list[ItemListaOut]
+    total_estimado: float
+    pendientes: int

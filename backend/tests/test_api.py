@@ -265,3 +265,22 @@ def test_importar_csv(client):
     assert r.status_code == 200
     assert r.json()["creadas"] == 2
     assert len(client.get("/transacciones", headers=h).json()) == 2
+
+
+def test_mercado_comparativo_y_lista(client):
+    _, h = _registrar(client)
+
+    prod = client.post("/productos", headers=h, json={"nombre": "Leche", "unidad": "litro"}).json()
+    client.post(f"/productos/{prod['id']}/precios", headers=h, json={"tienda": "Tienda A", "precio": "4000"})
+    client.post(f"/productos/{prod['id']}/precios", headers=h, json={"tienda": "Tienda B", "precio": "3500"})
+
+    comp = client.get(f"/productos/{prod['id']}/comparativo", headers=h).json()
+    assert comp["mas_barata"] == "Tienda B"
+    assert len(comp["tiendas"]) == 2
+    assert comp["tiendas"][0]["tienda"] == "Tienda B"
+
+    client.post("/lista-mercado", headers=h, json={"nombre": "Leche", "cantidad": "2", "precio_estimado": "3500"})
+    lista = client.get("/lista-mercado", headers=h).json()
+    assert len(lista["items"]) == 1
+    assert lista["total_estimado"] == 7000.0
+    assert lista["pendientes"] == 1
