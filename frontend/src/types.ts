@@ -61,6 +61,7 @@ export interface Transaccion {
   suscripcion_id: string | null
   etiqueta_id: string | null
   cuenta_id: string | null
+  poliza_id?: string | null
   notas: string | null
 }
 
@@ -73,7 +74,7 @@ export interface Etiqueta {
 }
 
 export interface Alerta {
-  tipo: 'suscripcion' | 'tarjeta_pago' | 'tarjeta_corte'
+  tipo: 'suscripcion' | 'tarjeta_pago' | 'tarjeta_corte' | 'poliza_pago' | 'poliza_vencimiento'
   titulo: string
   fecha: string
   dias_restantes: number
@@ -338,6 +339,55 @@ export interface IngresoRecurrente {
   proxima_ejecucion: string
   categoria_id: string | null
   activa: boolean
+}
+
+export interface Beneficiario {
+  id: string
+  usuario_id: string
+  poliza_id: string
+  nombre: string
+  parentesco: string | null
+  porcentaje: number | string | null
+}
+
+export type TipoPoliza = 'vida' | 'salud' | 'vehiculo' | 'hogar' | 'otro'
+
+export interface Poliza {
+  id: string
+  usuario_id: string
+  tipo: TipoPoliza
+  aseguradora: string
+  numero_poliza: string | null
+  asegurado_nombre: string | null
+  placa: string | null
+  marca: string | null
+  modelo: string | null
+  anio: number | null
+  valor_asegurado: number | string | null
+  prima: number | string
+  moneda: string
+  periodicidad: 'semanal' | 'mensual' | 'trimestral' | 'semestral' | 'anual'
+  fecha_inicio: string | null
+  fecha_fin: string | null
+  proximo_pago: string | null
+  renovacion_automatica: boolean
+  categoria_id: string | null
+  etiqueta_id: string | null
+  tarjeta_id: string | null
+  cuenta_id: string | null
+  estado: 'activa' | 'pausada' | 'cancelada'
+  notas: string | null
+  creada_en: string
+  beneficiarios: Beneficiario[]
+  prima_mensual_cop: number | null
+  titulo: string
+}
+
+export interface PolizaResumen {
+  polizas_activas: number
+  prima_mensual_cop: number
+  prima_anual_cop: number
+  sin_tasa: string[]
 }
 
 export function fmtMoney(v: number | string | null | undefined): string {

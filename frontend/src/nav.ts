@@ -29,6 +29,7 @@ export const GRUPOS: GrupoNav[] = [
       { to: '/cuentas', label: 'Cuentas', icono: '🏦' },
       { to: '/tarjetas', label: 'Tarjetas', icono: '💳' },
       { to: '/suscripciones', label: 'Suscripciones', icono: '🔁' },
+      { to: '/polizas', label: 'Seguros', icono: '🛡️' },
       { to: '/ingresos-recurrentes', label: 'Ingresos recurrentes', icono: '📅' },
     ],
   },

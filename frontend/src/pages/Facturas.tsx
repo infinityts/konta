@@ -8,6 +8,7 @@ import {
   type Factura,
   type FacturaDetalle,
   type FacturaLinea,
+  type SaldoResumen,
   type Transaccion,
 } from '../types'
 
@@ -43,7 +44,8 @@ export default function Facturas() {
       cargar(),
       api<Categoria[]>('/categorias').then(setCategorias),
       api<Etiqueta[]>('/etiquetas').then(setEtiquetas),
-      api<Cuenta[]>('/cuentas').then(setCuentas),
+      // `GET /cuentas` devuelve el resumen con totales: las cuentas van en `cuentas`
+      api<SaldoResumen>('/cuentas').then((r) => setCuentas(r.cuentas)),
     ]).catch((e) => setError(e instanceof Error ? e.message : 'Error'))
   }, [])
 

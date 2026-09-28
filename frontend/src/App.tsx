@@ -19,6 +19,7 @@ const Mercado = lazy(() => import('./pages/Mercado'))
 const Metas = lazy(() => import('./pages/Metas'))
 const Monedas = lazy(() => import('./pages/Monedas'))
 const Notificaciones = lazy(() => import('./pages/Notificaciones'))
+const Polizas = lazy(() => import('./pages/Polizas'))
 const Presupuestos = lazy(() => import('./pages/Presupuestos'))
 const Reportes = lazy(() => import('./pages/Reportes'))
 const Respaldo = lazy(() => import('./pages/Respaldo'))
@@ -35,6 +36,7 @@ const RUTAS: Array<{ path: string; element: RouteObject['element'] }> = [
   { path: '/', element: <Dashboard /> },
   { path: '/tarjetas', element: <Tarjetas /> },
   { path: '/suscripciones', element: <Suscripciones /> },
+  { path: '/polizas', element: <Polizas /> },
   { path: '/ingresos-recurrentes', element: <IngresosRecurrentes /> },
   { path: '/etiquetas', element: <Etiquetas /> },
   { path: '/reportes', element: <Reportes /> },
