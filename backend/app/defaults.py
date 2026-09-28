@@ -9,6 +9,7 @@ DEFAULT_CATEGORIAS: list[dict] = [
     {"nombre": "Restaurantes", "tipo": "gasto", "icono": "utensils", "color": "#ef4444"},
     {"nombre": "Salud", "tipo": "gasto", "icono": "heart", "color": "#ec4899"},
     {"nombre": "Entretenimiento", "tipo": "gasto", "icono": "gamepad", "color": "#a855f7"},
+    {"nombre": "Telefonía", "tipo": "gasto", "icono": "phone", "color": "#0891b2"},
     {"nombre": "Otros gastos", "tipo": "gasto", "icono": "ellipsis", "color": "#64748b"},
     # ingresos
     {"nombre": "Salario", "tipo": "ingreso", "icono": "wallet", "color": "#10b981"},
