@@ -2010,3 +2010,152 @@ def test_copiar_etiquetas_validaciones(client):
     assert client.post(f"/categorias/{c2['id']}/copiar-etiquetas", headers=h, json={
         "origen_id": str(uuid.uuid4()),
     }).status_code == 404
+
+
+# --- un movimiento que se repite (recurrente) u ocasional ------------------- #
+
+
+def test_transaccion_recurrente_crea_el_compromiso(client):
+    """«Se repite»: la transacción es el pago de este periodo y nace el compromiso."""
+    _, h = _registrar(client)
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "3000000"}).json()
+    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Vivienda")
+    etq = client.post("/etiquetas", headers=h, json={"nombre": "Arriendo", "categoria_id": cat["id"]}).json()
+    hoy_ = date.today()
+
+    r = client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "1500000", "fecha": hoy_.isoformat(),
+        "descripcion": "Arriendo", "categoria_id": cat["id"], "etiqueta_id": etq["id"],
+        "cuenta_id": cuenta["id"],
+        "recurrencia": {"periodicidad": "mensual"},
+    })
+    assert r.status_code == 201, r.text
+    tx = r.json()
+    assert tx["suscripcion_id"] is not None, "la transacción queda enlazada al compromiso"
+    # Sigue siendo el gasto de este periodo, con su cuenta
+    assert tx["cuenta_id"] == cuenta["id"]
+
+    sups = client.get("/suscripciones", headers=h).json()
+    assert len(sups) == 1
+    sub = sups[0]
+    assert sub["nombre"] == "Arriendo" and float(sub["monto"]) == 1500000.0
+    assert sub["periodicidad"] == "mensual" and sub["estado"] == "activa"
+    assert sub["categoria_id"] == cat["id"] and sub["etiqueta_id"] == etq["id"]
+    # El día sale de la fecha: el compromiso apunta al MISMO día del mes siguiente
+    esperado = date(hoy_.year + (1 if hoy_.month == 12 else 0), 1 if hoy_.month == 12 else hoy_.month + 1, min(hoy_.day, 28))
+    assert sub["proximo_pago"] == esperado.isoformat()
+    assert sub["cuenta_id"] == cuenta["id"], "sin cuenta, el gasto del mes que viene no movería el saldo"
+
+    # Y la cuenta ya descontó este periodo
+    saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
+    assert saldos["Ahorros"]["saldo_actual"] == 1500000.0
+
+
+def test_recurrente_no_duplica_el_periodo_y_sigue_generando(client, engine):
+    """El compromiso apunta al siguiente periodo: el job no duplica el de ahora."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.recurrencia import procesar_suscripciones
+
+    _, h = _registrar(client)
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "Diario", "saldo_inicial": "1000000"}).json()
+    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Suscripciones")
+    hoy_ = date.today()
+
+    r = client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "44900", "fecha": hoy_.isoformat(),
+        "descripcion": "Streaming", "categoria_id": cat["id"], "cuenta_id": cuenta["id"],
+        "recurrencia": {"periodicidad": "semanal"},
+    })
+    assert r.status_code == 201, r.text
+
+    sf = sessionmaker(bind=engine, expire_on_commit=False)
+    # Hoy no hay nada vencido: no se duplica el periodo que acabo de registrar
+    with sf.begin() as s:
+        assert procesar_suscripciones(s, hoy_) == 0
+    assert len(client.get("/transacciones", headers=h).json()) == 1
+
+    # A la semana siguiente genera uno, y solo uno, con su cuenta
+    siguiente = hoy_ + timedelta(days=7)
+    with sf.begin() as s:
+        assert procesar_suscripciones(s, siguiente) == 1
+        assert procesar_suscripciones(s, siguiente) == 0  # idempotente
+
+    txs = client.get("/transacciones", headers=h).json()
+    assert len(txs) == 2
+    generada = next(t for t in txs if t["fecha"] == siguiente.isoformat())
+    assert generada["suscripcion_id"] is not None, "queda enlazada al compromiso"
+    assert generada["cuenta_id"] == cuenta["id"], "y mueve la cuenta, no queda «sin cuenta»"
+    # Los dos periodos descontaron del saldo
+    saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
+    assert saldos["Diario"]["saldo_actual"] == 1000000.0 - 2 * 44900.0
+
+
+def test_transaccion_recurrente_ingreso(client):
+    """Un ingreso que se repite crea su compromiso con la cuenta donde entra."""
+    _, h = _registrar(client)
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "Nómina", "saldo_inicial": "0"}).json()
+    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Salario")
+    hoy_ = date.today()
+
+    r = client.post("/transacciones", headers=h, json={
+        "tipo": "ingreso", "monto": "5000000", "fecha": hoy_.isoformat(),
+        "descripcion": "Salario", "categoria_id": cat["id"], "cuenta_id": cuenta["id"],
+        "recurrencia": {"periodicidad": "mensual"},
+    })
+    assert r.status_code == 201, r.text
+    assert r.json()["ingreso_recurrente_id"] is not None
+
+    ingresos = client.get("/ingresos-recurrentes", headers=h).json()
+    assert len(ingresos) == 1
+    ing = ingresos[0]
+    assert ing["nombre"] == "Salario" and float(ing["monto"]) == 5000000.0
+    assert ing["periodicidad"] == "mensual" and ing["dia"] == hoy_.day
+    assert ing["cuenta_id"] == cuenta["id"]
+    assert ing["proxima_ejecucion"] > hoy_.isoformat()
+    # Y el ingreso de este periodo ya entró en la cuenta
+    saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
+    assert saldos["Nómina"]["saldo_actual"] == 5000000.0
+
+
+def test_recurrente_validaciones(client):
+    """Transferencias, periodicidades que no encajan y referencias ajenas."""
+    _, h = _registrar(client)
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "A", "saldo_inicial": "0"}).json()
+    otra = client.post("/cuentas", headers=h, json={"nombre": "B", "saldo_inicial": "0"}).json()
+    hoy_ = date.today().isoformat()
+
+    def enviar(**extra):
+        return client.post("/transacciones", headers=h, json={
+            "tipo": "gasto", "monto": "1000", "fecha": hoy_, "cuenta_id": cuenta["id"], **extra,
+        })
+
+    # Una transferencia no puede ser recurrente (todavía): falta de qué cuenta sale
+    assert enviar(
+        tipo="transferencia", cuenta_destino_id=otra["id"],
+        recurrencia={"periodicidad": "mensual"},
+    ).status_code == 422
+    # Periodicidad que no encaja con el tipo de movimiento
+    r = enviar(recurrencia={"periodicidad": "diario"})
+    assert r.status_code == 422 and "gasto recurrente" in r.json()["detail"]
+    r = enviar(tipo="ingreso", recurrencia={"periodicidad": "trimestral"})
+    assert r.status_code == 422 and "ingreso recurrente" in r.json()["detail"]
+
+    # Una categoría, etiqueta, cuenta o compromiso de otro usuario no se puede usar
+    _, h2 = _registrar(client)
+    cat_ajena = next(c for c in client.get("/categorias", headers=h2).json() if c["nombre"] == "Vivienda")
+    assert client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "1000", "fecha": hoy_, "categoria_id": cat_ajena["id"],
+    }).status_code == 404
+    sub_ajena = client.post("/suscripciones", headers=h2, json={"nombre": "Suya", "monto": "1000"}).json()
+    assert client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "1000", "fecha": hoy_, "suscripcion_id": sub_ajena["id"],
+    }).status_code == 404
+    # Y los compromisos tampoco aceptan cuentas ajenas
+    assert client.post("/suscripciones", headers=h, json={
+        "nombre": "Mía", "monto": "1000", "cuenta_id": "00000000-0000-0000-0000-000000000000",
+    }).status_code == 404
+    assert client.post("/ingresos-recurrentes", headers=h, json={
+        "nombre": "Mío", "monto": "1000", "periodicidad": "mensual", "dia": 5,
+        "cuenta_id": "00000000-0000-0000-0000-000000000000",
+    }).status_code == 404

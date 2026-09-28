@@ -10,11 +10,19 @@ from sqlalchemy.orm import Session
 
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
-from ..models import IngresoRecurrente, Usuario
+from ..models import Categoria, Cuenta, IngresoRecurrente, Usuario
 from ..recurrencia import proxima_ocurrencia_inicial
 from ..schemas import IngresoRecurrenteIn, IngresoRecurrenteOut, IngresoRecurrenteUpdate
 
 router = APIRouter(prefix="/ingresos-recurrentes", tags=["ingresos recurrentes"])
+
+
+def _validar_refs(db: Session, user: Usuario, campos: dict) -> None:
+    """Categoría y cuenta deben existir y ser del usuario."""
+    for campo, modelo in (("categoria_id", Categoria), ("cuenta_id", Cuenta)):
+        valor = campos.get(campo)
+        if valor is not None:
+            get_owned(db, modelo, valor, user.id)
 
 
 @router.get("", response_model=list[IngresoRecurrenteOut])
@@ -28,6 +36,7 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
 
 @router.post("", response_model=IngresoRecurrenteOut, status_code=201)
 def crear(data: IngresoRecurrenteIn, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    _validar_refs(db, user, data.model_dump())
     obj = IngresoRecurrente(
         usuario_id=user.id,
         **data.model_dump(exclude={"periodicidad", "dia"}),
@@ -50,6 +59,7 @@ def obtener(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depend
 def actualizar(id: uuid.UUID, data: IngresoRecurrenteUpdate, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     obj = get_owned(db, IngresoRecurrente, id, user.id)
     cambios = data.model_dump(exclude_unset=True)
+    _validar_refs(db, user, cambios)
     for campo, valor in cambios.items():
         if campo != "periodicidad":
             setattr(obj, campo, valor)

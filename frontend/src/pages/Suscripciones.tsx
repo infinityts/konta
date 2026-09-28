@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { fmtMoney, type Categoria, type Etiqueta, type Suscripcion, type Tarjeta } from '../types'
+import {
+  fmtMoney,
+  type Categoria,
+  type Cuenta,
+  type Etiqueta,
+  type SaldoResumen,
+  type Suscripcion,
+  type Tarjeta,
+} from '../types'
 
 const empty = {
   nombre: '',
@@ -9,6 +17,7 @@ const empty = {
   periodicidad: 'mensual',
   proximo_pago: '',
   categoria_id: '',
+  cuenta_id: '',
   etiqueta_id: '',
   tarjeta_id: '',
 }
@@ -18,6 +27,7 @@ export default function Suscripciones() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
+  const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [form, setForm] = useState(empty)
   const [editando, setEditando] = useState<string | null>(null)
   const [show, setShow] = useState(false)
@@ -36,6 +46,7 @@ export default function Suscripciones() {
     api<Categoria[]>('/categorias').then(setCategorias)
     api<Etiqueta[]>('/etiquetas').then(setEtiquetas)
     api<Tarjeta[]>('/tarjetas').then(setTarjetas)
+    api<SaldoResumen>('/cuentas').then((r) => setCuentas(r.cuentas))
   }, [])
 
   async function guardar() {
@@ -47,6 +58,7 @@ export default function Suscripciones() {
       periodicidad: form.periodicidad,
       proximo_pago: form.proximo_pago || null,
       categoria_id: form.categoria_id || null,
+      cuenta_id: form.cuenta_id || null,
       etiqueta_id: form.etiqueta_id || null,
       tarjeta_id: form.tarjeta_id || null,
     }
@@ -72,6 +84,7 @@ export default function Suscripciones() {
       periodicidad: s.periodicidad,
       proximo_pago: s.proximo_pago ?? '',
       categoria_id: s.categoria_id ?? '',
+      cuenta_id: s.cuenta_id ?? '',
       etiqueta_id: s.etiqueta_id ?? '',
       tarjeta_id: s.tarjeta_id ?? '',
     })
@@ -128,7 +141,7 @@ export default function Suscripciones() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Suscripciones</h2>
+        <h2 className="text-xl font-semibold">Gastos recurrentes</h2>
         <button onClick={() => (show ? cerrarForm() : setShow(true))} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
           {show ? 'Cancelar' : 'Nueva suscripción'}
         </button>
@@ -148,6 +161,17 @@ export default function Suscripciones() {
             <option value="COP">COP</option>
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
+          </select>
+
+          <select
+            value={form.cuenta_id}
+            onChange={(e) => set('cuenta_id', e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">Sin cuenta (no afecta ningún saldo)</option>
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
           </select>
           <input type="date" value={form.proximo_pago} onChange={(e) => set('proximo_pago', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <select

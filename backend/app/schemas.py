@@ -172,6 +172,9 @@ class SuscripcionIn(BaseModel):
     categoria_id: uuid.UUID | None = None
     tarjeta_id: uuid.UUID | None = None
     etiqueta_id: uuid.UUID | None = None
+    # De dónde sale el dinero: sin esto, cada gasto que genera el job no tocaba
+    # ninguna cuenta y aparecía como «movimiento sin cuenta».
+    cuenta_id: uuid.UUID | None = None
     estado: EstadoSuscripcion = EstadoSuscripcion.ACTIVA
     notas: str | None = None
 
@@ -186,6 +189,7 @@ class SuscripcionUpdate(BaseModel):
     categoria_id: uuid.UUID | None = None
     tarjeta_id: uuid.UUID | None = None
     etiqueta_id: uuid.UUID | None = None
+    cuenta_id: uuid.UUID | None = None
     estado: EstadoSuscripcion | None = None
     notas: str | None = None
 
@@ -200,7 +204,22 @@ class SuscripcionOut(SuscripcionIn):
 # --- transacciones ---
 
 
-class TransaccionIn(BaseModel):
+class RecurrenciaIn(BaseModel):
+    """Convertir el movimiento en un **compromiso que se repite solo**.
+
+    El **día** sale de la fecha del movimiento: la transacción que estás creando es
+    el pago de *este* periodo, y el compromiso queda apuntando al siguiente. Por eso
+    el job no duplica el de ahora.
+
+    `periodicidad` es un texto porque gastos e ingresos no comparten valores: un
+    gasto admite `semanal|mensual|trimestral|semestral|anual` y un ingreso
+    `diario|semanal|mensual`. El router lo traduce y avisa si no encaja.
+    """
+
+    periodicidad: str = "mensual"
+
+
+class TransaccionBase(BaseModel):
     tipo: TipoTransaccion
     monto: Decimal = Field(gt=0)
     moneda: str = "COP"
@@ -218,6 +237,11 @@ class TransaccionIn(BaseModel):
     notas: str | None = None
 
 
+class TransaccionIn(TransaccionBase):
+    # Al crearla, `recurrencia` la convierte además en un compromiso que se repite
+    recurrencia: RecurrenciaIn | None = None
+
+
 class TransaccionUpdate(BaseModel):
     tipo: TipoTransaccion | None = None
     monto: Decimal | None = Field(None, gt=0)
@@ -233,13 +257,14 @@ class TransaccionUpdate(BaseModel):
     notas: str | None = None
 
 
-class TransaccionOut(TransaccionIn):
+class TransaccionOut(TransaccionBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     usuario_id: uuid.UUID
-    # Lo rellena el servidor cuando el gasto lo genera una póliza
+    # Los rellena el servidor cuando el gasto lo genera una póliza o un compromiso
     poliza_id: uuid.UUID | None = None
+    ingreso_recurrente_id: uuid.UUID | None = None
 
 
 # --- pólizas de seguro y beneficiarios ---
@@ -388,6 +413,8 @@ class IngresoRecurrenteIn(BaseModel):
     # mensual: 1-31 · semanal: 0 (lunes) a 6 (domingo) · diario: ignorado
     dia: int | None = None
     categoria_id: uuid.UUID | None = None
+    # En qué cuenta entra: sin esto, el ingreso generado no tocaba ninguna cuenta
+    cuenta_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def _validar_dia(self) -> "IngresoRecurrenteIn":
@@ -405,6 +432,7 @@ class IngresoRecurrenteUpdate(BaseModel):
     periodicidad: PeriodicidadIngreso | None = None
     dia: int | None = None
     categoria_id: uuid.UUID | None = None
+    cuenta_id: uuid.UUID | None = None
     activa: bool | None = None
 
 

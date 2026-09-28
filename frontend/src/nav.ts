@@ -2,7 +2,12 @@
  * Mapa de navegación de Konta.
  *
  * El menú se organiza en **grupos** para no tener 18 opciones sueltas.
- * Jerarquía: `Resumen` (enlace directo) + 5 grupos con submenú.
+ * Jerarquía: `Resumen` (enlace directo) + 6 grupos con submenú.
+ *
+ * Los **recurrentes** (gastos e ingresos) tienen su propio grupo: son el mismo
+ * concepto —«esto se repite solo»— y tenerlos separados con nombres distintos
+ * («Suscripciones») hacía que un arriendo o un colegio no se reconocieran como lo
+ * que son.
  */
 
 export interface ItemNav {
@@ -17,7 +22,9 @@ export interface GrupoNav {
   items: ItemNav[]
 }
 
-/** Enlace directo, sin submenú. */
+/**
+ * Enlace directo, sin submenú.
+ */
 export const RESUMEN: ItemNav = { to: '/', label: 'Resumen', icono: '📊' }
 
 export const GRUPOS: GrupoNav[] = [
@@ -28,8 +35,16 @@ export const GRUPOS: GrupoNav[] = [
       { to: '/transacciones', label: 'Transacciones', icono: '💸' },
       { to: '/cuentas', label: 'Cuentas', icono: '🏦' },
       { to: '/tarjetas', label: 'Tarjetas', icono: '💳' },
-      { to: '/suscripciones', label: 'Suscripciones', icono: '🔁' },
       { to: '/polizas', label: 'Seguros', icono: '🛡️' },
+    ],
+  },
+  {
+    id: 'recurrentes',
+    label: 'Recurrentes',
+    items: [
+      // «Gastos recurrentes» es la ruta /suscripciones de siempre: arriendo, colegio,
+      // servicios, streaming… todo lo que se repite solo.
+      { to: '/suscripciones', label: 'Gastos recurrentes', icono: '🔁' },
       { to: '/ingresos-recurrentes', label: 'Ingresos recurrentes', icono: '📅' },
     ],
   },

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { fmtMoney, type Categoria, type IngresoRecurrente } from '../types'
+import {
+  fmtMoney,
+  type Categoria,
+  type Cuenta,
+  type IngresoRecurrente,
+  type SaldoResumen,
+} from '../types'
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
@@ -11,6 +17,7 @@ const empty = {
   periodicidad: 'mensual',
   dia: '',
   categoria_id: '',
+  cuenta_id: '',
 }
 
 function humanizar(p: IngresoRecurrente): string {
@@ -22,6 +29,7 @@ function humanizar(p: IngresoRecurrente): string {
 export default function IngresosRecurrentes() {
   const [items, setItems] = useState<IngresoRecurrente[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [form, setForm] = useState(empty)
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
@@ -37,6 +45,7 @@ export default function IngresosRecurrentes() {
   useEffect(() => {
     cargar()
     api<Categoria[]>('/categorias').then((cs) => setCategorias(cs.filter((c) => c.tipo === 'ingreso')))
+    api<SaldoResumen>('/cuentas').then((r) => setCuentas(r.cuentas))
   }, [])
 
   async function crear() {
@@ -51,6 +60,7 @@ export default function IngresosRecurrentes() {
           periodicidad: form.periodicidad,
           dia: form.periodicidad === 'diario' ? null : Number(form.dia),
           categoria_id: form.categoria_id || null,
+          cuenta_id: form.cuenta_id || null,
         }),
       })
       setForm(empty)
@@ -120,6 +130,17 @@ export default function IngresosRecurrentes() {
           <select value={form.categoria_id} onChange={(e) => set('categoria_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">Sin categoría</option>
             {categorias.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </select>
+
+          <select
+            value={form.cuenta_id}
+            onChange={(e) => set('cuenta_id', e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">Sin cuenta (no afecta ningún saldo)</option>
+            {cuentas.map((c) => (
               <option key={c.id} value={c.id}>{c.nombre}</option>
             ))}
           </select>

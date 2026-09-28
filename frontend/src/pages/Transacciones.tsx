@@ -21,6 +21,8 @@ const empty = {
   cuenta_id: '',
   cuenta_destino_id: '',
   tarjeta_id: '',
+  // '' = una sola vez (ocasional) · con valor = se repite con esa periodicidad
+  repeticion: '',
 }
 
 export default function Transacciones() {
@@ -85,6 +87,7 @@ export default function Transacciones() {
       cuenta_id: t.cuenta_id ?? '',
       cuenta_destino_id: t.cuenta_destino_id ?? '',
       tarjeta_id: t.tarjeta_id ?? '',
+      repeticion: '',
     })
     setShow(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -108,6 +111,9 @@ export default function Transacciones() {
         categoria_id: esTransferencia ? null : form.categoria_id || null,
         etiqueta_id: esTransferencia ? null : form.etiqueta_id || null,
         tarjeta_id: esTransferencia ? null : form.tarjeta_id || null,
+        // null = una sola vez; con periodicidad, la app crea el compromiso que se
+        // repite solo y deja este movimiento como el pago de este periodo
+        recurrencia: !esTransferencia && form.repeticion ? { periodicidad: form.repeticion } : null,
       }
       if (editando) {
         await api(`/transacciones/${editando}`, { method: 'PATCH', body: JSON.stringify(cuerpo) })
@@ -228,6 +234,40 @@ export default function Transacciones() {
           <input placeholder="Monto" value={form.monto} onChange={(e) => set('monto', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input placeholder="Descripción (ej. Internet Movistar)" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+
+          {!esTransferencia && (
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <select
+                value={form.repeticion}
+                onChange={(e) => set('repeticion', e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                title="Un gasto ocasional se registra una vez; uno recurrente se genera solo cada periodo"
+              >
+                <option value="">Una sola vez (ocasional)</option>
+                <optgroup label="Se repite…">
+                  {(form.tipo === 'ingreso'
+                    ? ['diario', 'semanal', 'mensual']
+                    : ['semanal', 'mensual', 'trimestral', 'semestral', 'anual']
+                  ).map((p) => (
+                    <option key={p} value={p}>
+                      {p === 'mensual' ? 'cada mes' : p === 'anual' ? 'cada año' : `cada ${p}`}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+              {form.repeticion ? (
+                <span className="text-xs text-slate-500">
+                  Se guarda este movimiento y además el compromiso que lo repetirá solo
+                  {form.fecha ? ` a partir del ${form.fecha}` : ''} (el día sale de la fecha).
+                </span>
+              ) : (
+                <span className="text-xs text-slate-400">
+                  Un arriendo, un colegio o el streaming: elige «se repite» y no vuelves a
+                  teclearlo cada mes.
+                </span>
+              )}
+            </div>
+          )}
 
           {esTransferencia ? (
             <>
@@ -377,6 +417,14 @@ export default function Transacciones() {
             <div>
               <p className="font-medium">
                 {t.descripcion ?? nombreCat(t.categoria_id)}
+                {(t.suscripcion_id || t.ingreso_recurrente_id) && (
+                  <span
+                    className="ml-2 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-normal text-sky-700"
+                    title="Viene de un compromiso recurrente"
+                  >
+                    🔁 recurrente
+                  </span>
+                )}
                 {nombreEtiqueta(t.etiqueta_id) && (
                   <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-normal text-indigo-700">
                     #{nombreEtiqueta(t.etiqueta_id)}

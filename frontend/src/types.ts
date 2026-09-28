@@ -45,6 +45,8 @@ export interface Suscripcion {
   categoria_id: string | null
   etiqueta_id: string | null
   tarjeta_id: string | null
+  /** De dónde sale el dinero: sin esto el gasto generado no movía ningún saldo */
+  cuenta_id: string | null
   estado: string
   notas: string | null
 }
@@ -66,6 +68,8 @@ export interface Transaccion {
   /** Solo en una transferencia: la cuenta que recibe */
   cuenta_destino_id?: string | null
   poliza_id?: string | null
+  /** Lo rellena el servidor si el movimiento lo generó un compromiso recurrente */
+  ingreso_recurrente_id?: string | null
   notas: string | null
 }
 
@@ -358,6 +362,8 @@ export interface IngresoRecurrente {
   dia: number | null
   proxima_ejecucion: string
   categoria_id: string | null
+  /** En qué cuenta entra */
+  cuenta_id: string | null
   activa: boolean
 }
 

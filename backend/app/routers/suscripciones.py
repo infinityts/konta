@@ -10,18 +10,19 @@ from sqlalchemy.orm import Session
 
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
-from ..models import Categoria, Etiqueta, Suscripcion, Tarjeta, Usuario
+from ..models import Categoria, Cuenta, Etiqueta, Suscripcion, Tarjeta, Usuario
 from ..schemas import SuscripcionIn, SuscripcionOut, SuscripcionUpdate
 
 router = APIRouter(prefix="/suscripciones", tags=["suscripciones"])
 
 
 def _validar_refs(db: Session, user: Usuario, campos: dict) -> None:
-    """Categoría, tarjeta y etiqueta deben existir y ser del usuario."""
+    """Categoría, tarjeta, etiqueta y cuenta deben existir y ser del usuario."""
     for campo, modelo in (
         ("categoria_id", Categoria),
         ("tarjeta_id", Tarjeta),
         ("etiqueta_id", Etiqueta),
+        ("cuenta_id", Cuenta),
     ):
         valor = campos.get(campo)
         if valor is not None:

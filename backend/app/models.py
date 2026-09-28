@@ -194,6 +194,11 @@ class Suscripcion(Base):
     etiqueta_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
     )
+    # De dónde sale el dinero: sin esto, cada gasto que generaba el job quedaba
+    # como «movimiento sin cuenta» y no movía ningún saldo.
+    cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     estado: Mapped[EstadoSuscripcion] = mapped_column(_estado_suscripcion, nullable=False, default=EstadoSuscripcion.ACTIVA)
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -218,6 +223,10 @@ class Transaccion(Base):
     )
     suscripcion_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("suscripciones.id", ondelete="SET NULL"), nullable=True
+    )
+    # Lo rellena el servidor cuando el ingreso lo genera un ingreso recurrente
+    ingreso_recurrente_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ingresos_recurrentes.id", ondelete="SET NULL"), nullable=True
     )
     etiqueta_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
@@ -265,6 +274,10 @@ class IngresoRecurrente(Base):
     proxima_ejecucion: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     categoria_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("categorias.id", ondelete="SET NULL"), nullable=True
+    )
+    # En qué cuenta entra (mismo motivo que en las suscripciones)
+    cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True, index=True
     )
     activa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

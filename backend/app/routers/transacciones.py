@@ -19,10 +19,29 @@ from sqlalchemy.orm import Session
 
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
-from ..models import Cuenta, Tarjeta, Transaccion, TipoTransaccion, Usuario
+from ..models import (
+    Categoria,
+    Cuenta,
+    EstadoSuscripcion,
+    Etiqueta,
+    IngresoRecurrente,
+    Periodicidad,
+    PeriodicidadIngreso,
+    Poliza,
+    Suscripcion,
+    Tarjeta,
+    Transaccion,
+    TipoTransaccion,
+    Usuario,
+)
+from ..recurrencia import siguiente_ocurrencia, siguiente_pago
 from ..schemas import TransaccionIn, TransaccionOut, TransaccionUpdate
 
 router = APIRouter(prefix="/transacciones", tags=["transacciones"])
+
+# Periodicidades válidas según el tipo de movimiento (los ENUM no son iguales)
+PERIODICIDAD_GASTO = {p.value: p for p in Periodicidad}
+PERIODICIDAD_INGRESO = {p.value: p for p in PeriodicidadIngreso}
 
 # Lo que una transferencia **no** puede llevar: no tiene categoría (no es un gasto
 # que se clasifique), ni tarjeta (no es un consumo), ni suscripción ni etiqueta.
@@ -58,15 +77,32 @@ def _validar(datos: dict) -> None:
             )
 
 
+def _validar_referencias(db: Session, user: Usuario, datos: dict) -> None:
+    """Todas las referencias deben ser del usuario.
+
+    Faltaba: se podía crear un movimiento apuntando a la **categoría o etiqueta de
+    otro usuario** (el movimiento era tuyo, pero el reporte mostraba su nombre).
+    """
+    for campo, modelo in (
+        ("categoria_id", Categoria),
+        ("etiqueta_id", Etiqueta),
+        ("tarjeta_id", Tarjeta),
+        ("suscripcion_id", Suscripcion),
+        ("ingreso_recurrente_id", IngresoRecurrente),
+        ("poliza_id", Poliza),
+    ):
+        valor = datos.get(campo)
+        if valor is not None:
+            get_owned(db, modelo, valor, user.id)
+
+
 def _validar_cuentas(db: Session, user: Usuario, datos: dict) -> None:
-    """Las referencias deben ser del usuario y las cuentas compartir moneda."""
+    """Las cuentas deben ser del usuario y compartir moneda."""
     origen = destino = None
     if datos.get("cuenta_id") is not None:
         origen = get_owned(db, Cuenta, datos["cuenta_id"], user.id)
     if datos.get("cuenta_destino_id") is not None:
         destino = get_owned(db, Cuenta, datos["cuenta_destino_id"], user.id)
-    if datos.get("tarjeta_id") is not None:
-        get_owned(db, Tarjeta, datos["tarjeta_id"], user.id)
     if origen is not None and destino is not None and origen.moneda != destino.moneda:
         raise HTTPException(
             status_code=422,
@@ -86,11 +122,100 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
     ).all()
 
 
+def _crear_compromiso(db: Session, user: Usuario, datos: dict, periodicidad: str) -> dict:
+    """Crea el compromiso recurrente y devuelve el enlace para la transacción.
+
+    La transacción que se está creando es el pago de **este** periodo, así que el
+    compromiso queda apuntando al **siguiente**: el job no duplica el de ahora.
+
+    El día sale de la fecha del movimiento (día del mes o de la semana), y el
+    nombre, el monto, la categoría, la etiqueta, la cuenta y la tarjeta se heredan
+    del propio movimiento: no hay que teclear nada dos veces.
+    """
+    tipo = datos["tipo"]
+    fecha = datos["fecha"]
+    nombre = (datos.get("descripcion") or "").strip() or "Movimiento recurrente"
+
+    if tipo == TipoTransaccion.TRANSFERENCIA:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Una transferencia no puede ser recurrente todavía: el compromiso "
+                "tiene que saber de qué cuenta sale y a cuál entra en cada periodo"
+            ),
+        )
+
+    if tipo == TipoTransaccion.GASTO:
+        if periodicidad not in PERIODICIDAD_GASTO:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"«{periodicidad}» no vale para un gasto recurrente; usa una de "
+                    f"{', '.join(PERIODICIDAD_GASTO)}"
+                ),
+            )
+        per = PERIODICIDAD_GASTO[periodicidad]
+        compromiso = Suscripcion(
+            usuario_id=user.id,
+            nombre=nombre,
+            monto=datos["monto"],
+            moneda=datos["moneda"],
+            periodicidad=per,
+            fecha_inicio=fecha,
+            proximo_pago=siguiente_pago(per, fecha),
+            categoria_id=datos.get("categoria_id"),
+            etiqueta_id=datos.get("etiqueta_id"),
+            tarjeta_id=datos.get("tarjeta_id"),
+            cuenta_id=datos.get("cuenta_id"),
+            estado=EstadoSuscripcion.ACTIVA,
+            notas="Creado desde una transacción",
+        )
+        db.add(compromiso)
+        db.flush()
+        return {"suscripcion_id": compromiso.id}
+
+    if periodicidad not in PERIODICIDAD_INGRESO:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"«{periodicidad}» no vale para un ingreso recurrente; usa una de "
+                f"{', '.join(PERIODICIDAD_INGRESO)}"
+            ),
+        )
+    per_i = PERIODICIDAD_INGRESO[periodicidad]
+    dia = None
+    if per_i == PeriodicidadIngreso.SEMANAL:
+        dia = fecha.weekday()
+    elif per_i == PeriodicidadIngreso.MENSUAL:
+        dia = fecha.day
+    compromiso = IngresoRecurrente(
+        usuario_id=user.id,
+        nombre=nombre,
+        monto=datos["monto"],
+        moneda=datos["moneda"],
+        periodicidad=per_i,
+        dia=dia,
+        proxima_ejecucion=siguiente_ocurrencia(per_i, dia, fecha),
+        categoria_id=datos.get("categoria_id"),
+        cuenta_id=datos.get("cuenta_id"),
+    )
+    db.add(compromiso)
+    db.flush()
+    return {"ingreso_recurrente_id": compromiso.id}
+
+
 @router.post("", response_model=TransaccionOut, status_code=201)
 def crear(data: TransaccionIn, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     datos = data.model_dump()
+    recurrencia = datos.pop("recurrencia", None)
     _validar(datos)
     _validar_cuentas(db, user, datos)
+    _validar_referencias(db, user, datos)
+
+    if recurrencia is not None:
+        # Atómico: el movimiento y el compromiso se guardan juntos o no se guarda nada
+        datos.update(_crear_compromiso(db, user, datos, recurrencia["periodicidad"]))
+
     obj = Transaccion(usuario_id=user.id, **datos)
     db.add(obj)
     db.commit()
@@ -113,13 +238,14 @@ def actualizar(id: uuid.UUID, data: TransaccionUpdate, db: Session = Depends(get
     resultante = {
         campo: getattr(obj, campo)
         for campo in (
-            "tipo", "cuenta_id", "cuenta_destino_id",
-            "categoria_id", "tarjeta_id", "suscripcion_id", "etiqueta_id",
+            "tipo", "cuenta_id", "cuenta_destino_id", "categoria_id", "tarjeta_id",
+            "suscripcion_id", "ingreso_recurrente_id", "etiqueta_id",
         )
     }
     resultante.update(campos)
     _validar(resultante)
     _validar_cuentas(db, user, resultante)
+    _validar_referencias(db, user, resultante)
 
     for campo, valor in campos.items():
         setattr(obj, campo, valor)

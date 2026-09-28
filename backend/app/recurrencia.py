@@ -96,6 +96,8 @@ def procesar_ingresos_vencidos() -> int:
                         fecha=hoy_,
                         descripcion=ing.nombre,
                         categoria_id=ing.categoria_id,
+                        cuenta_id=ing.cuenta_id,
+                        ingreso_recurrente_id=ing.id,
                     )
                 )
                 ing.proxima_ejecucion = siguiente_ocurrencia(
@@ -182,6 +184,7 @@ def procesar_suscripciones(s: Session, hoy_: date) -> int:
                     categoria_id=sub.categoria_id,
                     etiqueta_id=sub.etiqueta_id,
                     tarjeta_id=sub.tarjeta_id,
+                    cuenta_id=sub.cuenta_id,
                     suscripcion_id=sub.id,
                 )
             )
