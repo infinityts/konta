@@ -233,6 +233,16 @@ class SuscripcionOut(SuscripcionIn):
     usuario_id: uuid.UUID
 
 
+class SaludOut(BaseModel):
+    """Estado del servicio. `base` es el de la **base de datos**, no el del proceso."""
+
+    status: str  # 'ok' | 'error'
+    app: str
+    base: str  # 'ok' | 'sin conexión'
+    # Solo el tipo de excepción: el healthcheck no filtra la cadena de conexión
+    error: str | None = None
+
+
 # --- transacciones ---
 
 

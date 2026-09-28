@@ -1,11 +1,16 @@
 """Punto de entrada de la API de Konta."""
 
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from .config import get_settings
+from .deps import get_db
 from .recurrencia import procesar_ingresos_vencidos
 from .routers import (
     alertas,
@@ -32,6 +37,9 @@ from .routers import (
     transacciones,
 )
 from .scheduler import start_scheduler, stop_scheduler
+from .schemas import SaludOut
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -82,6 +90,26 @@ app.include_router(cuentas.router)
 app.include_router(saldos.router)
 
 
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "app": "konta"}
+@app.get("/health", response_model=SaludOut, responses={503: {"model": SaludOut}})
+def health(db: Session = Depends(get_db)):
+    """Estado del servicio **y de la base de datos**.
+
+    Responde `503` si la base no contesta: es lo que hace que el healthcheck del
+    contenedor sirva de algo (antes respondía `ok` aunque PostgreSQL estuviera
+    caído, así que un despliegue roto se veía verde). No pide token —lo consulta el
+    orquestador— y no filtra la cadena de conexión, solo el tipo de error.
+    """
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as exc:  # cualquier fallo aquí significa «no puedo servir»
+        logger.warning("health: la base de datos no responde (%s)", exc)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "app": "konta",
+                "base": "sin conexión",
+                "error": type(exc).__name__,
+            },
+        )
+    return {"status": "ok", "app": "konta", "base": "ok"}

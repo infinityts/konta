@@ -27,11 +27,28 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    # /health comprueba **también la base**: si PostgreSQL se cae, el contenedor
+    # pasa a unhealthy en vez de mentir con un 200. Se usa python (ya está en la
+    # imagen) para no depender de curl.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # margen para las migraciones del arranque (alembic upgrade head)
+      start_period: 30s
 
   frontend:
     build: ./frontend
     depends_on:
-      - backend
+      backend:
+        # Que no sirva la web hasta que el backend (y su base) estén listos: antes
+        # arrancaba en cuanto el contenedor existía, aunque las migraciones siguieran
+        condition: service_healthy
     ports:
       - "8080:80"
 

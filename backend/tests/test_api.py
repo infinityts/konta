@@ -2306,3 +2306,47 @@ def test_pago_de_tarjeta_validaciones(client):
         "tipo": "transferencia", "monto": "1000", "fecha": hoy_,
         "cuenta_id": cuenta["id"], "tarjeta_id": visa["id"], "cuenta_destino_id": usd["id"],
     }).status_code == 422
+
+
+# --- /health comprueba la base -------------------------------------------- #
+
+
+def test_health_ok(client):
+    """Con la base en pie, el estado es ok y lo dice explícitamente."""
+    r = client.get("/health")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"status": "ok", "app": "konta", "base": "ok", "error": None}
+
+
+def test_health_503_si_la_base_no_responde(client):
+    """Si la base no contesta, 503 (y sin filtrar la cadena de conexión)."""
+    from sqlalchemy.exc import OperationalError
+
+    from app.deps import get_db
+    from app.main import app
+
+    class SesionCaida:
+        def execute(self, *args, **kwargs):
+            raise OperationalError(
+                "SELECT 1", {}, Exception("could not connect to server: Connection refused")
+            )
+
+    app.dependency_overrides[get_db] = lambda: SesionCaida()
+    try:
+        r = client.get("/health")
+        assert r.status_code == 503, r.text
+        cuerpo = r.json()
+        assert cuerpo["status"] == "error" and cuerpo["base"] == "sin conexión"
+        assert cuerpo["error"] == "OperationalError"
+        assert "Connection refused" not in r.text, "el detalle no se filtra al exterior"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    # Y al quitar el override vuelve a estar sano
+    assert client.get("/health").status_code == 200
+
+
+def test_health_no_pide_token(client):
+    """Lo consulta el orquestador, que no tiene credenciales de usuario."""
+    assert client.get("/health").status_code == 200
+    assert client.get("/transacciones").status_code == 401
