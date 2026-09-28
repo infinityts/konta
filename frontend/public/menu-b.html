@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Opción B — Barra superior con desplegables</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8fafc;color:#0f172a}
+  .banner{background:#0f766e;color:#fff;padding:10px 20px;font-size:13px;font-weight:600}
+  .banner small{font-weight:400;opacity:.85}
+  header{background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:22px;padding:0 22px;height:62px;position:relative;z-index:5}
+  .brand{font-weight:700;font-size:19px;letter-spacing:-.02em}
+  .brand b{color:#0d9488}
+  .tabs{display:flex;align-items:center;gap:4px;flex:1}
+  .tab{position:relative;font-size:13.5px;color:#334155;padding:9px 13px;border-radius:8px;text-decoration:none;white-space:nowrap;cursor:pointer;border:0;background:transparent;font-family:inherit}
+  .tab:hover{background:#f1f5f9}
+  .tab.active{background:#f0fdfa;color:#0f766e;font-weight:600}
+  .tab.open{background:#f1f5f9}
+  .caret{font-size:9px;opacity:.55;margin-left:4px}
+  .menu{position:absolute;top:52px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.13);padding:7px;min-width:230px;display:none}
+  .menu.show{display:block}
+  .menu a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;font-size:13.5px;color:#334155;text-decoration:none}
+  .menu a:hover{background:#f1f5f9}
+  .menu a.active{background:#f0fdfa;color:#0f766e;font-weight:600}
+  .menu .sep{height:1px;background:#e2e8f0;margin:5px 8px}
+  .user{display:flex;align-items:center;gap:12px;font-size:13px;color:#475569;white-space:nowrap}
+  .user button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 13px;font-size:12.5px;color:#334155;cursor:pointer}
+  main{padding:28px 32px}
+  h1{margin:0 0 6px;font-size:22px}
+  .sub{color:#64748b;font-size:13.5px;margin:0 0 20px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px}
+  .card p{margin:0;font-size:12.5px;color:#64748b}
+  .card b{display:block;margin-top:6px;font-size:19px}
+  .note{margin-top:22px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:14px;font-size:13px;color:#115e59}
+  .hint{font-size:12px;color:#94a3b8;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="banner">OPCIÓN B · Barra superior con desplegables <small>— 5 entradas, el contenido gana todo el ancho</small></div>
+
+<header>
+  <div class="brand">Kon<b>ta</b></div>
+  <nav class="tabs">
+    <a class="tab active">Resumen</a>
+
+    <button class="tab open">Movimientos <span class="caret">▼</span>
+      <div class="menu show" style="left:0">
+        <a class="active">💸 Transacciones</a>
+        <a>🏦 Cuentas</a>
+        <a>💳 Tarjetas</a>
+        <a>🔁 Suscripciones</a>
+        <a>📅 Ingresos recurrentes</a>
+      </div>
+    </button>
+
+    <button class="tab">Análisis <span class="caret">▼</span></button>
+    <button class="tab">Organización <span class="caret">▼</span></button>
+    <button class="tab">Herramientas <span class="caret">▼</span></button>
+    <button class="tab">Configuración <span class="caret">▼</span></button>
+  </nav>
+  <div class="user"><span>👤 Jose</span><button>Salir</button></div>
+</header>
+
+<main>
+  <h1>Transacciones</h1>
+  <p class="sub">El contenido usa todo el ancho: caben más columnas y tablas sin apretarse.</p>
+  <div class="cards">
+    <div class="card"><p>Saldo actual</p><b style="color:#047857">$1.872.760</b></div>
+    <div class="card"><p>Ingresos del mes</p><b>$0</b></div>
+    <div class="card"><p>Gastos del mes</p><b style="color:#b91c1c">$127.240</b></div>
+    <div class="card"><p>Movimientos</p><b>1</b></div>
+  </div>
+  <div class="note"><b>Ventajas:</b> el contenido gana ~266 px de ancho · cabecera limpia con 5 entradas · los grupos se descubren al pasar el mouse.<br><b>Contras:</b> hay que abrir un menú para llegar a casi todo (2 clics) · en móvil los desplegables se complican.</div>
+  <p class="hint">Los submenús abren al hacer clic (o al pasar el mouse en la versión final).</p>
+</main>
+</body>
+</html>
