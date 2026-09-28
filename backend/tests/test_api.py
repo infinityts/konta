@@ -491,6 +491,52 @@ def test_tarjeta_debito_asociada_a_cuenta(client):
     assert r.json()["cuenta_id"] is None
 
 
+def test_unicidad_entre_hermanos(client):
+    """Categoría → Etiqueta → Subetiqueta. No se repiten hermanas (sin distinguir mayúsculas)."""
+    _, h = _registrar(client)
+    cats = client.get("/categorias", headers=h).json()
+    vivienda = next(c for c in cats if c["nombre"] == "Vivienda")
+    transporte = next(c for c in cats if c["nombre"] == "Transporte")
+
+    # etiqueta dentro de una categoría
+    r = client.post("/etiquetas", headers=h, json={"nombre": "Servicios", "categoria_id": vivienda["id"]})
+    assert r.status_code == 201, r.text
+    servicios = r.json()
+    assert servicios["categoria_id"] == vivienda["id"]
+
+    # NO se repite en la misma categoría (ni con otra capitalización)
+    r = client.post("/etiquetas", headers=h, json={"nombre": "servicios", "categoria_id": vivienda["id"]})
+    assert r.status_code == 400
+    assert "Ya existe" in r.json()["detail"]
+
+    # SÍ se repite en otra categoría
+    r = client.post("/etiquetas", headers=h, json={"nombre": "Servicios", "categoria_id": transporte["id"]})
+    assert r.status_code == 201
+
+    # subetiqueta: hereda la categoría de su etiqueta
+    r = client.post("/etiquetas", headers=h, json={"nombre": "Internet", "padre_id": servicios["id"]})
+    assert r.status_code == 201
+    sub = r.json()
+    assert sub["categoria_id"] == vivienda["id"]
+
+    # NO dos subetiquetas iguales bajo la misma etiqueta
+    r = client.post("/etiquetas", headers=h, json={"nombre": "internet", "padre_id": servicios["id"]})
+    assert r.status_code == 400
+
+    # categorías: únicas entre hermanas
+    assert client.post("/categorias", headers=h, json={"nombre": "Vivienda", "tipo": "gasto"}).status_code == 400
+    assert client.post("/categorias", headers=h, json={"nombre": "vivienda", "tipo": "gasto"}).status_code == 400
+
+    # …pero la misma subcategoría puede existir bajo padres distintos
+    r = client.post("/categorias", headers=h, json={"nombre": "Internet", "tipo": "gasto", "padre_id": vivienda["id"]})
+    assert r.status_code == 201, r.text
+    r = client.post("/categorias", headers=h, json={"nombre": "Internet", "tipo": "gasto", "padre_id": transporte["id"]})
+    assert r.status_code == 201
+    # y no dos bajo el mismo padre
+    r = client.post("/categorias", headers=h, json={"nombre": "Internet", "tipo": "gasto", "padre_id": vivienda["id"]})
+    assert r.status_code == 400
+
+
 def test_exportar_y_restaurar(client):
     _, h = _registrar(client)
     cat = client.get("/categorias", headers=h).json()[0]
@@ -635,13 +681,13 @@ def test_cuentas_saldos_y_subcategorias(client):
     cta = client.post("/cuentas", headers=h, json={"nombre": "Banco", "tipo": "banco", "saldo_inicial": "1000000"}).json()
     assert cta["saldo_actual"] == 1000000.0
 
-    # categoría raíz + subcategoría
-    raiz = client.post("/categorias", headers=h, json={"nombre": "Transporte", "tipo": "gasto"}).json()
+    # categoría raíz + subcategoría (nombre nuevo, no uno de los por defecto)
+    raiz = client.post("/categorias", headers=h, json={"nombre": "Movilidad", "tipo": "gasto"}).json()
     sub = client.post("/categorias", headers=h, json={"nombre": "Gasolina", "tipo": "gasto", "padre_id": raiz["id"]}).json()
     assert sub["padre_id"] == raiz["id"]
 
     arbol = client.get("/categorias/arbol", headers=h).json()
-    transp = next(n for n in arbol if n["nombre"] == "Transporte")
+    transp = next(n for n in arbol if n["nombre"] == "Movilidad")
     assert any(s["nombre"] == "Gasolina" for s in transp["subcategorias"])
 
     hoy = date.today()
@@ -662,14 +708,14 @@ def test_cuentas_saldos_y_subcategorias(client):
     # desglose por categoría → subcategoría
     rep = client.get(f"/reportes/categorias?mes={hoy.strftime('%Y-%m')}", headers=h).json()
     gasto = next(x for x in rep if x["tipo"] == "gasto")
-    assert gasto["categoria"] == "Transporte"
+    assert gasto["categoria"] == "Movilidad"
     assert gasto["subcategoria"] == "Gasolina"
 
     diag = client.get("/saldos/diagnostico", headers=h).json()
     assert diag["sobregirado"] is False
     assert diag["saldo_actual"] == 1300000.0
     assert diag["tiene_cuentas"] is True
-    assert any("Transporte" in m for m in diag["motivos"])
+    assert any("Movilidad" in m for m in diag["motivos"])
 
     cons = client.get("/saldos/consolidado?meses=3", headers=h).json()
     assert len(cons["meses"]) == 3

@@ -34,22 +34,45 @@ Todo se puede corregir después con el botón **Editar**.
 
 ---
 
-## 3. Categoría vs. Etiqueta (esto confunde a todos)
+## 3. Categoría → Etiqueta → Subetiqueta
 
-| | **Categoría** | **Etiqueta** |
+**Las etiquetas viven DENTRO de una categoría.** Son tres niveles:
+
+```
+CATEGORÍA          ETIQUETA         SUBETIQUETA
+─────────          ────────         ───────────
+Casa 1     ──────► Servicios  ─────► Internet
+                   Aseo       ─────► Señora
+                   Arriendo
+
+Casa 2     ──────► Servicios  ─────► Internet      ← ✅ otra categoría
+```
+
+| Nivel | Responde | Ejemplos |
 |---|---|---|
-| Responde | **¿Qué** es? | **¿Para qué / de quién** es? |
-| Ejemplos | Vivienda, Mercado, Transporte | Hogar, Trabajo, Reembolsable |
-| ¿Jerárquica? | Sí → **subcategorías** (`Transporte › Gasolina`) | Sí → **subetiquetas** (`Hogar › Internet`) |
-| Para qué sirve | Reportes, presupuestos | Cruzar gastos de varias categorías |
+| **Categoría** | ¿En qué contexto? | `Casa 1`, `Casa 2`, `Trabajo` |
+| **Etiqueta** | ¿Qué tipo? | `Servicios`, `Aseo`, `Arriendo` |
+| **Subetiqueta** | ¿Cuál exactamente? | `Internet`, `Agua`, `Señora` |
 
-Un gasto tiene **una** categoría y **una** etiqueta. Ejemplo:
+### La regla: únicos entre hermanos
 
-> Internet Movistar → categoría `Vivienda › Internet`, etiqueta `Hogar › Servicios`
+> Dos nombres iguales **no pueden ser hermanos** (mismo padre), sin importar
+> mayúsculas. En **padres distintos** sí se pueden repetir.
 
-**Crear:** en el propio formulario del movimiento hay un botón
-**＋ Nueva etiqueta / subetiqueta** (eliges si es principal o subetiqueta de otra).
-Para categorías, usa la página **Categorías**.
+| Intento | ¿Se permite? |
+|---|---|
+| `Casa 1 › Servicios` y luego otra `Casa 1 › Servicios` | ❌ Ya existe en esa categoría |
+| `Casa 1 › Servicios › Internet` y otra igual | ❌ Ya existe en esa etiqueta |
+| `Casa 1 › Servicios › Internet` y `Casa 2 › Servicios › Internet` | ✅ Padres distintos |
+| Categoría `Vivienda` y luego otra `Vivienda` | ❌ Ya existe |
+| `Vivienda › Internet` y `Transporte › Internet` | ✅ Padres distintos |
+
+**Al registrar un movimiento** se elige en cascada: primero la **categoría**, y el selector
+de etiquetas muestra **solo las de esa categoría**. Si eliges otra categoría, la etiqueta
+se limpia (no puede quedar una etiqueta de otra categoría).
+
+**Crear:** en el formulario del movimiento (botón **＋ Nueva etiqueta / subetiqueta**, que usa
+la categoría elegida) o en la página **Etiquetas**, que está agrupada por categoría.
 
 ---
 

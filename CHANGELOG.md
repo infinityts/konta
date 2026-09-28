@@ -148,3 +148,20 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 - El formulario de tarjeta cambia según el tipo: **débito** pide la cuenta asociada; **crédito**
   pide corte, pago, cupo y tasa. Un crédito nunca queda asociado a una cuenta (el backend lo
   desasocia al cambiar de tipo).
+
+## v1.7 — Etiquetas dentro de categorías (3 niveles) y sin duplicados
+
+- **Nuevo modelo**: `Categoría → Etiqueta → Subetiqueta`. Las etiquetas ya no son una lista
+  independiente: viven dentro de una categoría (`etiquetas.categoria_id`).
+- **Nombres únicos entre hermanos**, sin distinguir mayúsculas ni minúsculas:
+  - no dos **etiquetas** iguales dentro de la misma categoría
+  - no dos **subetiquetas** iguales dentro de la misma etiqueta
+  - no dos **categorías** iguales con el mismo padre
+  - en categorías distintas el mismo nombre **sí** se permite
+  - los mensajes de error explican cuál es el duplicado
+- **Migración 0013**: agrega `categoria_id`, **limpia los duplicados existentes**
+  (conserva uno y repunta movimientos, subetiquetas y demás referencias antes de borrar)
+  y crea los índices únicos.
+- **UI en cascada**: al registrar un movimiento se elige primero la categoría y el selector
+  de etiquetas muestra solo las suyas; cambiar de categoría limpia la etiqueta.
+- **Página Etiquetas** reorganizada por categoría, y aviso para las que quedaron sin categoría.

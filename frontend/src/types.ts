@@ -68,6 +68,7 @@ export interface Etiqueta {
   id: string
   nombre: string
   color: string | null
+  categoria_id: string | null
   padre_id: string | null
 }
 

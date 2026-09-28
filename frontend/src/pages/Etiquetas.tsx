@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import type { Etiqueta } from '../types'
-
-const empty = { nombre: '', color: '#6366f1', padre_id: '' }
+import type { Categoria, Etiqueta } from '../types'
 
 export default function Etiquetas() {
-  const [items, setItems] = useState<Etiqueta[]>([])
-  const [form, setForm] = useState(empty)
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [form, setForm] = useState({ nombre: '', categoria_id: '', padre_id: '' })
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
 
   async function cargar() {
     try {
-      setItems(await api<Etiqueta[]>('/etiquetas'))
+      setEtiquetas(await api<Etiqueta[]>('/etiquetas'))
+      setCategorias(await api<Categoria[]>('/categorias'))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     }
@@ -29,11 +29,11 @@ export default function Etiquetas() {
         method: 'POST',
         body: JSON.stringify({
           nombre: form.nombre,
-          color: form.color || null,
+          categoria_id: form.padre_id ? null : form.categoria_id || null,
           padre_id: form.padre_id || null,
         }),
       })
-      setForm(empty)
+      setForm({ nombre: '', categoria_id: form.categoria_id, padre_id: '' })
       cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar')
@@ -45,62 +45,112 @@ export default function Etiquetas() {
     cargar()
   }
 
-  const set = (k: keyof typeof empty, v: string) => setForm((f) => ({ ...f, [k]: v }))
-  const raices = items.filter((e) => !e.padre_id)
-  const hijasDe = (id: string) => items.filter((e) => e.padre_id === id)
+  const catRaices = categorias.filter((c) => !c.padre_id)
+  const subcatsDe = (id: string) => categorias.filter((c) => c.padre_id === id)
+  const raicesDe = (catId: string) => etiquetas.filter((e) => e.categoria_id === catId && !e.padre_id)
+  const hijasDe = (etqId: string) => etiquetas.filter((e) => e.padre_id === etqId)
+  const sinCategoria = etiquetas.filter((e) => !e.categoria_id && !e.padre_id)
+  const etqPadresDelForm = etiquetas.filter((e) => e.categoria_id === form.categoria_id && !e.padre_id)
 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Etiquetas</h2>
+        <h2 className="text-xl font-semibold">Etiquetas y subetiquetas</h2>
         <button onClick={() => setShow((s) => !s)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
           {show ? 'Cancelar' : 'Nueva etiqueta'}
         </button>
       </div>
 
+      <p className="mt-1 text-sm text-slate-500">
+        Las etiquetas viven <strong>dentro de una categoría</strong>:
+        <code className="mx-1 rounded bg-slate-100 px-1">Categoría › Etiqueta › Subetiqueta</code>.
+        No se permiten dos <strong>hermanas</strong> con el mismo nombre (sin distinguir mayúsculas);
+        en categorías distintas sí puedes repetir el nombre.
+      </p>
+      {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
       {show && (
         <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3">
-          <input placeholder="Nombre (ej. Trabajo, Viaje)" value={form.nombre} onChange={(e) => set('nombre', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <select value={form.padre_id} onChange={(e) => set('padre_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="">Es etiqueta (raíz)</option>
-            {raices.map((r) => (
-              <option key={r.id} value={r.id}>Subetiqueta de: {r.nombre}</option>
+          <select value={form.categoria_id} onChange={(e) => setForm((f) => ({ ...f, categoria_id: e.target.value, padre_id: '' }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="">1) Elige la categoría…</option>
+            {catRaices.map((r) => (
+              <optgroup key={r.id} label={r.nombre}>
+                <option value={r.id}>{r.nombre}</option>
+                {subcatsDe(r.id).map((h) => <option key={h.id} value={h.id}>— {h.nombre}</option>)}
+              </optgroup>
             ))}
           </select>
-          <input type="color" value={form.color} onChange={(e) => set('color', e.target.value)} className="h-10 w-full rounded-lg border border-slate-300" />
-          <button onClick={crear} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-3">Guardar</button>
+          <select
+            value={form.padre_id}
+            onChange={(e) => setForm((f) => ({ ...f, padre_id: e.target.value }))}
+            disabled={!form.categoria_id}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            <option value="">2) Es una etiqueta</option>
+            {etqPadresDelForm.map((e) => <option key={e.id} value={e.id}>Subetiqueta de {e.nombre}</option>)}
+          </select>
+          <input placeholder="3) Nombre" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <button
+            onClick={crear}
+            disabled={!form.categoria_id || !form.nombre}
+            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:bg-slate-300 sm:col-span-3"
+          >
+            Crear
+          </button>
         </div>
       )}
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {sinCategoria.length > 0 && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-medium text-amber-800">Etiquetas sin categoría</p>
+          <p className="mt-1 text-xs text-amber-700">
+            Son de antes de este cambio. Edítalas (o créalas de nuevo) dentro de una categoría.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {sinCategoria.map((e) => (
+              <li key={e.id} className="flex items-center justify-between text-sm text-amber-900">
+                <span>{e.nombre}</span>
+                <button onClick={() => eliminar(e.id)} className="text-xs text-red-600 hover:underline">quitar</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-      <ul className="mt-4 space-y-2">
-        {raices.map((r) => (
-          <li key={r.id} className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2 font-medium">
-                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: r.color ?? '#6366f1' }} />
-                {r.nombre}
-              </span>
-              <button onClick={() => eliminar(r.id)} className="text-sm text-red-600 hover:underline">Eliminar</button>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        {catRaices.map((c) => {
+          const etqs = raicesDe(c.id)
+          return (
+            <div key={c.id} className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="font-medium text-slate-800">{c.nombre}</h3>
+              {etqs.length === 0 ? (
+                <p className="mt-2 text-xs text-slate-400">Sin etiquetas</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {etqs.map((e) => (
+                    <li key={e.id}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-700">{e.nombre}</span>
+                        <button onClick={() => eliminar(e.id)} className="text-xs text-red-500 hover:underline">quitar</button>
+                      </div>
+                      {hijasDe(e.id).length > 0 && (
+                        <ul className="mt-0.5 space-y-0.5 pl-4">
+                          {hijasDe(e.id).map((s) => (
+                            <li key={s.id} className="flex items-center justify-between text-xs text-slate-500">
+                              <span>↳ {s.nombre}</span>
+                              <button onClick={() => eliminar(s.id)} className="text-red-400 hover:underline">quitar</button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            {hijasDe(r.id).length > 0 && (
-              <ul className="mt-2 space-y-1 border-l-2 border-slate-100 pl-4">
-                {hijasDe(r.id).map((h) => (
-                  <li key={h.id} className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-slate-600">
-                      <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: h.color ?? '#94a3b8' }} />
-                      {h.nombre}
-                    </span>
-                    <button onClick={() => eliminar(h.id)} className="text-red-600 hover:underline">Eliminar</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </li>
-        ))}
-        {raices.length === 0 && <p className="text-sm text-slate-500">Aún no tienes etiquetas.</p>}
-      </ul>
+          )
+        })}
+      </div>
     </div>
   )
 }

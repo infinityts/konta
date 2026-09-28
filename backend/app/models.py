@@ -238,10 +238,15 @@ class IngresoRecurrente(Base):
 
 
 class Etiqueta(Base):
-    """Etiquetas y subetiquetas (autojerárquica).
+    """Etiquetas y subetiquetas, siempre **dentro de una categoría**.
 
-    `padre_id` es NULL para una etiqueta raíz y apunta a otra etiqueta para una
-    subetiqueta. Una transacción puede asociarse a una etiqueta (raíz o sub).
+    Jerarquía: `Categoría → Etiqueta → Subetiqueta`.
+
+    - `categoria_id`: la categoría a la que pertenece.
+    - `padre_id`: NULL = etiqueta; con valor = subetiqueta de esa etiqueta.
+
+    Los nombres son únicos **entre hermanos** (mismo padre), sin distinguir
+    mayúsculas. En categorías distintas sí se puede repetir el nombre.
     """
 
     __tablename__ = "etiquetas"
@@ -249,6 +254,9 @@ class Etiqueta(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     usuario_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("categorias.id", ondelete="CASCADE"), nullable=True, index=True
     )
     nombre: Mapped[str] = mapped_column(String(60), nullable=False)
     color: Mapped[str | None] = mapped_column(String(20), nullable=True)

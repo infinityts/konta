@@ -127,7 +127,11 @@ export default function Transacciones() {
     try {
       const creada = await api<Etiqueta>('/etiquetas', {
         method: 'POST',
-        body: JSON.stringify({ nombre: etqForm.nombre, padre_id: etqForm.padre_id || null }),
+        body: JSON.stringify({
+          nombre: etqForm.nombre,
+          categoria_id: form.categoria_id,
+          padre_id: etqForm.padre_id || null,
+        }),
       })
       setEtiquetas(await api<Etiqueta[]>('/etiquetas'))
       setForm((f) => ({ ...f, etiqueta_id: creada.id }))
@@ -139,6 +143,11 @@ export default function Transacciones() {
   }
 
   const set = (k: keyof typeof empty, v: string) => setForm((f) => ({ ...f, [k]: v }))
+
+  /** Al cambiar de categoría se limpia la etiqueta: cada categoría tiene las suyas. */
+  function setCategoria(id: string) {
+    setForm((f) => ({ ...f, categoria_id: id, etiqueta_id: '' }))
+  }
 
   /** Contabilidad: el débito descuenta de SU cuenta; el crédito no toca cuentas (es un pasivo). */
   function elegirTarjeta(id: string) {
@@ -180,8 +189,11 @@ export default function Transacciones() {
   const categoriasFiltradas = categorias.filter((c) => c.tipo === form.tipo)
   const catRaices = categoriasFiltradas.filter((c) => !c.padre_id)
   const subcatsDe = (id: string) => categoriasFiltradas.filter((c) => c.padre_id === id)
-  const etqRaices = etiquetas.filter((e) => !e.padre_id)
-  const etqHijas = (id: string) => etiquetas.filter((e) => e.padre_id === id)
+
+  // Las etiquetas viven DENTRO de la categoría elegida
+  const etqDeCategoria = etiquetas.filter((e) => e.categoria_id === form.categoria_id)
+  const etqRaices = etqDeCategoria.filter((e) => !e.padre_id)
+  const etqHijas = (id: string) => etqDeCategoria.filter((e) => e.padre_id === id)
 
   const visibles = items.filter((t) => {
     if (filtro !== 'todos' && t.tipo !== filtro) return false
@@ -220,7 +232,7 @@ export default function Transacciones() {
           <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input placeholder="Descripción (ej. Internet Movistar)" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
 
-          <select value={form.categoria_id} onChange={(e) => set('categoria_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <select value={form.categoria_id} onChange={(e) => setCategoria(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">Sin categoría</option>
             {catRaices.map((r) => (
               <optgroup key={r.id} label={r.nombre}>
@@ -266,9 +278,14 @@ export default function Transacciones() {
             </p>
           )}
 
-          {/* Etiqueta / subetiqueta */}
-          <select value={form.etiqueta_id} onChange={(e) => set('etiqueta_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="">Sin etiqueta</option>
+          {/* Etiqueta / subetiqueta — solo las de la categoría elegida */}
+          <select
+            value={form.etiqueta_id}
+            onChange={(e) => set('etiqueta_id', e.target.value)}
+            disabled={!form.categoria_id}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            <option value="">{form.categoria_id ? 'Sin etiqueta' : 'Elige primero una categoría'}</option>
             {etqRaices.map((r) => (
               <optgroup key={r.id} label={r.nombre}>
                 <option value={r.id}>{r.nombre}</option>
@@ -280,16 +297,26 @@ export default function Transacciones() {
           </select>
 
           <div className="flex items-center gap-2 sm:col-span-2">
-            <button onClick={() => setNuevaEtq((v) => !v)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+            <button
+              onClick={() => setNuevaEtq((v) => !v)}
+              disabled={!form.categoria_id}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+            >
               {nuevaEtq ? 'Cancelar etiqueta' : '＋ Nueva etiqueta / subetiqueta'}
             </button>
+            {!form.categoria_id && (
+              <span className="text-xs text-slate-500">Elige una categoría para ver o crear sus etiquetas</span>
+            )}
           </div>
 
-          {nuevaEtq && (
+          {nuevaEtq && form.categoria_id && (
             <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3 sm:col-span-2">
+              <span className="text-xs text-slate-500">
+                Dentro de <strong>{nombreCat(form.categoria_id)}</strong>
+              </span>
               <input placeholder="Nombre de la etiqueta" value={etqForm.nombre} onChange={(e) => setEtqForm((f) => ({ ...f, nombre: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
               <select value={etqForm.padre_id} onChange={(e) => setEtqForm((f) => ({ ...f, padre_id: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Es etiqueta principal</option>
+                <option value="">Es etiqueta</option>
                 {etqRaices.map((e) => <option key={e.id} value={e.id}>Subetiqueta de {e.nombre}</option>)}
               </select>
               <button onClick={crearEtiqueta} className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-white hover:bg-slate-900">Crear y asignar</button>

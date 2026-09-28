@@ -259,13 +259,16 @@ class IngresoRecurrenteOut(IngresoRecurrenteIn):
 class EtiquetaIn(BaseModel):
     nombre: str = Field(min_length=1, max_length=60)
     color: str | None = None
-    # NULL = etiqueta raíz; con valor = subetiqueta de esa etiqueta
+    # La categoría a la que pertenece la etiqueta
+    categoria_id: uuid.UUID | None = None
+    # NULL = etiqueta; con valor = subetiqueta de esa etiqueta
     padre_id: uuid.UUID | None = None
 
 
 class EtiquetaUpdate(BaseModel):
     nombre: str | None = None
     color: str | None = None
+    categoria_id: uuid.UUID | None = None
     padre_id: uuid.UUID | None = None
 
 
