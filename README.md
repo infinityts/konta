@@ -1,5 +1,7 @@
 # Konta — Finanzas personales
 
+[![CI](https://github.com/infinityts/konta/actions/workflows/ci.yml/badge.svg)](https://github.com/infinityts/konta/actions/workflows/ci.yml)
+
 App de finanzas personales **multi-usuario** y **multi-moneda**: suscripciones,
 tarjetas de crédito, ingresos (fijos y recurrentes), gastos, etiquetas, reportes,
 alarmas de pagos y OCR de facturas. **Datos 100% locales.**
