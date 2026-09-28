@@ -74,9 +74,6 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 
 ## Pendiente / ideas
 
-- **Costo anual de seguros dentro de *Reportes***: hoy el resumen vive en la página
-  *Seguros* y las primas entran en el gasto fijo del dashboard, pero no aparecen en el
-  desglose de reportes.
 - **Varias personas cubiertas por póliza**: el modelo cubre el caso normal (un asegurado y
   sus beneficiarios). Una póliza familiar con varias personas aseguradas pediría una tabla
   `poliza_asegurados`.
@@ -426,3 +423,18 @@ Tres fallos en la proyección, uno de ellos metido por la v1.20.
 Tests: 44 en verde (antes 41). Los tres fallos se reprodujeron primero con tests que
 fallaban, y cubren la conversión, el reparto de la prima semestral, el aviso de moneda sin
 tasa y que una prima no se cuente dos veces.
+
+## v1.22 — Costo de los seguros en Reportes
+
+Era el pendiente que quedó de la v1.20: el resumen de seguros vivía solo en su página.
+
+- **`GET /reportes/seguros`**: prima mensual y anual de las pólizas activas, con
+  **desglose por tipo** (vida, vehículo…) ordenado por costo, y las monedas sin tasa.
+- **La página *Reportes*** gana el bloque *Costo de los seguros* con los totales y la tabla
+  por tipo. Aparece solo si hay pólizas activas, y avisa si falta una tasa de cambio.
+- **`app/polizas.py`**: la lógica de seguros sale del router a su propio módulo, porque
+  ahora la usan dos sitios (`/polizas/resumen` y `/reportes/seguros`) — mismo patrón que
+  `app/reportes.py` con su router. Un solo sitio donde se calcula la prima mensual en COP.
+- Tests: 45 en verde (antes 44). El nuevo comprueba la normalización (anual y semestral al
+  mes), el desglose por tipo, que una póliza pausada no cuenta, que una moneda sin tasa no
+  se suma pero se informa, el aislamiento entre usuarios y que los dos endpoints coinciden.

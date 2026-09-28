@@ -93,6 +93,7 @@ relacionan las piezas.
 | `flujo.py` | Proyección de flujo de caja a N meses: ingresos recurrentes + cobros fijos (suscripciones y pólizas) + gasto variable, todo normalizado a COP |
 | `metas.py` | Progreso de metas de ahorro y aporte sugerido |
 | `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro |
+| `polizas.py` | Costo de los seguros: prima normalizada a mes y a COP, resumen y desglose por tipo (lo comparten `/polizas` y `/reportes`) |
 | `jerarquia.py` | Helpers del árbol `Categoría › Etiqueta › Subetiqueta` (rutas para mostrar) |
 | `notificaciones.py` | Envío por Telegram / SMTP / WhatsApp + job diario con dedup |
 | `scheduler.py` | Los 5 jobs: ingresos recurrentes, suscripciones vencidas, pólizas vencidas, TRM oficial y notificaciones |
@@ -101,7 +102,7 @@ relacionan las piezas.
 `auth`, `categorias` (incluye `/arbol`), `cuentas`, `saldos`, `tarjetas`
 (incluye simulador), `suscripciones`, `polizas` (incluye `/resumen` y
 `/beneficiarios`), `transacciones`, `ingresos_recurrentes`,
-`etiquetas`, `alertas`, `reportes`, `facturas` (incluye el OCR por línea:
+`etiquetas`, `alertas`, `reportes` (incluye `/seguros`), `facturas` (incluye el OCR por línea:
 `/lineas`, `/lineas/{id}` y `/confirmar`), `presupuestos`, `importacion`,
 `productos`, `lista_mercado`, `monedas` (monedas/tasas/convertir), `respaldo`,
 `flujo`, `metas`, `notificaciones`.

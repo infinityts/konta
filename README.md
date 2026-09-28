@@ -71,7 +71,8 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 ### Análisis
 - **Dashboard**: **saldo actual** (con el motivo si estás sobregirado), balance del mes,
   top categorías, próximos pagos.
-- **Reportes**: evolución mensual (últimos 6 meses) y desglose por categoría.
+- **Reportes**: evolución mensual (últimos 6 meses), desglose por categoría y **costo de los
+  seguros** (prima mensual y anual, con desglose por tipo).
 - **Alertas de pagos**: próximos vencimientos de suscripciones y de tarjetas (pago/corte).
 - **Presupuestos**: límite mensual por categoría, con gasto real, % consumido y aviso de exceso.
 - **Flujo de caja**: proyección a 3/6/12 meses combinando ingresos recurrentes, **cobros
@@ -212,7 +213,7 @@ aislados por usuario.
 | **Ingresos recurrentes** | `GET/POST /ingresos-recurrentes`, `GET/PATCH/DELETE /ingresos-recurrentes/{id}` |
 | **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}` |
 | **Alertas** | `GET /alertas?dias=15` |
-| **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM` |
+| **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM`, `GET /reportes/seguros` |
 | **Facturas** | `GET/POST /facturas`, `GET/DELETE /facturas/{id}`, `POST /facturas/{id}/asociar`, `POST /facturas/{id}/lineas`, `PATCH/DELETE /facturas/{id}/lineas/{linea_id}`, `POST /facturas/{id}/confirmar` |
 | **Presupuestos** | `GET/POST /presupuestos`, `PATCH/DELETE /presupuestos/{id}` |
 | **Importar** | `POST /importar/csv` (previsualizar), `POST /importar/confirmar` |
@@ -273,7 +274,7 @@ clasificación y aprendizaje), presupuestos, importar
 CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caja,
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**44 tests en verde.** El esquema se mantiene alineado con el ORM:
+**45 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
