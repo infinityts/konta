@@ -15,5 +15,23 @@ services:
       timeout: 3s
       retries: 20
 
+  backend:
+    build: ./backend
+    environment:
+      FINANZAS_DATABASE_URL: postgresql+psycopg://finanzas:finanzas@db:5432/finanzas
+      FINANZAS_SECRET_KEY: cambiar-por-un-secreto-largo-y-aleatorio
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
 volumes:
   finanzas_pgdata:
