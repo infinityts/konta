@@ -14,9 +14,10 @@ Se añade también `transacciones.ingreso_recurrente_id`, el enlace simétrico a
 `suscripcion_id`, para que el listado pueda marcar los ingresos que vienen de un
 compromiso.
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0023"
 down_revision = "0022"

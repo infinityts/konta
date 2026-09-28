@@ -18,8 +18,8 @@ siempre raíces— y, antes de crear el índice, se **fusionan los duplicados** 
 se hayan podido crear mientras la restricción no existía: si no, la migración
 fallaría en una base con datos reales.
 """
+
 from alembic import op
-import sqlalchemy as sa
 
 revision = "0021"
 down_revision = "0020"

@@ -13,9 +13,10 @@ Nota de downgrade: PostgreSQL no permite **quitar** un valor de un ENUM, así qu
 `transferencia` se queda en el tipo (inofensivo: sin la columna de destino no hay
 forma de crear una transferencia válida).
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0022"
 down_revision = "0021"

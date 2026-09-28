@@ -7,8 +7,9 @@ Create Date: 2026-09-28
 Añade `config_notificaciones.whatsapp_numero`: el destino del canal WhatsApp
 (Cloud API de Meta), con el número en formato internacional sin `+`.
 """
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "0018"
 down_revision = "0017"

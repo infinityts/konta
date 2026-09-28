@@ -10,9 +10,10 @@ deuda. La deuda del extracto (`deudas_tarjeta`) es un **nivel** y los pagos un
 posteriores a su fecha. Cada pago queda enlazado a su transacción (una
 transferencia de la cuenta a la tarjeta: pagar una deuda propia no es un gasto).
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0024"
 down_revision = "0023"

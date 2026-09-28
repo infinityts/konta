@@ -9,9 +9,10 @@ Modelo: Categoría → Etiqueta → Subetiqueta.
 Regla de unicidad: dos hermanos (mismo padre) no pueden llamarse igual, sin
 distinguir mayúsculas. En categorías distintas el nombre sí se puede repetir.
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0013"
 down_revision = "0012"

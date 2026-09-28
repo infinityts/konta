@@ -9,9 +9,10 @@ siendo la persona asegurada principal (o el tomador, en vehículo) y sirve para 
 título; esta tabla es el detalle de quiénes están cubiertos, con parentesco,
 fecha de nacimiento y cuál es el titular.
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0020"
 down_revision = "0019"

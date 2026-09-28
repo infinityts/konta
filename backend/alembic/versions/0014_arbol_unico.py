@@ -8,8 +8,9 @@ Las categorías quedan como **solo raíces**; todo el anidamiento pasa a etiquet
 Se migran las subcategorías existentes a etiquetas de su categoría raíz y se
 borran las etiquetas huérfanas (sin categoría).
 """
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "0014"
 down_revision = "0013"

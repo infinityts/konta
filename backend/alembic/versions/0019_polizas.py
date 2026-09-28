@@ -15,9 +15,10 @@ Create Date: 2026-09-28
 Nota de downgrade: PostgreSQL no permite **quitar** un valor de un ENUM, así que
 `semestral` se queda en el tipo (inofensivo: nadie lo usa sin las tablas).
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0019"
 down_revision = "0018"

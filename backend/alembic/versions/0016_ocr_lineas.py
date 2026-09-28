@@ -8,9 +8,10 @@ Create Date: 2026-09-28
   Una factura pasa de 1 a N transacciones.
 - `reglas_ocr`: lo que el usuario corrige, para clasificar solo la próxima vez.
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0016"
 down_revision = "0015"
