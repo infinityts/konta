@@ -198,7 +198,7 @@ export default function Suscripciones() {
               <p className="text-sm text-slate-500">
                 {s.periodicidad} · {nombreTarjeta(s.tarjeta_id)}
                 {s.etiqueta_id ? ` · ${rutaEtiqueta(s.etiqueta_id)}` : ''}
-                {s.proximo_pago ? ` · próximo ${s.proximo_pago}` : ' · sin fecha de pago'}
+                {s.proximo_pago ? ` · día ${Number(s.proximo_pago.slice(8, 10))} de cada mes` : ' · sin fecha de pago'}
               </p>
             </div>
             <div className="flex items-center gap-3">
