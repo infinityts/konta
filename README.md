@@ -11,6 +11,7 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 | Documento | Contenido |
 |---|---|
 | [`README.md`](README.md) | Funcionalidades, stack, endpoints y modelo de datos (este archivo) |
+| [`docs/guia-uso.md`](docs/guia-uso.md) | **Guía práctica de uso**: cuentas, categorías vs etiquetas, tarjetas y errores comunes |
 | [`docs/arquitectura.md`](docs/arquitectura.md) | Arquitectura, módulos, scheduler, notificaciones y relaciones |
 | [`docs/despliegue.md`](docs/despliegue.md) | Local, Docker/Podman, administración, respaldo y variables de entorno |
 | [`CHANGELOG.md`](CHANGELOG.md) | Historial de cambios commit por commit |
@@ -225,6 +226,6 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 ## Estado
 
 - [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja + metas de ahorro + notificaciones + cuentas/saldos + subcategorías
-- [x] Frontend: login/registro, dashboard con saldo, CRUD, cuentas, categorías, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
+- [x] Frontend: login/registro, dashboard con saldo y motivo, cuentas y consolidado, categorías y subcategorías, transacciones con **edición** y etiquetas, tarjetas con deuda y simulador, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
 - [x] Despliegue con Docker/Podman
 - [ ] WhatsApp como canal de notificaciones (requiere Cloud API de Meta o gateway)

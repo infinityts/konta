@@ -85,7 +85,7 @@ relacionan las piezas.
 | `importacion.py` | Parser CSV flexible (delimitador, columnas, signos, formatos de monto) |
 | `mercado.py` | Comparativo de precios por tienda |
 | `tasas.py` | Tasas de cambio: consulta, conversión y descarga desde internet |
-| `intereses.py` | Simulador de pago de deuda (interés compuesto mensual) |
+| `intereses.py` | Simulador de pago de deuda y conversión **E.A. ↔ mensual** |
 | `respaldo.py` | Exportar/restaurar todos los datos del usuario |
 | `flujo.py` | Proyección de flujo de caja a N meses |
 | `metas.py` | Progreso de metas de ahorro y aporte sugerido |
@@ -178,7 +178,10 @@ Se puede desactivar con `FINANZAS_SCHEDULER_ENABLED=false` (los tests lo hacen).
 - `auth.tsx` — contexto de sesión + guardas de ruta.
 - `types.ts` — tipos compartidos.
 - `components/Layout.tsx` — navegación.
-- `pages/` — 18 pantallas (una por módulo).
+- `pages/` — 20 pantallas (una por módulo): `Dashboard`, `Cuentas`, `Categorias`,
+  `Transacciones`, `Tarjetas`, `Suscripciones`, `IngresosRecurrentes`, `Etiquetas`,
+  `Reportes`, `FlujoCaja`, `Presupuestos`, `Metas`, `Facturas`, `Importar`, `Mercado`,
+  `Monedas`, `Respaldo`, `Notificaciones`, `Login`, `Register`.
 
 ---
 
