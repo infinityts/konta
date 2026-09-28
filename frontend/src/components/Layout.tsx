@@ -5,6 +5,7 @@ const items = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/tarjetas', label: 'Tarjetas', end: false },
   { to: '/suscripciones', label: 'Suscripciones', end: false },
+  { to: '/ingresos-recurrentes', label: 'Ingresos recurrentes', end: false },
   { to: '/transacciones', label: 'Transacciones', end: false },
 ]
 

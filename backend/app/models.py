@@ -187,3 +187,36 @@ class Transaccion(Base):
         ForeignKey("suscripciones.id", ondelete="SET NULL"), nullable=True
     )
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PeriodicidadIngreso(str, enum.Enum):
+    DIARIO = "diario"
+    SEMANAL = "semanal"
+    MENSUAL = "mensual"
+
+
+_periodicidad_ingreso = _enum(PeriodicidadIngreso, "periodicidad_ingreso")
+
+
+class IngresoRecurrente(Base):
+    """Ingreso recurrente (diario/semanal/mensual): al llegar `proxima_ejecucion`,
+    el scheduler genera una transacción de tipo ingreso automáticamente."""
+
+    __tablename__ = "ingresos_recurrentes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    monto: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    periodicidad: Mapped[PeriodicidadIngreso] = mapped_column(_periodicidad_ingreso, nullable=False)
+    # mensual: día del mes (1-31); semanal: día de la semana (0=Lunes … 6=Domingo); diario: None
+    dia: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    proxima_ejecucion: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("categorias.id", ondelete="SET NULL"), nullable=True
+    )
+    activa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

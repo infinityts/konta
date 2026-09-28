@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     secret_key: str = "cambiar-por-un-secreto-largo-y-aleatorio"
     access_token_expire_minutes: int = 1440  # 24 h
 
+    # Zona horaria para calcular "hoy" en los ingresos recurrentes
+    timezone: str = "America/Bogota"
+
+    # Scheduler de ingresos recurrentes (deshabilitar en tests)
+    scheduler_enabled: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

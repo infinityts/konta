@@ -91,3 +91,26 @@ def test_aislamiento_multiusuario(client):
 
     assert len(client.get("/tarjetas", headers=h2).json()) == 0
     assert client.get(f"/tarjetas/{tar['id']}", headers=h2).status_code == 404
+
+
+def test_ingresos_recurrentes_crud(client):
+    _, h = _registrar(client)
+
+    r = client.post(
+        "/ingresos-recurrentes", headers=h,
+        json={"nombre": "Salario", "monto": "1000000", "periodicidad": "mensual", "dia": 15},
+    )
+    assert r.status_code == 201
+    item = r.json()
+    assert item["proxima_ejecucion"]
+
+    # validación: mensual sin día -> 422
+    r = client.post(
+        "/ingresos-recurrentes", headers=h,
+        json={"nombre": "Mal", "monto": "100", "periodicidad": "mensual"},
+    )
+    assert r.status_code == 422
+
+    assert len(client.get("/ingresos-recurrentes", headers=h).json()) == 1
+    assert client.delete(f"/ingresos-recurrentes/{item['id']}", headers=h).status_code == 204
+    assert len(client.get("/ingresos-recurrentes", headers=h).json()) == 0

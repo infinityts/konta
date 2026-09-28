@@ -46,6 +46,18 @@ export interface Transaccion {
   notas: string | null
 }
 
+export interface IngresoRecurrente {
+  id: string
+  nombre: string
+  monto: number | string
+  moneda: string
+  periodicidad: 'diario' | 'semanal' | 'mensual'
+  dia: number | null
+  proxima_ejecucion: string
+  categoria_id: string | null
+  activa: boolean
+}
+
 export function fmtMoney(v: number | string | null | undefined): string {
   const n = Number(v)
   if (!Number.isFinite(n)) return '—'

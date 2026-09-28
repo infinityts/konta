@@ -18,6 +18,8 @@ TEST_URL = os.environ.get("FINANZAS_TEST_DATABASE_URL") or os.environ.get(
 
 if TEST_URL:
     os.environ["FINANZAS_DATABASE_URL"] = TEST_URL
+    # Deshabilitar el scheduler en tests
+    os.environ["FINANZAS_SCHEDULER_ENABLED"] = "false"
 
 
 @pytest.fixture(scope="session")
