@@ -47,10 +47,26 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   tardas en pagar una deuda y cuánto pagas de intereses; avisa si el pago no cubre el interés.
   Si no indicas saldo, usa la **deuda registrada** de la tarjeta.
 
+### Seguros y pólizas
+- **Pólizas de vida, salud, vehículo u hogar** para personas y/o bienes: aseguradora,
+  número de póliza, **asegurado** (persona) o **bien asegurado** (vehículo con **placa**,
+  marca, modelo y **valor asegurado**).
+- **Prima** con su moneda y periodicidad (mensual, trimestral, semestral o anual): al
+  vencer, un job genera **automáticamente el gasto**, heredando categoría, etiqueta,
+  tarjeta y cuenta — igual que las suscripciones, e **idempotente**.
+- **Vigencia** (inicio y fin) y **renovación automática**; las alertas avisan de la
+  **prima próxima** y del **vencimiento de la vigencia** (salvo si renueva sola).
+- **Beneficiarios** con parentesco y **porcentaje** (no pueden sumar más de 100).
+- **Costo anual de seguros**: prima mensual y anual normalizada a COP.
+- Las primas entran en el **gasto fijo** del diagnóstico del dashboard.
+
 ### Organización
-- **Categorías y subcategorías** jerárquicas: el dashboard y los reportes agrupan por
-  categoría y su subcategoría (ej. *Transporte › Gasolina*).
-- **Etiquetas y subetiquetas** jerárquicas asociadas a transacciones.
+- **Un solo árbol `Categoría › Etiqueta › Subetiqueta`**: la categoría es el contexto
+  (Vivienda, Transporte, Casa 1…) y el anidamiento vive en las etiquetas. El dashboard y
+  los reportes agrupan por esa ruta, y los nombres son **únicos entre hermanos** (sin
+  distinguir mayúsculas).
+- **Editar** categorías y etiquetas, y **crear etiquetas en línea** desde el propio
+  movimiento.
 
 ### Análisis
 - **Dashboard**: **saldo actual** (con el motivo si estás sobregirado), balance del mes,
@@ -188,6 +204,7 @@ aislados por usuario.
 | **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}`, `GET /categorias/arbol` |
 | **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}`, `GET/POST /tarjetas/{id}/deudas`, `DELETE /tarjetas/{id}/deudas/{deuda_id}`, `GET /tarjetas/{id}/simulador` |
 | **Suscripciones** | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
+| **Pólizas** | `GET/POST /polizas`, `GET/PATCH/DELETE /polizas/{id}`, `GET /polizas/resumen`, `POST /polizas/{id}/beneficiarios`, `PATCH/DELETE /polizas/beneficiarios/{beneficiario_id}` |
 | **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
 | **Ingresos recurrentes** | `GET/POST /ingresos-recurrentes`, `GET/PATCH/DELETE /ingresos-recurrentes/{id}` |
 | **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}` |
@@ -233,6 +250,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea) |
 | `0017_nombres_indices_orm` | renombra los índices al nombre que espera el ORM (`alembic check` limpio) |
 | `0018_whatsapp` | `config_notificaciones.whatsapp_numero` (canal WhatsApp) |
+| `0019_polizas` | `polizas`, `beneficiarios` + `transacciones.poliza_id` + periodicidad `semestral` |
 
 ---
 
@@ -245,21 +263,22 @@ FINANZAS_TEST_DATABASE_URL=postgresql+psycopg://finanzas:finanzas@localhost:5433
 ```
 
 Cobertura: auth, CRUD core, aislamiento multi-usuario, ingresos recurrentes,
-suscripciones que generan su gasto, etiquetas/subetiquetas (con cascada y unicidad
+suscripciones que generan su gasto, pólizas (generación del gasto, beneficiarios y
+alertas de vigencia), etiquetas/subetiquetas (con cascada y unicidad
 entre hermanos), alertas de pagos, reportes, facturas (OCR y OCR por línea con
 clasificación y aprendizaje), presupuestos, importar
 CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caja,
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**35 tests en verde.** El esquema se mantiene alineado con el ORM:
+**41 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + suscripciones que generan su gasto + árbol Categoría › Etiqueta › Subetiqueta + alertas + reportes + facturas con OCR por línea (clasificación en cascada y aprendizaje) + presupuestos + importar CSV + mercado + multi-moneda (TRM oficial) + simulador y deuda de tarjeta + respaldo + flujo de caja + metas de ahorro + notificaciones (Telegram, correo y WhatsApp) + cuentas/saldos
-- [x] Frontend: login/registro, dashboard con KPIs y motivo del sobregiro, cuentas y consolidado, categorías y etiquetas, transacciones con **edición** y etiquetas, tarjetas con deuda, edición y simulador, suscripciones con edición y pausa, ingresos recurrentes, reportes, facturas con líneas OCR editables, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + suscripciones que generan su gasto + **pólizas de seguro** (prima que genera su gasto, vigencia, vencimiento y beneficiarios) + árbol Categoría › Etiqueta › Subetiqueta + alertas + reportes + facturas con OCR por línea (clasificación en cascada y aprendizaje) + presupuestos + importar CSV + mercado + multi-moneda (TRM oficial) + simulador y deuda de tarjeta + respaldo + flujo de caja + metas de ahorro + notificaciones (Telegram, correo y WhatsApp) + cuentas/saldos
+- [x] Frontend: login/registro, dashboard con KPIs y motivo del sobregiro, cuentas y consolidado, categorías y etiquetas, transacciones con **edición** y etiquetas, tarjetas con deuda, edición y simulador, suscripciones con edición y pausa, seguros con beneficiarios y costo anual, ingresos recurrentes, reportes, facturas con líneas OCR editables, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
 - [x] Navegación agrupada: `Resumen` + 5 grupos en barra superior (hover en escritorio, hamburguesa en móvil), definidos en `frontend/src/nav.ts`
 - [x] Loader `AccordionLoader` (alias `@` → `src`) y **carga diferida por página** (bundle inicial 271 kB → 183 kB)
 - [x] Despliegue con Docker/Podman
@@ -267,4 +286,5 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **OCR por línea**: `factura_lineas` + `reglas_ocr` expuestos en la API y en la UI de *Facturas*
 - [x] CI: `pytest` (con PostgreSQL 16 y `alembic check`) + `pnpm build` en GitHub Actions
 - [x] **WhatsApp** como canal de notificaciones (Cloud API de Meta; requiere plantilla *utility* aprobada para el envío diario)
-- [ ] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima, vigencia, beneficiarios, bien asegurado y alertas de vencimiento
+- [x] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima que genera su gasto, vigencia y vencimiento, beneficiarios con porcentaje y bien asegurado (placa)
+- [ ] Reporte del **costo anual de seguros** dentro de la página de Reportes (hoy está en el resumen de *Seguros* y en el gasto fijo del dashboard)

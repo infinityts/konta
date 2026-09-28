@@ -74,10 +74,14 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 
 ## Pendiente / ideas
 
-- **Seguros y pólizas** (personas y vehículos): ver la tarea al final del backlog en el
-  Sistema de Contexto. Cubre vida/salud/vehículo/hogar, prima y periodicidad, vigencia y
-  renovación, beneficiarios y bien asegurado (placa), alertas de vencimiento y reporte
-  del costo anual. *No está implementado.*
+- **Costo anual de seguros dentro de *Reportes***: hoy el resumen vive en la página
+  *Seguros* y las primas entran en el gasto fijo del dashboard, pero no aparecen en el
+  desglose de reportes.
+- **Varias personas cubiertas por póliza**: el modelo cubre el caso normal (un asegurado y
+  sus beneficiarios). Una póliza familiar con varias personas aseguradas pediría una tabla
+  `poliza_asegurados`.
+- **Quitar un valor de un ENUM**: `periodicidad.semestral` se queda aunque se baje la
+  migración `0019` (PostgreSQL no lo permite sin recrear el tipo).
 
 ## v1.1.1 — Correcciones tras validar con datos reales
 
@@ -224,8 +228,8 @@ Antes eran solo un recordatorio: **no aparecían** en el dashboard, presupuestos
 
 ## v1.12 — OCR por línea (1/2: backend)
 
-Primera mitad de la lectura de recibos **artículo por artículo** (hoy sin exponer; ver
-*Pendiente / ideas*).
+Primera mitad de la lectura de recibos **artículo por artículo** (la 2/2, que lo expone,
+llega en la v1.17).
 
 - **Migración `0016`**: tablas `factura_lineas` (un renglón detectado: descripción, cantidad,
   valor unitario, total, etiqueta, origen y confianza) y `reglas_ocr` (aprendizaje: «este
@@ -353,3 +357,45 @@ gateways de terceros ni librerías no oficiales (que arriesgan el ban del númer
 - **Aviso real de Meta**: fuera de la ventana de 24 h desde el último mensaje del usuario,
   la API exige una **plantilla aprobada** (*utility*); un texto libre se rechaza. Está
   documentado en el README y en `docs/despliegue.md`.
+
+## v1.20 — Seguros y pólizas (personas y vehículos)
+
+Una póliza es un compromiso recurrente **como una suscripción**, pero además tiene
+vigencia y un bien o persona asegurada. Faltaba por completo.
+
+- **Migración `0019`**: tablas `polizas` y `beneficiarios`, `transacciones.poliza_id`
+  (trazabilidad del gasto) y el valor `semestral` en el tipo `periodicidad`.
+  *Nota*: PostgreSQL no permite quitar un valor de un ENUM, así que `semestral` se queda
+  aunque se baje la migración (inofensivo).
+- **`polizas`**: tipo (`vida`, `salud`, `vehiculo`, `hogar`, `otro`), aseguradora y número
+  de póliza; **asegurado** persona (`asegurado_nombre`) **o bien** (vehículo con `placa`,
+  `marca`, `modelo`, `anio` y `valor_asegurado`); prima, moneda y periodicidad; vigencia
+  (`fecha_inicio` / `fecha_fin`), `renovacion_automatica` y `proximo_pago`; categoría,
+  etiqueta, tarjeta y cuenta del cargo; estado (activa/pausada/cancelada).
+- **`beneficiarios`**: nombre, parentesco y porcentaje. La API **rechaza** que los
+  porcentajes de una póliza sumen más de 100, diciendo cuánto suman.
+- **El gasto se genera solo**: nuevo job `polizas-vencidas` (cada hora) con
+  `procesar_polizas()`, idempotente y con puesta al día (tope de 24 periodos). La
+  transacción hereda categoría, etiqueta, tarjeta y cuenta, y queda enlazada a la póliza.
+  Una póliza pausada o cancelada no genera nada.
+- **Alertas**: `poliza_pago` para la prima próxima y `poliza_vencimiento` para el fin de
+  vigencia (no avisa si la póliza renueva automáticamente).
+- **Costo de los seguros**: `GET /polizas/resumen` devuelve prima **mensual** y **anual**
+  normalizadas a COP (semestral pesa 1/6, anual 1/12) e informa de las monedas sin tasa
+  de cambio, en vez de sumarlas mal.
+- **`periodicidad` gana `semestral`** y el factor de normalización se centraliza en
+  `recurrencia.factor_mensual()` (antes duplicado y sin semestral en `saldos.py`).
+- **El gasto fijo del diagnóstico** ahora suma suscripciones **y pólizas**, normalizadas.
+- **Frontend**: página *Seguros* (grupo Movimientos) con resumen de primas, formulario que
+  cambia según el tipo (los campos del vehículo solo aparecen en vehículo), edición,
+  pausar/activar y gestión de beneficiarios con el porcentaje repartido.
+- **Tests**: 41 en verde (antes 36).
+
+### Y un agujero que apareció al hacerlo
+
+El **respaldo** solo exportaba 11 de los 21 modelos: al restaurar se perdían **cuentas,
+metas de ahorro y sus aportes, deudas de tarjeta, líneas de factura, reglas de OCR y la
+configuración de notificaciones** (y las pólizas nuevas). Ahora exporta y restaura todo,
+en orden de dependencias y con `flush` por modelo — sin `relationship()` declaradas, el
+orden de INSERT no se deduce solo (fue justo el fallo que apareció en el test: los
+aportes se insertaban antes que su meta).

@@ -66,7 +66,7 @@ relacionan las piezas.
 |---|---|
 | `config.py` | Settings con prefijo `FINANZAS_` (BD, JWT, zona horaria, Telegram, SMTP) |
 | `db.py` | Engine, `SessionLocal`, `get_db` |
-| `models.py` | 21 tablas + enums |
+| `models.py` | 23 tablas + enums |
 | `schemas.py` | Pydantic (entradas/salidas) |
 | `security.py` | Hash bcrypt + creación/validación de JWT |
 | `deps.py` | `get_db`, `get_current_user` |
@@ -77,8 +77,8 @@ relacionan las piezas.
 ### Lógica de negocio
 | Archivo | Responsabilidad |
 |---|---|
-| `recurrencia.py` | Ocurrencias de ingresos recurrentes + `hoy()` (zona horaria) |
-| `alertas.py` | Pagos próximos (suscripciones + corte/pago de tarjetas) |
+| `recurrencia.py` | `hoy()` (zona horaria), `siguiente_pago()`, `factor_mensual()` y la generación de los cobros recurrentes: ingresos, suscripciones y **pólizas** |
+| `alertas.py` | Pagos próximos: suscripciones, **primas y vencimiento de pólizas** y corte/pago de tarjetas |
 | `reportes.py` | Agregación mensual y por categoría |
 | `facturas.py` | Extracción de texto (pypdf + OCR tesseract con preprocesado) y heurísticas monto/fecha |
 | `lineas.py` | Parser de recibos: parte un texto OCR en líneas de artículo (descripción, cantidad, valor) y detecta el tipo de documento |
@@ -95,11 +95,12 @@ relacionan las piezas.
 | `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro |
 | `jerarquia.py` | Helpers del árbol `Categoría › Etiqueta › Subetiqueta` (rutas para mostrar) |
 | `notificaciones.py` | Envío por Telegram / SMTP / WhatsApp + job diario con dedup |
-| `scheduler.py` | Los 4 jobs: ingresos recurrentes, suscripciones vencidas, TRM oficial y notificaciones |
+| `scheduler.py` | Los 5 jobs: ingresos recurrentes, suscripciones vencidas, pólizas vencidas, TRM oficial y notificaciones |
 
-### Routers (21)
+### Routers (22)
 `auth`, `categorias` (incluye `/arbol`), `cuentas`, `saldos`, `tarjetas`
-(incluye simulador), `suscripciones`, `transacciones`, `ingresos_recurrentes`,
+(incluye simulador), `suscripciones`, `polizas` (incluye `/resumen` y
+`/beneficiarios`), `transacciones`, `ingresos_recurrentes`,
 `etiquetas`, `alertas`, `reportes`, `facturas` (incluye el OCR por línea:
 `/lineas`, `/lineas/{id}` y `/confirmar`), `presupuestos`, `importacion`,
 `productos`, `lista_mercado`, `monedas` (monedas/tasas/convertir), `respaldo`,
@@ -109,7 +110,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-21 tablas de negocio (más `alembic_version`), creadas por 18 migraciones:
+23 tablas de negocio (más `alembic_version`), creadas por 19 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -128,9 +129,10 @@ relacionan las piezas.
 | `0013_etiquetas_en_categorias` | `etiquetas.categoria_id` + unicidad entre hermanos (índices funcionales) |
 | `0014_arbol_unico` | migra subcategorías a etiquetas y **elimina `categorias.padre_id`** |
 | `0015_suscripcion_etiqueta` | `suscripciones.etiqueta_id` |
-| `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea, aún sin exponer) |
+| `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea) |
 | `0017_nombres_indices_orm` | renombra 22 índices al nombre que espera el ORM (`ix_tabla_columna`) |
 | `0018_whatsapp` | `config_notificaciones.whatsapp_numero` (canal WhatsApp) |
+| `0019_polizas` | `polizas`, `beneficiarios` + `transacciones.poliza_id` + `periodicidad.semestral` |
 
 ### Relaciones principales
 
@@ -145,9 +147,12 @@ usuarios ─┬─ cuentas ────────── transacciones   (saldo
           │                                      la categoría es siempre raíz)
           ├─ tarjetas ───┬───── transacciones
           │              ├───── suscripciones
+          │              ├───── polizas        (el cargo de la prima)
           │              ├───── deudas_tarjeta  (deuda por moneda)
           │              └───── cuentas         (solo débito: instrumento de la cuenta)
+          ├─ polizas ────────── beneficiarios  (nombre, parentesco, porcentaje)
           ├─ transacciones ──┬─ etiquetas       (etiqueta_id, dentro del árbol)
+          │                  ├─ polizas         (poliza_id: gasto generado por la prima)
           │                  └─ facturas ─── factura_lineas ─── reglas_ocr
           ├─ productos ──┬───── precios_mercado
           │              └───── lista_mercado
@@ -159,20 +164,26 @@ usuarios ─┬─ cuentas ────────── transacciones   (saldo
 es una etiqueta y con padre es una subetiqueta. Los nombres son únicos entre hermanos, sin
 distinguir mayúsculas (índices `uq_etiquetas_raiz` / `uq_etiquetas_hija`).
 
-`monedas` es referenciada por `cuentas`, `tarjetas`, `suscripciones`,
+`monedas` es referenciada por `cuentas`, `tarjetas`, `suscripciones`, `polizas`,
 `transacciones`, `ingresos_recurrentes`, `presupuestos`, `precios_mercado`,
 `metas_ahorro` y `tasas_cambio`.
+
+Una **póliza** es un compromiso recurrente (prima + `proximo_pago`) con vigencia
+(`fecha_inicio` / `fecha_fin`); cubre a una **persona** (`asegurado_nombre`) o a un **bien**
+(los campos de vehículo). Sus **beneficiarios** cuelgan de ella y sus porcentajes no pueden
+sumar más de 100.
 
 ---
 
 ## Scheduler
 
-Cuatro jobs en `APScheduler` (en el proceso de la API):
+Cinco jobs en `APScheduler` (en el proceso de la API):
 
 | Job | Frecuencia | Qué hace |
 |---|---|---|
 | `ingresos-recurrentes` | cada 1 h | Genera la transacción de ingreso cuando `proxima_ejecucion <= hoy` y avanza la fecha (idempotente) |
 | `suscripciones-vencidas` | cada 1 h | Genera el gasto de la suscripción al vencer y avanza un periodo (idempotente, tope de 24 periodos) |
+| `polizas-vencidas` | cada 1 h | Genera el gasto de la **prima** al vencer y avanza `proximo_pago` (idempotente, tope de 24 periodos) |
 | `trm-oficial` | cada 6 h | Trae la TRM oficial de la SFC (`datos.gov.co`) y la guarda como USD → COP |
 | `notificaciones-pagos` | cada 1 h | Envía el resumen de pagos próximos; **máximo 1 al día** por usuario (dedup con `ultima_notificacion`) |
 
@@ -202,8 +213,8 @@ Se puede desactivar con `FINANZAS_SCHEDULER_ENABLED=false` (los tests lo hacen).
 - `auth.tsx` — contexto de sesión + guardas de ruta.
 - `types.ts` — tipos compartidos.
 - `components/Layout.tsx` — navegación.
-- `pages/` — 20 pantallas (una por módulo): `Dashboard`, `Cuentas`, `Categorias`,
-  `Transacciones`, `Tarjetas`, `Suscripciones`, `IngresosRecurrentes`, `Etiquetas`,
+- `pages/` — 21 pantallas (una por módulo): `Dashboard`, `Cuentas`, `Categorias`,
+  `Transacciones`, `Tarjetas`, `Suscripciones`, `Polizas`, `IngresosRecurrentes`, `Etiquetas`,
   `Reportes`, `FlujoCaja`, `Presupuestos`, `Metas`, `Facturas`, `Importar`, `Mercado`,
   `Monedas`, `Respaldo`, `Notificaciones`, `Login`, `Register`.
 

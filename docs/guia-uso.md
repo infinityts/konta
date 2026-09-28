@@ -215,3 +215,38 @@ Se envía **como máximo un resumen al día**.
 **Restaurar** reemplaza tus datos por los del archivo (úsalo solo para recuperar).
 
 A nivel de servidor también puedes hacer `pg_dump` (ver [`despliegue.md`](despliegue.md)).
+
+---
+
+## 10. Seguros y pólizas
+
+👉 **Seguros** → *Nueva póliza*
+
+| Campo | Qué poner |
+|---|---|
+| Tipo | `Vida`, `Salud`, `Vehículo`, `Hogar` u `Otro` |
+| Aseguradora | Sura, Bolívar, Colsanitas… |
+| Persona asegurada | Quién queda cubierto (en vehículo, el tomador) |
+| Placa / marca / modelo / año | **Solo si el tipo es Vehículo** (el formulario los muestra entonces) |
+| Valor asegurado | Lo que pagaría el seguro si hay siniestro |
+| Prima y periodicidad | Lo que pagas y cada cuánto (`mensual`, `trimestral`, `semestral`, `anual`) |
+| Inicio / fin de vigencia | El periodo cubierto |
+| Renovación automática | Márcala si el seguro se renueva solo: así no te avisa del vencimiento |
+| Próximo pago de prima | Cuándo se cobra la siguiente. **Al llegar esa fecha, la app crea el gasto sola** |
+| Categoría / etiqueta / tarjeta / cuenta | Dónde cae el gasto y de dónde sale el dinero |
+
+**Lo que hace la app por ti:**
+
+- Genera el **gasto de la prima** al vencer (un job cada hora, idempotente: no duplica).
+- Te **avisa** de la prima próxima y del **fin de vigencia** en el dashboard.
+- Suma el **costo de los seguros**: prima al mes y al año, normalizada a COP (una póliza
+  anual de 600.000 pesa 50.000 al mes, no 600.000).
+- Si la póliza está en otra moneda y no hay tasa registrada, te lo dice **en vez de sumar
+  mal**: regístrala en **Monedas**.
+
+**Beneficiarios** (típico en seguros de vida): botón *Beneficiarios* en la póliza → nombre,
+parentesco y **porcentaje**. Los porcentajes **no pueden sumar más de 100**; la app te dice
+cuánto suman si te pasas.
+
+> Para **pausar** un seguro (por ejemplo, un vehículo vendido) usa *Pausar*: deja de generar
+> el gasto y de avisar, pero conserva el histórico.
