@@ -24,6 +24,7 @@ export default function Notificaciones() {
         body: JSON.stringify({
           canal: cfg.canal,
           telegram_chat_id: cfg.telegram_chat_id || null,
+          whatsapp_numero: cfg.whatsapp_numero || null,
           email: cfg.email || null,
           dias_anticipacion: Number(cfg.dias_anticipacion),
           activo: cfg.activo,
@@ -84,7 +85,9 @@ export default function Notificaciones() {
               <select value={cfg.canal} onChange={(e) => set('canal', e.target.value as Config['canal'])} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                 <option value="telegram">Telegram</option>
                 <option value="email">Correo</option>
-                <option value="ambos">Ambos</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="ambos">Telegram + correo</option>
+                <option value="todos">Los tres</option>
               </select>
             </div>
             <div>
@@ -107,6 +110,16 @@ export default function Notificaciones() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="text-sm text-slate-600">WhatsApp (número destino)</label>
+              <input
+                value={cfg.whatsapp_numero ?? ''}
+                onChange={(e) => set('whatsapp_numero', e.target.value)}
+                placeholder="573001234567 (internacional, sin +)"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
             </div>
 
             <div className="sm:col-span-2">

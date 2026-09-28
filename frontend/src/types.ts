@@ -314,8 +314,9 @@ export interface Meta {
 
 export interface Notificaciones {
   id: string
-  canal: 'telegram' | 'email' | 'ambos'
+  canal: 'telegram' | 'email' | 'whatsapp' | 'ambos' | 'todos'
   telegram_chat_id: string | null
+  whatsapp_numero: string | null
   email: string | null
   dias_anticipacion: number
   activo: boolean

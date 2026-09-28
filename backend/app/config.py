@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     smtp_from: str | None = None
     smtp_tls: bool = True
 
+    # Notificaciones — WhatsApp (Cloud API de Meta, global)
+    # Sin token/phone_id el canal queda deshabilitado y avisa al probarlo.
+    whatsapp_token: str | None = None
+    whatsapp_phone_id: str | None = None
+    whatsapp_api_version: str = "v21.0"
+
     # OCR de facturas: embeddings opcionales (Ollama) para el tercer nivel del
     # clasificador de artículos. Si `ollama_url` está vacío, el clasificador usa
     # solo historial + diccionario y no sale a la red.

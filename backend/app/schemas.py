@@ -632,8 +632,10 @@ class MetaOut(BaseModel):
 
 
 class NotificacionesIn(BaseModel):
-    canal: Literal["telegram", "email", "ambos"] = "telegram"
+    # `ambos` = telegram + correo (compatibilidad); `todos` = los tres canales.
+    canal: Literal["telegram", "email", "whatsapp", "ambos", "todos"] = "telegram"
     telegram_chat_id: str | None = None
+    whatsapp_numero: str | None = Field(default=None, max_length=20)
     email: EmailStr | None = None
     dias_anticipacion: int = Field(5, ge=1, le=60)
     activo: bool = False
@@ -645,6 +647,7 @@ class NotificacionesOut(BaseModel):
     id: uuid.UUID
     canal: str
     telegram_chat_id: str | None
+    whatsapp_numero: str | None
     email: str | None
     dias_anticipacion: int
     activo: bool

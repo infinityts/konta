@@ -1004,3 +1004,48 @@ def test_ocr_linea_descartar_y_aislamiento(client, engine):
     assert client.post(f"/facturas/{fid}/lineas", headers=h2, json={}).status_code == 404
     assert len(client.get(f"/facturas/{fid}", headers=h).json()["lineas"]) == 2
 
+
+def test_notificaciones_whatsapp(client):
+    """WhatsApp como canal: mapeo, destino persistido y fallo claro sin credenciales."""
+    from app.models import ConfigNotificaciones
+    from app.notificaciones import canales_de, enviar
+
+    # `ambos` sigue siendo telegram+correo; `todos` añade WhatsApp
+    assert canales_de(ConfigNotificaciones(canal="todos")) == ["telegram", "email", "whatsapp"]
+    assert canales_de(ConfigNotificaciones(canal="ambos")) == ["telegram", "email"]
+    assert canales_de(ConfigNotificaciones(canal="whatsapp")) == ["whatsapp"]
+
+    # Sin las credenciales del servidor el canal avisa, no revienta
+    try:
+        enviar(
+            ConfigNotificaciones(canal="whatsapp", whatsapp_numero="573001234567"),
+            [],
+        )
+        raise AssertionError("debía fallar sin FINANZAS_WHATSAPP_TOKEN")
+    except RuntimeError as exc:
+        assert "FINANZAS_WHATSAPP_TOKEN" in str(exc)
+
+    _, h = _registrar(client)
+    r = client.put(
+        "/notificaciones",
+        headers=h,
+        json={
+            "canal": "whatsapp",
+            "whatsapp_numero": "573001234567",
+            "dias_anticipacion": 3,
+            "activo": True,
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["canal"] == "whatsapp"
+    assert r.json()["whatsapp_numero"] == "573001234567"
+    assert client.get("/notificaciones", headers=h).json()["whatsapp_numero"] == "573001234567"
+
+    # Probar sin credenciales: 502 con un mensaje que dice qué falta
+    r = client.post("/notificaciones/probar", headers=h)
+    assert r.status_code == 502
+    assert "WHATSAPP" in r.json()["detail"]
+
+    # Un canal que no existe se rechaza en la validación
+    assert client.put("/notificaciones", headers=h, json={"canal": "paloma"}).status_code == 422
+

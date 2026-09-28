@@ -1,7 +1,7 @@
-"""Envío de notificaciones de alarmas de pago (Telegram + email).
+"""Envío de notificaciones de alarmas de pago (Telegram, correo y WhatsApp).
 
-La configuración de servidor (token del bot y SMTP) es global; cada usuario
-elige canal, destino y días de anticipación.
+La configuración de servidor (token del bot, SMTP y Cloud API de Meta) es global;
+cada usuario elige canal, destino y días de anticipación.
 """
 
 from __future__ import annotations
@@ -71,8 +71,53 @@ def enviar_email(destino: str, texto: str) -> None:
         raise RuntimeError(f"No se pudo enviar el correo: {exc}") from exc
 
 
+def enviar_whatsapp(numero: str, texto: str) -> None:
+    """Envía por la Cloud API de Meta.
+
+    Ojo: fuera de la ventana de 24 h desde el último mensaje del usuario, Meta
+    exige una **plantilla aprobada**; un texto libre se rechaza. Para el resumen
+    diario de pagos hay que aprobar una plantilla *utility* y usarla aquí.
+    """
+    s = get_settings()
+    if not (s.whatsapp_token and s.whatsapp_phone_id):
+        raise RuntimeError(
+            "Falta configurar FINANZAS_WHATSAPP_TOKEN y FINANZAS_WHATSAPP_PHONE_ID "
+            "en el servidor"
+        )
+    url = f"https://graph.facebook.com/{s.whatsapp_api_version}/{s.whatsapp_phone_id}/messages"
+    cuerpo = json.dumps(
+        {
+            "messaging_product": "whatsapp",
+            "to": numero,
+            "type": "text",
+            "text": {"body": texto},
+        }
+    ).encode("utf-8")
+    peticion = urllib.request.Request(  # noqa: S310
+        url,
+        data=cuerpo,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {s.whatsapp_token}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(peticion, timeout=15) as resp:  # noqa: S310
+            json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"No se pudo hablar con WhatsApp: {exc}") from exc
+
+
+CANALES = ("telegram", "email", "whatsapp")
+
+
 def canales_de(config: ConfigNotificaciones) -> list[str]:
-    return ["telegram", "email"] if config.canal == "ambos" else [config.canal]
+    """`ambos` se mantiene como telegram+email (compatibilidad); `todos` = los tres."""
+    if config.canal == "todos":
+        return list(CANALES)
+    if config.canal == "ambos":
+        return ["telegram", "email"]
+    return [config.canal]
 
 
 def enviar(config: ConfigNotificaciones, alertas: list[dict]) -> list[str]:
@@ -88,11 +133,19 @@ def enviar(config: ConfigNotificaciones, alertas: list[dict]) -> list[str]:
                     errores.append("telegram: falta el chat ID")
                     continue
                 enviar_telegram(config.telegram_chat_id, texto)
-            else:
+            elif canal == "whatsapp":
+                if not config.whatsapp_numero:
+                    errores.append("whatsapp: falta el número destino")
+                    continue
+                enviar_whatsapp(config.whatsapp_numero, texto)
+            elif canal == "email":
                 if not config.email:
                     errores.append("email: falta el correo destino")
                     continue
                 enviar_email(config.email, texto)
+            else:
+                errores.append(f"canal desconocido: {canal}")
+                continue
             usados.append(canal)
         except RuntimeError as exc:
             errores.append(str(exc))

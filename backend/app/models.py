@@ -508,8 +508,10 @@ class ConfigNotificaciones(Base):
     usuario_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, unique=True
     )
-    canal: Mapped[str] = mapped_column(String(20), nullable=False, default="telegram")  # telegram|email|ambos
+    canal: Mapped[str] = mapped_column(String(20), nullable=False, default="telegram")  # telegram|email|whatsapp|ambos|todos
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Número de WhatsApp en formato internacional sin '+' (ej. 573001234567)
+    whatsapp_numero: Mapped[str | None] = mapped_column(String(20), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     dias_anticipacion: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
