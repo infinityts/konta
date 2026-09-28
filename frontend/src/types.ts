@@ -49,9 +49,11 @@ export interface Suscripcion {
   notas: string | null
 }
 
+export type TipoTransaccion = 'ingreso' | 'gasto' | 'transferencia'
+
 export interface Transaccion {
   id: string
-  tipo: 'ingreso' | 'gasto'
+  tipo: TipoTransaccion
   monto: number | string
   moneda: string
   fecha: string
@@ -61,6 +63,8 @@ export interface Transaccion {
   suscripcion_id: string | null
   etiqueta_id: string | null
   cuenta_id: string | null
+  /** Solo en una transferencia: la cuenta que recibe */
+  cuenta_destino_id?: string | null
   poliza_id?: string | null
   notas: string | null
 }
@@ -105,6 +109,8 @@ export interface Cuenta {
   saldo_inicial: number | string
   ingresos: number
   gastos: number
+  transferencias_enviadas?: number
+  transferencias_recibidas?: number
   saldo_actual: number
 }
 

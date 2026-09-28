@@ -19,6 +19,7 @@ const empty = {
   categoria_id: '',
   etiqueta_id: '',
   cuenta_id: '',
+  cuenta_destino_id: '',
   tarjeta_id: '',
 }
 
@@ -38,7 +39,7 @@ export default function Transacciones() {
   const [etqForm, setEtqForm] = useState({ nombre: '', padre_id: '' })
 
   // filtros del listado
-  const [filtro, setFiltro] = useState<'todos' | 'gasto' | 'ingreso'>('todos')
+  const [filtro, setFiltro] = useState<'todos' | 'gasto' | 'ingreso' | 'transferencia'>('todos')
   const [busqueda, setBusqueda] = useState('')
 
   async function cargar() {
@@ -82,11 +83,14 @@ export default function Transacciones() {
       categoria_id: t.categoria_id ?? '',
       etiqueta_id: t.etiqueta_id ?? '',
       cuenta_id: t.cuenta_id ?? '',
+      cuenta_destino_id: t.cuenta_destino_id ?? '',
       tarjeta_id: t.tarjeta_id ?? '',
     })
     setShow(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  const esTransferencia = form.tipo === 'transferencia'
 
   async function guardar() {
     setError('')
@@ -97,10 +101,13 @@ export default function Transacciones() {
         moneda: form.moneda,
         fecha: form.fecha,
         descripcion: form.descripcion || null,
-        categoria_id: form.categoria_id || null,
-        etiqueta_id: form.etiqueta_id || null,
         cuenta_id: form.cuenta_id || null,
-        tarjeta_id: form.tarjeta_id || null,
+        // Una transferencia mueve dinero entre dos cuentas propias: no es un gasto
+        // que se clasifique, así que no lleva categoría, etiqueta ni tarjeta.
+        cuenta_destino_id: esTransferencia ? form.cuenta_destino_id || null : null,
+        categoria_id: esTransferencia ? null : form.categoria_id || null,
+        etiqueta_id: esTransferencia ? null : form.etiqueta_id || null,
+        tarjeta_id: esTransferencia ? null : form.tarjeta_id || null,
       }
       if (editando) {
         await api(`/transacciones/${editando}`, { method: 'PATCH', body: JSON.stringify(cuerpo) })
@@ -216,11 +223,34 @@ export default function Transacciones() {
           <select value={form.tipo} onChange={(e) => setTipo(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="gasto">Gasto</option>
             <option value="ingreso">Ingreso</option>
+            <option value="transferencia">Transferencia entre cuentas</option>
           </select>
           <input placeholder="Monto" value={form.monto} onChange={(e) => set('monto', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input placeholder="Descripción (ej. Internet Movistar)" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
 
+          {esTransferencia ? (
+            <>
+              <select value={form.cuenta_id} onChange={(e) => set('cuenta_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <option value="">Desde la cuenta…</option>
+                {cuentas.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre} · {fmtMoney(c.saldo_actual)}</option>
+                ))}
+              </select>
+              <select value={form.cuenta_destino_id} onChange={(e) => set('cuenta_destino_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <option value="">Hacia la cuenta…</option>
+                {cuentas.filter((c) => c.id !== form.cuenta_id).map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre} · {fmtMoney(c.saldo_actual)}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 sm:col-span-2">
+                Mover dinero entre tus cuentas <strong>no es un gasto ni un ingreso</strong>: no
+                aparece en reportes, presupuestos ni flujo de caja. Las dos cuentas deben estar en
+                la misma moneda (lo comprueba la app).
+              </p>
+            </>
+          ) : (
+            <>
           <select value={form.categoria_id} onChange={(e) => setCategoria(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">Sin categoría</option>
             {categoriasFiltradas.map((c) => (
@@ -292,6 +322,8 @@ export default function Transacciones() {
               <span className="text-xs text-slate-500">Elige una categoría para ver o crear sus etiquetas</span>
             )}
           </div>
+            </>
+          )}
 
           {nuevaEtq && form.categoria_id && (
             <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3 sm:col-span-2">
@@ -322,13 +354,13 @@ export default function Transacciones() {
 
       {/* Filtros */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {(['todos', 'gasto', 'ingreso'] as const).map((f) => (
+        {(['todos', 'gasto', 'ingreso', 'transferencia'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFiltro(f)}
             className={`rounded-full px-3 py-1 text-sm ${filtro === f ? 'bg-indigo-600 text-white' : 'border border-slate-300 text-slate-600 hover:bg-slate-50'}`}
           >
-            {f === 'todos' ? 'Todos' : f === 'gasto' ? 'Gastos' : 'Ingresos'}
+            {f === 'todos' ? 'Todos' : f === 'gasto' ? 'Gastos' : f === 'ingreso' ? 'Ingresos' : 'Transferencias'}
           </button>
         ))}
         <input
@@ -352,14 +384,34 @@ export default function Transacciones() {
                 )}
               </p>
               <p className="text-sm text-slate-500">
-                {t.fecha} · {nombreCat(t.categoria_id)}
-                {nombreTarjeta(t.tarjeta_id) && <span className="ml-2 text-slate-400">· 💳 {nombreTarjeta(t.tarjeta_id)}</span>}
-                {nombreCuenta(t.cuenta_id) && <span className="ml-2 text-slate-400">· {nombreCuenta(t.cuenta_id)}</span>}
+                {t.fecha}
+                {t.tipo === 'transferencia' ? (
+                  <>
+                    {' · '}🔄 {nombreCuenta(t.cuenta_id)}
+                    {' → '}
+                    {nombreCuenta(t.cuenta_destino_id ?? null)}
+                  </>
+                ) : (
+                  <>
+                    {' · '}{nombreCat(t.categoria_id)}
+                    {nombreTarjeta(t.tarjeta_id) && <span className="ml-2 text-slate-400">· 💳 {nombreTarjeta(t.tarjeta_id)}</span>}
+                    {nombreCuenta(t.cuenta_id) && <span className="ml-2 text-slate-400">· {nombreCuenta(t.cuenta_id)}</span>}
+                  </>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`text-sm font-medium ${t.tipo === 'gasto' ? 'text-red-600' : 'text-emerald-600'}`}>
-                {t.tipo === 'gasto' ? '-' : '+'}{fmtMoney(t.monto)}
+              <span
+                className={`text-sm font-medium ${
+                  t.tipo === 'gasto'
+                    ? 'text-red-600'
+                    : t.tipo === 'ingreso'
+                      ? 'text-emerald-600'
+                      : 'text-slate-600'
+                }`}
+              >
+                {t.tipo === 'gasto' ? '-' : t.tipo === 'ingreso' ? '+' : '🔄 '}
+                {fmtMoney(t.monto)}
               </span>
               <button onClick={() => abrirEditar(t)} className="text-sm text-indigo-600 hover:underline">Editar</button>
               <button onClick={() => eliminar(t.id)} className="text-sm text-red-600 hover:underline">Eliminar</button>

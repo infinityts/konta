@@ -156,6 +156,16 @@ export default function Cuentas() {
               </span>
               <span className="text-emerald-700">+ {fmtMoney(c.ingresos)}</span>
               <span className="text-red-700">− {fmtMoney(c.gastos)}</span>
+              {(c.transferencias_enviadas ?? 0) > 0 && (
+                <span className="text-slate-500" title="Transferencias enviadas a otra cuenta">
+                  − {fmtMoney(c.transferencias_enviadas)} (transferencia)
+                </span>
+              )}
+              {(c.transferencias_recibidas ?? 0) > 0 && (
+                <span className="text-slate-500" title="Transferencias recibidas de otra cuenta">
+                  + {fmtMoney(c.transferencias_recibidas)} (transferencia)
+                </span>
+              )}
               {resumen.sin_cuenta_movimientos > 0 && (
                 <button onClick={() => adoptar(c.id)} className="text-xs text-indigo-600 hover:underline">
                   Asignar {resumen.sin_cuenta_movimientos} movimiento(s) sin cuenta

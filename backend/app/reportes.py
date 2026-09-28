@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .jerarquia import mapa_etiquetas, ruta_etiqueta
-from .models import Categoria, Etiqueta, Transaccion
+from .models import Categoria, Etiqueta, Transaccion, TipoTransaccion
 from .recurrencia import hoy
 
 
@@ -31,7 +31,11 @@ def reporte_mensual(db: Session, usuario_id, meses: int = 6) -> list[dict]:
             Transaccion.tipo,
             func.sum(Transaccion.monto).label("total"),
         )
-        .where(Transaccion.usuario_id == usuario_id)
+        .where(
+            Transaccion.usuario_id == usuario_id,
+            # Las transferencias entre cuentas propias no son ingreso ni gasto
+            Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
+        )
         .group_by(mes_expr, Transaccion.tipo)
     ).all()
 
@@ -70,6 +74,8 @@ def reporte_categorias(db: Session, usuario_id, mes: str) -> list[dict]:
         .where(
             Transaccion.usuario_id == usuario_id,
             func.to_char(Transaccion.fecha, "YYYY-MM") == mes,
+            # Sin categoría no hay desglose que mostrar
+            Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
         )
         .group_by(Categoria.id, Etiqueta.id, Transaccion.tipo)
         .order_by(func.sum(Transaccion.monto).desc())

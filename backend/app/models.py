@@ -70,6 +70,9 @@ class TipoTarjeta(str, enum.Enum):
 class TipoTransaccion(str, enum.Enum):
     INGRESO = "ingreso"
     GASTO = "gasto"
+    # Mover dinero entre dos cuentas propias: **no** es ingreso ni gasto, así que
+    # queda fuera de los reportes, del flujo de caja y de los presupuestos.
+    TRANSFERENCIA = "transferencia"
 
 
 def _enum(cls: type[enum.Enum], name: str) -> PG_ENUM:
@@ -220,6 +223,11 @@ class Transaccion(Base):
         ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
     )
     cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Solo en una transferencia: la cuenta que **recibe** (la de origen va en
+    # `cuenta_id`). En gastos e ingresos es NULL.
+    cuenta_destino_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # Gasto generado por una póliza (como `suscripcion_id` para las suscripciones)

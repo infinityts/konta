@@ -37,10 +37,20 @@ def _meses_desde(inicio: date, n: int) -> list[str]:
     return [f"{(f := _sumar_mes(inicio, i)).year:04d}-{f.month:02d}" for i in range(n)]
 
 
+def _es_transferencia(tipo) -> bool:
+    return getattr(tipo, "value", tipo) == "transferencia"
+
+
 def _neto(filas, signo_ingreso: bool = True) -> Decimal:
-    """Suma filas (tipo, total) tratando ingresos como positivos y gastos negativos."""
+    """Suma filas (tipo, total) tratando ingresos como positivos y gastos negativos.
+
+    Las **transferencias se ignoran**: mueven dinero entre cuentas propias, así que
+    no cambian el total. Antes caían en el `else` y restaban como si fueran gastos.
+    """
     total = CERO
     for tipo, monto in filas:
+        if _es_transferencia(tipo):
+            continue
         valor = Decimal(monto)
         if (tipo is not None and getattr(tipo, "value", tipo) == "ingreso") == signo_ingreso:
             total += valor
@@ -57,17 +67,50 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
 
     filas = db.execute(
         select(Transaccion.cuenta_id, Transaccion.tipo, func.sum(Transaccion.monto))
-        .where(Transaccion.usuario_id == usuario_id, Transaccion.cuenta_id.is_not(None))
+        .where(
+            Transaccion.usuario_id == usuario_id,
+            Transaccion.cuenta_id.is_not(None),
+            # Las transferencias van aparte: tocan dos cuentas, no una
+            Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
+        )
         .group_by(Transaccion.cuenta_id, Transaccion.tipo)
     ).all()
     mov: dict[tuple, Decimal] = {}
     for cuenta_id, tipo, total in filas:
         mov[(cuenta_id, tipo.value)] = Decimal(total)
 
+    # Transferencias: salen de `cuenta_id` y entran en `cuenta_destino_id`
+    enviadas = {
+        cid: Decimal(total)
+        for cid, total in db.execute(
+            select(Transaccion.cuenta_id, func.sum(Transaccion.monto))
+            .where(
+                Transaccion.usuario_id == usuario_id,
+                Transaccion.tipo == TipoTransaccion.TRANSFERENCIA,
+                Transaccion.cuenta_id.is_not(None),
+            )
+            .group_by(Transaccion.cuenta_id)
+        )
+    }
+    recibidas = {
+        cid: Decimal(total)
+        for cid, total in db.execute(
+            select(Transaccion.cuenta_destino_id, func.sum(Transaccion.monto))
+            .where(
+                Transaccion.usuario_id == usuario_id,
+                Transaccion.tipo == TipoTransaccion.TRANSFERENCIA,
+                Transaccion.cuenta_destino_id.is_not(None),
+            )
+            .group_by(Transaccion.cuenta_destino_id)
+        )
+    }
+
     salida = []
     for c in cuentas:
         ingresos = mov.get((c.id, "ingreso"), CERO)
         gastos = mov.get((c.id, "gasto"), CERO)
+        sale = enviadas.get(c.id, CERO)
+        entra = recibidas.get(c.id, CERO)
         salida.append(
             {
                 "id": c.id,
@@ -78,7 +121,9 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
                 "saldo_inicial": c.saldo_inicial,
                 "ingresos": float(ingresos),
                 "gastos": float(gastos),
-                "saldo_actual": float(c.saldo_inicial + ingresos - gastos),
+                "transferencias_enviadas": float(sale),
+                "transferencias_recibidas": float(entra),
+                "saldo_actual": float(c.saldo_inicial + ingresos - gastos - sale + entra),
             }
         )
 
@@ -115,7 +160,10 @@ def saldo_de_cuenta(db: Session, cuenta: Cuenta) -> dict:
     """Saldo de una sola cuenta (para las respuestas de crear/actualizar)."""
     filas = db.execute(
         select(Transaccion.tipo, func.sum(Transaccion.monto))
-        .where(Transaccion.cuenta_id == cuenta.id)
+        .where(
+            Transaccion.cuenta_id == cuenta.id,
+            Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
+        )
         .group_by(Transaccion.tipo)
     ).all()
     ingresos = gastos = CERO
@@ -124,6 +172,25 @@ def saldo_de_cuenta(db: Session, cuenta: Cuenta) -> dict:
             ingresos = Decimal(total)
         else:
             gastos = Decimal(total)
+
+    sale = Decimal(
+        db.scalar(
+            select(func.coalesce(func.sum(Transaccion.monto), 0)).where(
+                Transaccion.cuenta_id == cuenta.id,
+                Transaccion.tipo == TipoTransaccion.TRANSFERENCIA,
+            )
+        )
+        or 0
+    )
+    entra = Decimal(
+        db.scalar(
+            select(func.coalesce(func.sum(Transaccion.monto), 0)).where(
+                Transaccion.cuenta_destino_id == cuenta.id,
+                Transaccion.tipo == TipoTransaccion.TRANSFERENCIA,
+            )
+        )
+        or 0
+    )
     return {
         "id": cuenta.id,
         "nombre": cuenta.nombre,
@@ -133,7 +200,9 @@ def saldo_de_cuenta(db: Session, cuenta: Cuenta) -> dict:
         "saldo_inicial": cuenta.saldo_inicial,
         "ingresos": float(ingresos),
         "gastos": float(gastos),
-        "saldo_actual": float(cuenta.saldo_inicial + ingresos - gastos),
+        "transferencias_enviadas": float(sale),
+        "transferencias_recibidas": float(entra),
+        "saldo_actual": float(cuenta.saldo_inicial + ingresos - gastos - sale + entra),
     }
 
 
@@ -162,7 +231,12 @@ def consolidado(db: Session, usuario_id, meses: int = 6) -> dict:
     mes_expr = func.to_char(Transaccion.fecha, "YYYY-MM")
     filas = db.execute(
         select(mes_expr, Transaccion.tipo, func.sum(Transaccion.monto))
-        .where(Transaccion.usuario_id == usuario_id, Transaccion.fecha >= inicio)
+        .where(
+            Transaccion.usuario_id == usuario_id,
+            Transaccion.fecha >= inicio,
+            # Mover dinero entre cuentas propias no cambia el total
+            Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
+        )
         .group_by(mes_expr, Transaccion.tipo)
     ).all()
     por_mes: dict[str, dict[str, Decimal]] = {}
@@ -194,6 +268,7 @@ def _totales_mes(db: Session, usuario_id, mes: str) -> tuple[Decimal, Decimal]:
         .where(
             Transaccion.usuario_id == usuario_id,
             func.to_char(Transaccion.fecha, "YYYY-MM") == mes,
+            Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
         )
         .group_by(Transaccion.tipo)
     ).all()

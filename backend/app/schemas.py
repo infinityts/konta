@@ -189,6 +189,10 @@ class TransaccionIn(BaseModel):
     suscripcion_id: uuid.UUID | None = None
     etiqueta_id: uuid.UUID | None = None
     cuenta_id: uuid.UUID | None = None
+    # Solo en una transferencia: la cuenta que recibe (el origen va en `cuenta_id`).
+    # Las reglas de coherencia las valida el router, que también cubre el PATCH
+    # (donde hay que mirar el estado **resultante**, no solo lo que se envía).
+    cuenta_destino_id: uuid.UUID | None = None
     notas: str | None = None
 
 
@@ -203,6 +207,7 @@ class TransaccionUpdate(BaseModel):
     suscripcion_id: uuid.UUID | None = None
     etiqueta_id: uuid.UUID | None = None
     cuenta_id: uuid.UUID | None = None
+    cuenta_destino_id: uuid.UUID | None = None
     notas: str | None = None
 
 
@@ -878,6 +883,10 @@ class CuentaOut(BaseModel):
     saldo_inicial: Decimal
     ingresos: float
     gastos: float
+    # Las transferencias mueven el saldo sin ser ingreso ni gasto: se informan
+    # aparte para que el saldo no parezca inventado.
+    transferencias_enviadas: float = 0.0
+    transferencias_recibidas: float = 0.0
     saldo_actual: float
 
 

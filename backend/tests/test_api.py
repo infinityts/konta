@@ -1798,3 +1798,105 @@ TOTAL                       17.200
     assert client.post(f"/facturas/{fid_ajena}/confirmar", headers=h2, json={
         "categoria_id": cats["Otros gastos"],
     }).status_code == 404
+
+
+# --- transferencias entre cuentas propias ---------------------------------- #
+
+
+def test_transferencia_mueve_dos_cuentas_sin_contaminar_reportes(client):
+    """Mover dinero entre cuentas no es ingreso ni gasto: no toca reportes ni flujo."""
+    _, h = _registrar(client)
+    hoy_ = date.today()
+    ahorros = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "1000000"}).json()
+    diario = client.post("/cuentas", headers=h, json={"nombre": "Diario", "saldo_inicial": "0"}).json()
+    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
+
+    # Un gasto real, para comparar
+    client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "100000", "fecha": hoy_.isoformat(),
+        "categoria_id": cat["id"], "cuenta_id": diario["id"],
+    })
+
+    r = client.post("/transacciones", headers=h, json={
+        "tipo": "transferencia", "monto": "500000", "fecha": hoy_.isoformat(),
+        "descripcion": "Traslado a la cuenta del día a día",
+        "cuenta_id": ahorros["id"], "cuenta_destino_id": diario["id"],
+    })
+    assert r.status_code == 201, r.text
+    assert r.json()["cuenta_destino_id"] == diario["id"]
+
+    # Los saldos: sale de una y entra en la otra
+    saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
+    assert saldos["Ahorros"]["saldo_actual"] == 500000.0
+    assert saldos["Ahorros"]["transferencias_enviadas"] == 500000.0
+    assert saldos["Ahorros"]["ingresos"] == 0.0 and saldos["Ahorros"]["gastos"] == 0.0
+    assert saldos["Diario"]["saldo_actual"] == 400000.0  # +500.000 de la transferencia −100.000 del gasto
+    assert saldos["Diario"]["transferencias_recibidas"] == 500000.0
+    assert saldos["Diario"]["gastos"] == 100000.0
+    # El total no cambia por mover dinero de un bolsillo a otro
+    assert client.get("/cuentas", headers=h).json()["saldo_total"] == 900000.0
+
+    # Ni los reportes ni el flujo de caja la cuentan
+    mensual = client.get("/reportes/mensual?meses=6", headers=h).json()
+    assert mensual[-1]["ingresos"] == 0.0
+    assert mensual[-1]["gastos"] == 100000.0
+    flujo = client.get("/flujo-caja?meses=3", headers=h).json()
+    assert flujo["total_ingresos"] == 0.0
+    diag = client.get("/saldos/diagnostico", headers=h).json()
+    assert diag["gastos_mes"] == 100000.0 and diag["ingresos_mes"] == 0.0
+    # El desglose por categoría tampoco la muestra
+    categorias = client.get(f"/reportes/categorias?mes={hoy_.strftime('%Y-%m')}", headers=h).json()
+    assert all(c["tipo"] == "gasto" for c in categorias)
+    assert not any("Sin categoría" == c["categoria"] for c in categorias)
+
+
+def test_transferencia_reglas_de_validacion(client):
+    """Una transferencia exige dos cuentas distintas, del usuario y de la misma moneda."""
+    _, h = _registrar(client)
+    a = client.post("/cuentas", headers=h, json={"nombre": "A", "saldo_inicial": "0"}).json()
+    b = client.post("/cuentas", headers=h, json={"nombre": "B", "saldo_inicial": "0"}).json()
+    usd = client.post("/cuentas", headers=h, json={"nombre": "USD", "moneda": "USD", "saldo_inicial": "0"}).json()
+    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
+    hoy_ = date.today().isoformat()
+
+    def enviar(**extra):
+        cuerpo = {"tipo": "transferencia", "monto": "1000", "fecha": hoy_,
+                  "cuenta_id": a["id"], "cuenta_destino_id": b["id"], **extra}
+        return client.post("/transacciones", headers=h, json=cuerpo)
+
+    # Sin destino, o con el mismo origen y destino
+    assert client.post("/transacciones", headers=h, json={
+        "tipo": "transferencia", "monto": "1000", "fecha": hoy_, "cuenta_id": a["id"],
+    }).status_code == 422
+    assert enviar(cuenta_destino_id=a["id"]).status_code == 422
+    # Con categoría, tarjeta o etiqueta (no es un gasto que se clasifique)
+    assert enviar(categoria_id=cat["id"]).status_code == 422
+    # Entre monedas distintas
+    assert enviar(cuenta_destino_id=usd["id"]).status_code == 422
+    # Y un gasto normal no puede llevar cuenta de destino
+    assert client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "1000", "fecha": hoy_, "cuenta_destino_id": b["id"],
+    }).status_code == 422
+
+    # Cuentas de otro usuario
+    _, h2 = _registrar(client)
+    assert client.post("/transacciones", headers=h2, json={
+        "tipo": "transferencia", "monto": "1000", "fecha": hoy_,
+        "cuenta_id": a["id"], "cuenta_destino_id": b["id"],
+    }).status_code == 404
+
+    # Al convertir un gasto en transferencia se valida el estado resultante
+    gasto = client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "5000", "fecha": hoy_, "categoria_id": cat["id"], "cuenta_id": a["id"],
+    }).json()
+    r = client.patch(f"/transacciones/{gasto['id']}", headers=h, json={"tipo": "transferencia"})
+    assert r.status_code == 422, "faltan la cuenta de destino y sobra la categoría"
+    r = client.patch(f"/transacciones/{gasto['id']}", headers=h, json={
+        "tipo": "transferencia", "cuenta_destino_id": b["id"], "categoria_id": None,
+    })
+    assert r.status_code == 200, r.text
+    assert r.json()["cuenta_destino_id"] == b["id"] and r.json()["categoria_id"] is None
+    # Y el saldo ya refleja la conversión
+    saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
+    assert saldos["A"]["saldo_actual"] == -5000.0
+    assert saldos["B"]["saldo_actual"] == 5000.0
