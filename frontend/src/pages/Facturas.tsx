@@ -9,8 +9,11 @@ import {
   type FacturaDetalle,
   type FacturaLinea,
   type SaldoResumen,
+  type Tarjeta,
   type Transaccion,
 } from '../types'
+
+type SembradoDiccionario = { total_creadas: number; creadas: Etiqueta[] }
 
 /** Color del badge según de dónde salió la clasificación de la línea. */
 const ORIGEN: Record<string, { label: string; clase: string }> = {
@@ -27,12 +30,16 @@ export default function Facturas() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
+  const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
   const [detalles, setDetalles] = useState<Record<string, FacturaDetalle>>({})
   const [cuentaSel, setCuentaSel] = useState<Record<string, string>>({})
+  const [tarjetaSel, setTarjetaSel] = useState<Record<string, string>>({})
+  const [fechaSel, setFechaSel] = useState<Record<string, string>>({})
   const [sel, setSel] = useState<Record<string, string>>({})
   const [subiendo, setSubiendo] = useState(false)
   const [ocupado, setOcupado] = useState('')
   const [error, setError] = useState('')
+  const [aviso, setAviso] = useState('')
 
   async function cargar() {
     setItems(await api<Factura[]>('/facturas'))
@@ -46,6 +53,7 @@ export default function Facturas() {
       api<Etiqueta[]>('/etiquetas').then(setEtiquetas),
       // `GET /cuentas` devuelve el resumen con totales: las cuentas van en `cuentas`
       api<SaldoResumen>('/cuentas').then((r) => setCuentas(r.cuentas)),
+      api<Tarjeta[]>('/tarjetas').then(setTarjetas),
     ]).catch((e) => setError(e instanceof Error ? e.message : 'Error'))
   }, [])
 
@@ -119,14 +127,42 @@ export default function Facturas() {
     })
 
   /** Crea una transacción de gasto por cada línea pendiente. */
+  /** Igual que en Transacciones: el débito llena su cuenta; el crédito la limpia. */
+  function elegirTarjeta(facturaId: string, tarjetaId: string) {
+    setTarjetaSel((s) => ({ ...s, [facturaId]: tarjetaId }))
+    const tarjeta = tarjetas.find((t) => t.id === tarjetaId)
+    if (tarjeta?.tipo === 'debito' && tarjeta.cuenta_id) {
+      setCuentaSel((s) => ({ ...s, [facturaId]: tarjeta.cuenta_id as string }))
+    } else if (tarjeta?.tipo === 'credito') {
+      setCuentaSel((s) => ({ ...s, [facturaId]: '' }))
+    }
+  }
+
   const confirmar = (facturaId: string) =>
     conOcupado(facturaId, async () => {
       const detalle = await api<FacturaDetalle>(`/facturas/${facturaId}/confirmar`, {
         method: 'POST',
-        body: JSON.stringify({ cuenta_id: cuentaSel[facturaId] || null }),
+        body: JSON.stringify({
+          cuenta_id: cuentaSel[facturaId] || null,
+          tarjeta_id: tarjetaSel[facturaId] || null,
+          fecha: fechaSel[facturaId] || null,
+        }),
       })
       setDetalles((d) => ({ ...d, [facturaId]: detalle }))
       await cargar()
+    })
+
+  /** Siembra las etiquetas que el diccionario del OCR reconoce y vuelve a leer. */
+  const prepararDiccionario = (facturaId: string) =>
+    conOcupado(facturaId, async () => {
+      const r = await api<SembradoDiccionario>('/etiquetas/diccionario', { method: 'POST' })
+      setEtiquetas(await api<Etiqueta[]>('/etiquetas'))
+      await leerLineas(facturaId)
+      setAviso(
+        r.total_creadas > 0
+          ? `✅ Creadas ${r.total_creadas} etiqueta(s) del diccionario.`
+          : 'Sin etiquetas nuevas: revisa que existan las categorías Mercado, Transporte y Otros gastos.',
+      )
     })
 
   async function asociar(facturaId: string) {
@@ -170,6 +206,7 @@ export default function Facturas() {
     <div>
       <h2 className="text-xl font-semibold">Facturas (PDF)</h2>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {aviso && <p className="mt-2 text-sm text-emerald-700">{aviso}</p>}
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
         <p className="text-sm text-slate-600">
@@ -239,7 +276,19 @@ export default function Facturas() {
                       {pendientes.length > 0 && ` · ${pendientes.length} sin confirmar`}
                     </p>
                     {pendientes.length > 0 && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={tarjetaSel[f.id] ?? ''}
+                          onChange={(e) => elegirTarjeta(f.id, e.target.value)}
+                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                        >
+                          <option value="">Sin tarjeta</option>
+                          {tarjetas.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              💳 {t.nombre} ({t.tipo})
+                            </option>
+                          ))}
+                        </select>
                         <select
                           value={cuentaSel[f.id] ?? ''}
                           onChange={(e) => setCuentaSel((s) => ({ ...s, [f.id]: e.target.value }))}
@@ -252,6 +301,13 @@ export default function Facturas() {
                             </option>
                           ))}
                         </select>
+                        <input
+                          type="date"
+                          value={fechaSel[f.id] ?? f.fecha_detectada ?? ''}
+                          onChange={(e) => setFechaSel((s) => ({ ...s, [f.id]: e.target.value }))}
+                          title="Fecha de la compra"
+                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                        />
                         <button
                           onClick={() => confirmar(f.id)}
                           disabled={ocupado === f.id}
@@ -260,6 +316,21 @@ export default function Facturas() {
                           Confirmar {pendientes.length} línea(s)
                         </button>
                       </div>
+                    )}
+                    {tarjetaSel[f.id] && tarjetas.find((t) => t.id === tarjetaSel[f.id])?.tipo === 'credito' && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Es una tarjeta de <strong>crédito</strong>: el gasto no sale de la cuenta, se
+                        suma a la deuda de la tarjeta.
+                      </p>
+                    )}
+                    {detalle.lineas.some((l) => !l.transaccion_id && l.origen === 'sin_clasificar') && (
+                      <button
+                        onClick={() => prepararDiccionario(f.id)}
+                        disabled={ocupado === f.id}
+                        className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        Preparar etiquetas del diccionario y volver a clasificar
+                      </button>
                     )}
                   </div>
 

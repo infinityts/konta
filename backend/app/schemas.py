@@ -416,6 +416,13 @@ class EtiquetaOut(EtiquetaIn):
     usuario_id: uuid.UUID
 
 
+class DiccionarioEtiquetasOut(BaseModel):
+    """Resultado de sembrar las etiquetas que el diccionario del OCR reconoce."""
+
+    total_creadas: int
+    creadas: list[EtiquetaOut] = []
+
+
 # --- alertas ---
 
 
@@ -506,10 +513,18 @@ class LineaUpdateIn(BaseModel):
 
 
 class ConfirmarLineasIn(BaseModel):
-    """`linea_ids` vacío o ausente = todas las líneas sin confirmar."""
+    """`linea_ids` vacío o ausente = todas las líneas sin confirmar.
+
+    `tarjeta_id` y `cuenta_id` son excluyentes en la práctica: si la tarjeta es de
+    **débito**, la transacción hereda la cuenta de la tarjeta (es un instrumento de
+    esa cuenta). `fecha` permite registrar la compra en su día real cuando el
+    recibo no trae fecha legible; por defecto se usa la detectada o la de hoy.
+    """
 
     linea_ids: list[uuid.UUID] | None = None
     cuenta_id: uuid.UUID | None = None
+    tarjeta_id: uuid.UUID | None = None
+    fecha: date | None = None
 
 
 # --- presupuestos ---

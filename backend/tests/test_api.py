@@ -126,6 +126,9 @@ def test_ingresos_recurrentes_crud(client):
 
 def test_etiquetas_y_subetiquetas(client):
     _, h = _registrar(client)
+    # Al registrarse ya vienen las etiquetas del diccionario del OCR
+    base = len(client.get("/etiquetas", headers=h).json())
+    assert base > 0
 
     # etiqueta raíz
     r = client.post("/etiquetas", headers=h, json={"nombre": "Trabajo"})
@@ -139,7 +142,7 @@ def test_etiquetas_y_subetiquetas(client):
     sub = r.json()
     assert sub["padre_id"] == root["id"]
 
-    assert len(client.get("/etiquetas", headers=h).json()) == 2
+    assert len(client.get("/etiquetas", headers=h).json()) == base + 2
 
     # transacción etiquetada con la subetiqueta
     tx = client.post(
@@ -150,7 +153,7 @@ def test_etiquetas_y_subetiquetas(client):
 
     # borrar la raíz elimina la subetiqueta en cascada
     assert client.delete(f"/etiquetas/{root['id']}", headers=h).status_code == 204
-    assert len(client.get("/etiquetas", headers=h).json()) == 0
+    assert len(client.get("/etiquetas", headers=h).json()) == base
 
 
 def test_alertas_de_pagos(client):
@@ -893,66 +896,78 @@ def test_parser_de_lineas_de_recibo():
 
 
 def test_ocr_por_linea_clasifica_aprende_y_confirma(client, engine):
-    """Flujo completo: parsear → clasificar → corregir (aprende) → confirmar."""
+    """Flujo completo: parsear → clasificar → corregir (aprende) → confirmar.
+
+    Al registrarse se siembran las etiquetas del diccionario, así que la tira se
+    clasifica **sola**. Para lo que el diccionario no conoce («SALSA BBQ») el
+    usuario corrige una vez y a la siguiente se reconoce por historial.
+    """
     from sqlalchemy.orm import sessionmaker
 
     from app.models import Factura
 
     _, h = _registrar(client)
     usuario_id = client.get("/auth/me", headers=h).json()["id"]
-    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
-    carnes = client.post(
-        "/etiquetas", headers=h, json={"nombre": "Carnes", "categoria_id": cat["id"]}
-    ).json()
-    lacteos = client.post(
-        "/etiquetas", headers=h, json={"nombre": "Lácteos y huevos", "categoria_id": cat["id"]}
-    ).json()
+    cat_mercado = next(
+        c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado"
+    )
+    por_nombre = {e["nombre"]: e for e in client.get("/etiquetas", headers=h).json()}
+    # Estas ya vienen de fábrica: son las que el diccionario sabe reconocer
+    carnes, lacteos, despensa = por_nombre["Carnes"], por_nombre["Lácteos y huevos"], por_nombre["Despensa"]
+    assert carnes["categoria_id"] == cat_mercado["id"]
 
-    # Factura con el texto ya extraído (no depende del OCR real)
+    # Un artículo que el diccionario NO conoce, para probar el aprendizaje
+    DESCONOCIDO = "PILAS AA DURACEL 4 UN"
+    texto = RECIBO + f"{DESCONOCIDO}        7.300\n"
+
     Session = sessionmaker(bind=engine)
     with Session.begin() as s:
         factura = Factura(
             usuario_id=usuario_id,
             nombre_archivo="d1.txt",
-            texto_extraido=RECIBO,
-            monto_detectado=Decimal("25116"),
+            texto_extraido=texto,
+            monto_detectado=Decimal("32416"),
             fecha_detectada=date(2026, 9, 20),
         )
         s.add(factura)
         s.flush()
         fid = str(factura.id)
 
-    # 1) Parsear: las líneas quedan guardadas y clasificadas
+    # 1) Parsear: las líneas quedan guardadas y clasificadas por diccionario
     r = client.post(f"/facturas/{fid}/lineas", headers=h, json={})
     assert r.status_code == 200, r.text
     detalle = r.json()
     assert detalle["tipo_documento"] == "mercado"
-    assert len(detalle["lineas"]) == 3
+    assert len(detalle["lineas"]) == 4
 
     por_desc = {li["descripcion"].split()[0]: li for li in detalle["lineas"]}
     assert por_desc["PECHUGA"]["origen"] == "diccionario"
     assert por_desc["PECHUGA"]["etiqueta_id"] == carnes["id"]
     assert por_desc["LECHE"]["etiqueta_id"] == lacteos["id"]
-    # «Despensa» no existe entre las etiquetas del usuario -> sin clasificar
-    assert por_desc["ARROZ"]["etiqueta_id"] is None
-    assert por_desc["ARROZ"]["origen"] == "sin_clasificar"
+    assert por_desc["ARROZ"]["etiqueta_id"] == despensa["id"]
+    # Lo desconocido queda sin clasificar, para que el usuario decida
+    assert por_desc["PILAS"]["origen"] == "sin_clasificar"
+    assert por_desc["PILAS"]["etiqueta_id"] is None
 
-    # 2) Corregir el arroz: se aprende la regla
+    # 2) Corregir las pilas: se aprende la regla
+    pilas = client.post(
+        "/etiquetas", headers=h, json={"nombre": "Pilas", "categoria_id": cat_mercado["id"]}
+    ).json()
     r = client.patch(
-        f"/facturas/{fid}/lineas/{por_desc['ARROZ']['id']}",
+        f"/facturas/{fid}/lineas/{por_desc['PILAS']['id']}",
         headers=h,
-        json={"etiqueta_id": carnes["id"]},
+        json={"etiqueta_id": pilas["id"]},
     )
     assert r.status_code == 200, r.text
     assert r.json()["origen"] == "manual"
     assert r.json()["confianza"] == "1.000"
 
-    # 3) Re-parsear: ahora el arroz se reconoce por historial (idempotente)
+    # 3) Re-parsear: ahora las pilas se reconocen por historial (y no se duplican)
     r = client.post(f"/facturas/{fid}/lineas", headers=h, json={})
-    assert len(r.json()["lineas"]) == 3  # no se duplican
-    arroz = next(li for li in r.json()["lineas"] if li["descripcion"].startswith("ARROZ"))
-    assert arroz["origen"] == "historial"
-    assert arroz["etiqueta_id"] == carnes["id"]
+    assert len(r.json()["lineas"]) == 4
+    pilas_leidas = next(li for li in r.json()["lineas"] if li["descripcion"].startswith("PILAS"))
+    assert pilas_leidas["origen"] == "historial"
+    assert pilas_leidas["etiqueta_id"] == pilas["id"]
 
     # 4) Confirmar: una transacción de gasto por línea, con su categoría y etiqueta
     r = client.post(f"/facturas/{fid}/confirmar", headers=h, json={})
@@ -960,12 +975,14 @@ def test_ocr_por_linea_clasifica_aprende_y_confirma(client, engine):
     assert all(li["transaccion_id"] for li in r.json()["lineas"])
 
     txs = client.get("/transacciones", headers=h).json()
-    assert len(txs) == 3
+    assert len(txs) == 4
     assert all(t["tipo"] == "gasto" for t in txs)
-    assert sum(Decimal(t["monto"]) for t in txs) == Decimal("25116")
-    assert all(t["categoria_id"] == cat["id"] for t in txs)
+    assert sum(Decimal(t["monto"]) for t in txs) == Decimal("32416")
+    assert all(t["categoria_id"] == cat_mercado["id"] for t in txs)
     assert all(t["fecha"] == "2026-09-20" for t in txs)
-    assert {t["etiqueta_id"] for t in txs} == {carnes["id"], lacteos["id"]}
+    assert {t["etiqueta_id"] for t in txs} == {
+        carnes["id"], lacteos["id"], despensa["id"], pilas["id"],
+    }
 
     # 5) Idempotente: ya no quedan líneas pendientes
     assert client.post(f"/facturas/{fid}/confirmar", headers=h, json={}).status_code == 400
@@ -1496,3 +1513,165 @@ def test_poliza_con_varias_personas_aseguradas(client):
     # Al borrar la póliza se van sus asegurados
     assert client.delete(f"/polizas/{pid}", headers=h).status_code == 204
     assert client.delete(f"/polizas/asegurados/{marta['id']}", headers=h).status_code == 404
+
+
+# --- OCR: de dónde sale el dinero, etiquetas de fábrica y compras que no son mercado --- #
+
+ROPA = """TIENDA DE ROPA SAS
+JEANS LEVIS 501 TALLA 32           189.900
+CAMISETA ALGODON NEGRA              59.900
+ZAPATILLAS ADIDAS TALLA 42         249.900
+TOTAL                              499.700
+"""
+
+
+def test_ocr_confirma_con_tarjeta_y_fecha(client, engine):
+    """Al confirmar hay que decir de dónde sale el dinero (tarjeta) y cuándo."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Factura
+
+    _, h = _registrar(client)
+    usuario_id = client.get("/auth/me", headers=h).json()["id"]
+
+    credito = client.post("/tarjetas", headers=h, json={
+        "nombre": "Visa", "tipo": "credito", "banco": "Bogotá",
+    }).json()
+    cuenta = client.post("/cuentas", headers=h, json={
+        "nombre": "Ahorros", "saldo_inicial": "0",
+    }).json()
+    debito = client.post("/tarjetas", headers=h, json={
+        "nombre": "Débito Bogotá", "tipo": "debito", "cuenta_id": cuenta["id"],
+    }).json()
+
+    Session = sessionmaker(bind=engine)
+
+    def nueva_factura(nombre):
+        with Session.begin() as s:
+            f = Factura(usuario_id=usuario_id, nombre_archivo=nombre, texto_extraido=ROPA)
+            s.add(f)
+            s.flush()
+            return str(f.id)
+
+    # 1) Con tarjeta de crédito y una fecha distinta a la de hoy
+    fid = nueva_factura("credito.txt")
+    client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    r = client.post(f"/facturas/{fid}/confirmar", headers=h, json={
+        "tarjeta_id": credito["id"], "fecha": "2026-08-30",
+    })
+    assert r.status_code == 200, r.text
+    txs = client.get("/transacciones", headers=h).json()
+    assert len(txs) == 3
+    assert all(t["tarjeta_id"] == credito["id"] for t in txs)
+    assert all(t["fecha"] == "2026-08-30" for t in txs), "la fecha indicada manda sobre la detectada"
+    assert all(t["cuenta_id"] is None for t in txs)
+
+    # 2) Con tarjeta de débito: hereda la cuenta de la tarjeta (es su instrumento)
+    fid = nueva_factura("debito.txt")
+    client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    r = client.post(f"/facturas/{fid}/confirmar", headers=h, json={"tarjeta_id": debito["id"]})
+    assert r.status_code == 200, r.text
+    nuevas = [t for t in client.get("/transacciones", headers=h).json() if t["tarjeta_id"] == debito["id"]]
+    assert len(nuevas) == 3
+    assert all(t["cuenta_id"] == cuenta["id"] for t in nuevas)
+
+    # 3) Aislamiento: otro usuario no puede usar mi tarjeta en su propia factura
+    _, h2 = _registrar(client)
+    usuario2 = client.get("/auth/me", headers=h2).json()["id"]
+    with Session.begin() as s:
+        ajena = Factura(usuario_id=usuario2, nombre_archivo="suya.txt", texto_extraido=ROPA)
+        s.add(ajena)
+        s.flush()
+        fid_ajena = str(ajena.id)
+    assert client.post(f"/facturas/{fid_ajena}/lineas", headers=h2, json={}).status_code == 200
+    r = client.post(f"/facturas/{fid_ajena}/confirmar", headers=h2, json={"tarjeta_id": credito["id"]})
+    assert r.status_code == 404, "una tarjeta de otro usuario no se puede usar"
+    # Y mi factura sigue siendo invisible para él
+    assert client.get(f"/facturas/{fid_ajena}", headers=h).status_code == 404
+
+
+def test_compra_de_ropa_se_clasifica_sola(client, engine):
+    """Un recibo que no es de mercado (ropa, calzado) también se clasifica solo."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Factura
+
+    _, h = _registrar(client)
+    usuario_id = client.get("/auth/me", headers=h).json()["id"]
+    Session = sessionmaker(bind=engine)
+    with Session.begin() as s:
+        f = Factura(usuario_id=usuario_id, nombre_archivo="ropa.txt", texto_extraido=ROPA)
+        s.add(f)
+        s.flush()
+        fid = str(f.id)
+
+    detalle = client.post(f"/facturas/{fid}/lineas", headers=h, json={}).json()
+    por_desc = {li["descripcion"].split()[0]: li for li in detalle["lineas"]}
+    assert por_desc["JEANS"]["origen"] == "diccionario"
+    assert por_desc["CAMISETA"]["origen"] == "diccionario"
+    assert por_desc["ZAPATILLAS"]["origen"] == "diccionario"
+
+    etiquetas = {e["id"]: e["nombre"] for e in client.get("/etiquetas", headers=h).json()}
+    assert etiquetas[por_desc["JEANS"]["etiqueta_id"]] == "Ropa"
+    assert etiquetas[por_desc["CAMISETA"]["etiqueta_id"]] == "Ropa"
+    assert etiquetas[por_desc["ZAPATILLAS"]["etiqueta_id"]] == "Calzado"
+
+    # Y quedan en una categoría real (no sin categoría) al confirmar
+    client.post(f"/facturas/{fid}/confirmar", headers=h, json={})
+    txs = client.get("/transacciones", headers=h).json()
+    assert len(txs) == 3
+    assert all(t["categoria_id"] is not None for t in txs), "un gasto sin categoría no sale en reportes"
+    assert all(t["etiqueta_id"] is not None for t in txs)
+
+
+def test_etiquetas_diccionario_endpoint(client):
+    """Las etiquetas del diccionario se pueden sembrar en una cuenta ya existente."""
+    _, h = _registrar(client)
+    todas = client.get("/etiquetas", headers=h).json()
+    # Un usuario nuevo ya las tiene: el endpoint no duplica nada
+    r = client.post("/etiquetas/diccionario", headers=h)
+    assert r.status_code == 201, r.text
+    assert r.json()["total_creadas"] == 0
+    assert len(client.get("/etiquetas", headers=h).json()) == len(todas)
+
+    # Si el usuario las borra, el endpoint las vuelve a crear
+    for e in todas:
+        client.delete(f"/etiquetas/{e['id']}", headers=h)
+    assert client.get("/etiquetas", headers=h).json() == []
+
+    r = client.post("/etiquetas/diccionario", headers=h)
+    creadas = r.json()["creadas"]
+    assert r.json()["total_creadas"] == len(creadas) > 0
+    nombres = {e["nombre"] for e in creadas}
+    assert {"Carnes", "Despensa", "Gasolina", "Ropa"} <= nombres
+
+    # Idempotente
+    assert client.post("/etiquetas/diccionario", headers=h).json()["total_creadas"] == 0
+
+    # Si el usuario borró la categoría de destino, se salta esas etiquetas sin fallar
+    mercado = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
+    client.delete(f"/categorias/{mercado['id']}", headers=h)
+    for e in client.get("/etiquetas", headers=h).json():
+        if e["categoria_id"] is None:
+            client.delete(f"/etiquetas/{e['id']}", headers=h)
+    r = client.post("/etiquetas/diccionario", headers=h)
+    assert r.status_code == 201
+    assert "Carnes" not in {e["nombre"] for e in r.json()["creadas"]}
+
+
+def test_diccionario_y_etiquetas_por_defecto_no_se_desincronizan():
+    """Guardia: cada etiqueta por defecto tiene que estar en el diccionario del OCR.
+
+    Si alguien añade una etiqueta a `ETIQUETAS_DICCIONARIO` que el clasificador no
+    conoce, se siembra para nada y el OCR nunca la usará.
+    """
+    from app.clasificador import DICCIONARIO
+    from app.defaults import ETIQUETAS_DICCIONARIO
+
+    por_defecto = {n for nombres in ETIQUETAS_DICCIONARIO.values() for n in nombres}
+    desconocidas = sorted(por_defecto - set(DICCIONARIO))
+    assert not desconocidas, f"etiquetas sembradas que el diccionario no reconoce: {desconocidas}"
+
+    # Y al revés: lo que el diccionario sabe reconocer debería poder sembrarse
+    sin_sembrar = sorted(set(DICCIONARIO) - por_defecto)
+    assert not sin_sembrar, f"el diccionario reconoce etiquetas que no se siembran: {sin_sembrar}"

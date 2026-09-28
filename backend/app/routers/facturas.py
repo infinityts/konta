@@ -33,6 +33,8 @@ from ..models import (
     Factura,
     FacturaLinea,
     ReglaOcr,
+    Tarjeta,
+    TipoTarjeta,
     TipoTransaccion,
     Transaccion,
     Usuario,
@@ -284,11 +286,22 @@ def confirmar(
 
     La categoría sale de la etiqueta de la línea (el árbol es
     `Categoría › Etiqueta › Subetiqueta`), así el gasto cae donde debe.
+
+    Se le indica **de dónde sale el dinero** (`tarjeta_id` y/o `cuenta_id`) y la
+    **fecha** si el recibo es de otro día. Si la tarjeta es de **débito**, la
+    transacción hereda su cuenta: una tarjeta de débito es un instrumento de esa
+    cuenta, no un saldo aparte.
     """
     factura = get_owned(db, Factura, id, user.id)
     cuenta_id = data.cuenta_id if data else None
     if cuenta_id is not None:
         get_owned(db, Cuenta, cuenta_id, user.id)  # valida que sea del usuario
+
+    tarjeta = None
+    if data and data.tarjeta_id is not None:
+        tarjeta = get_owned(db, Tarjeta, data.tarjeta_id, user.id)
+        if tarjeta.tipo == TipoTarjeta.DEBITO and cuenta_id is None:
+            cuenta_id = tarjeta.cuenta_id  # el débito descuenta de su cuenta
 
     pedidas = set(data.linea_ids) if data and data.linea_ids else None
     pendientes = [
@@ -303,7 +316,7 @@ def confirmar(
         e.id: e
         for e in db.scalars(select(Etiqueta).where(Etiqueta.usuario_id == user.id)).all()
     }
-    fecha = factura.fecha_detectada or hoy()
+    fecha = (data.fecha if data and data.fecha else None) or factura.fecha_detectada or hoy()
 
     for linea in pendientes:
         etiqueta = etiquetas.get(linea.etiqueta_id) if linea.etiqueta_id else None
@@ -317,6 +330,7 @@ def confirmar(
             categoria_id=etiqueta.categoria_id if etiqueta else None,
             etiqueta_id=etiqueta.id if etiqueta else None,
             cuenta_id=cuenta_id,
+            tarjeta_id=tarjeta.id if tarjeta else None,
         )
         db.add(transaccion)
         db.flush()

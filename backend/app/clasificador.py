@@ -60,6 +60,22 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
         "GASOLINA", "COMBUSTIBLE", "DIESEL", "TERPEL", "PRIMAX", "TEXACO",
         "GALONES", "BIODIESEL", "EDS",
     ),
+    # Compras que no son de mercado. Sin esto, una compra de ropa salía entera
+    # «sin clasificar» y había que corregir artículo por artículo.
+    "Ropa": (
+        "CAMISETA", "CAMISA", "PANTALON", "JEANS", "BLUSA", "VESTIDO", "ROPA",
+        "CHAQUETA", "SUDADERA", "FALDA", "INTERIOR", "PIJAMA", "MEDIAS",
+        "CALCETINES", "GORRA", "CINTURON", "CORBATA", "BUZO", "SHORT",
+    ),
+    "Calzado": (
+        "ZAPATO", "ZAPATILLA", "TENIS", "BOTA", "SANDALIA", "TACONES",
+        "CHANCLETA", "ALPARGATA", "MOCASIN",
+    ),
+    "Tecnología": (
+        "CELULAR", "TELEFONO", "COMPUTADOR", "PORTATIL", "TABLET", "AUDIFONOS",
+        "CARGADOR", "MONITOR", "TECLADO", "MOUSE", "IMPRESORA", "USB",
+        "DISCO DURO", "MEMORIA SD", "CABLE HDMI", "PARLANTE", "ROUTER",
+    ),
 }
 
 UMBRAL_EMBEDDINGS = 0.62

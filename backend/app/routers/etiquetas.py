@@ -16,9 +16,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..crud_utils import get_owned
+from ..defaults import sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..models import Categoria, Etiqueta, Usuario
-from ..schemas import EtiquetaIn, EtiquetaOut, EtiquetaUpdate
+from ..schemas import (
+    DiccionarioEtiquetasOut,
+    EtiquetaIn,
+    EtiquetaOut,
+    EtiquetaUpdate,
+)
 
 router = APIRouter(prefix="/etiquetas", tags=["etiquetas"])
 
@@ -59,6 +65,26 @@ def _validar(db: Session, user: Usuario, nombre: str, categoria_id, padre_id, pr
         get_owned(db, Categoria, categoria_id, user.id)
 
     return nombre, categoria_id
+
+
+@router.post("/diccionario", response_model=DiccionarioEtiquetasOut, status_code=201)
+def crear_diccionario(
+    db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)
+):
+    """Crea las etiquetas que el diccionario del OCR sabe reconocer y le falten.
+
+    Pensado para quien ya tenía cuenta antes de que se sembraran: sin estas
+    etiquetas el clasificador no tiene con qué comparar (empareja contra nombres
+    de etiquetas) y toda tira de mercado sale «sin clasificar». Idempotente.
+    """
+    creadas = sembrar_etiquetas_diccionario(db, user.id)
+    db.commit()
+    for etiqueta in creadas:
+        db.refresh(etiqueta)
+    return DiccionarioEtiquetasOut(
+        total_creadas=len(creadas),
+        creadas=[EtiquetaOut.model_validate(e) for e in creadas],
+    )
 
 
 @router.get("", response_model=list[EtiquetaOut])

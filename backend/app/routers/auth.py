@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..deps import get_current_user, get_db
-from ..defaults import DEFAULT_CATEGORIAS
+from ..defaults import DEFAULT_CATEGORIAS, sembrar_etiquetas_diccionario
 from ..models import Categoria, TipoCategoria, Usuario
 from ..schemas import LoginIn, Token, UserCreate, UserOut
 from ..security import create_access_token, hash_password, verify_password
@@ -40,6 +40,12 @@ def register(data: UserCreate, db: Session = Depends(get_db)) -> Usuario:
                 color=cat["color"],
             )
         )
+    db.flush()  # las etiquetas necesitan el id de su categoría
+
+    # Etiquetas del diccionario: sin ellas el OCR no clasifica nada (empareja
+    # contra nombres de etiquetas) y toda tira de mercado sale «sin clasificar»
+    sembrar_etiquetas_diccionario(db, usuario.id)
+
     db.commit()
     db.refresh(usuario)
     return usuario
