@@ -4,6 +4,25 @@ Guía para correr Konta en local, desplegarla en un servidor y administrarla.
 
 ---
 
+## Salud del servicio
+
+`GET /health` (sin token) comprueba **también la base de datos**:
+
+- `200` → `{"status":"ok","app":"konta","base":"ok","error":null}`
+- `503` → `{"status":"error","app":"konta","base":"sin conexión","error":"OperationalError"}`
+
+No filtra la cadena de conexión: solo el tipo de error (el detalle va al log).
+
+El `docker-compose.yml` lo usa como `healthcheck` del backend (con `python -c` y
+`urllib`, para no depender de `curl`) y el **frontend espera a que el backend esté
+`healthy`** antes de servir, así que un despliegue con la base mal no se ve verde ni
+sirve la web sobre un backend roto.
+
+```bash
+curl -i http://localhost:8000/health   # 200 si todo está en pie
+docker compose ps                      # backend: healthy | unhealthy
+```
+
 ## 1. Local (desarrollo)
 
 ```bash

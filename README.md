@@ -298,7 +298,7 @@ aislados por usuario.
 | **Notificaciones** | `GET/PUT /notificaciones`, `POST /notificaciones/probar`, `POST /notificaciones/telegram/detectar` |
 | **Cuentas** | `GET/POST /cuentas`, `PATCH/DELETE /cuentas/{id}`, `POST /cuentas/{id}/adoptar-movimientos` |
 | **Saldos** | `GET /saldos`, `GET /saldos/consolidado?meses=6`, `GET /saldos/diagnostico` |
-| **Salud** | `GET /health` (sin token) |
+| **Salud** | `GET /health` (sin token): comprueba **la base** y responde `503` si no contesta |
 
 ---
 
@@ -352,7 +352,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**65 tests en verde.** El esquema se mantiene alineado con el ORM:
+**68 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
@@ -375,10 +375,11 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **Copiar las etiquetas de otra categoría**: «Casa 2» nace con el árbol de «Casa 1» (con vista previa, sin duplicar y sin volver a teclearlo)
 - [x] **Recurrente u ocasional**: al crear un movimiento se elige «una sola vez» o «se repite», y la app crea el compromiso que lo genera solo; los recurrentes (gastos e ingresos) tienen su propio grupo en el menú
 - [x] **Pago de la tarjeta**: baja el saldo de la cuenta **y** la deuda, sin contarse como gasto; la deuda vigente es el último extracto menos los pagos posteriores
+- [x] **`/health` que comprueba la base**: 503 si PostgreSQL no contesta, y el `healthcheck` de compose lo usa (el frontend espera a que el backend esté *healthy*)
 
 Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
 decisión, en el `CHANGELOG`):
 
 - [ ] **Reglas de OCR con interfaz** (ver, corregir y borrar lo aprendido), **confirmar un
-  recibo como un solo gasto**, **borrar un aporte** a una meta, **editar/borrar productos**,
-  **`/health` que compruebe la base** y **linter en CI** (detalle en el `CHANGELOG`)
+  recibo como un solo gasto**, **borrar un aporte** a una meta, **editar/borrar productos**
+  y **linter en CI** (detalle en el `CHANGELOG`)

@@ -85,8 +85,6 @@ Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de 
 - **Dos huecos de UI** (el backend ya lo permite): **borrar un aporte** a una meta —hoy un
   monto mal tecleado obliga a borrar la meta entera— y **editar o borrar un producto** del
   mercado.
-- **`GET /health` no comprueba la base**: responde `ok` aunque PostgreSQL esté caído. El
-  `depends_on: service_healthy` de compose solo valida al arrancar.
 - **Linter en CI**: no hay ninguno configurado. Al pasar `ruff` aparecen 303 hallazgos, de
   los que casi todos son falsos positivos para FastAPI (`B008` con `Depends(...)`) o estilo;
   los reales eran **dos imports muertos** y **un `date.today()`** que rompía la convención de
@@ -755,3 +753,28 @@ nivel («debes esto a esta fecha»); el pago es un flujo.
 - Tests: 65 en verde (antes 62). Cubren el pago (cuenta y deuda a la vez, y que **no** sea
   gasto), el extracto nuevo con y sin pago previo, el extracto repetido, deshacer el pago, y
   los límites.
+
+## v1.31 — `/health` que comprueba la base
+
+`GET /health` respondía `{"status":"ok","app":"konta"}` **pasara lo que pasara**: con
+PostgreSQL caído seguía diciendo `ok`. El `depends_on: service_healthy` de compose solo valida
+al arrancar, así que un backend roto en marcha se veía verde y, peor, el frontend servía la web
+sobre él.
+
+- **`GET /health` consulta la base** (`SELECT 1`):
+  - `200` → `{"status":"ok","app":"konta","base":"ok","error":null}`
+  - `503` → `{"status":"error","app":"konta","base":"sin conexión","error":"OperationalError"}`
+- **No filtra la cadena de conexión**: devuelve solo el **tipo** de excepción; el mensaje
+  completo va al log. Un healthcheck suele quedar expuesto sin token, así que no es sitio para
+  el DSN ni para la contraseña. (Comprobado: la respuesta no contiene ni host, ni base, ni
+  usuario.)
+- Sigue **sin pedir token** (lo consulta el orquestador, que no tiene credenciales).
+- **`docker-compose.yml`**: `healthcheck` del backend con `python -c` + `urllib` (la imagen ya
+  trae Python; así no depende de `curl`), con `start_period: 30s` para dar margen a las
+  migraciones del arranque. Y el **frontend ahora espera a que el backend esté `healthy`**
+  (`condition: service_healthy`) en vez de arrancar en cuanto el contenedor existe.
+- Verificado **de punta a punta**, no solo con tests: con la base en pie el comando del
+  healthcheck sale `0`; apuntando el backend a un puerto muerto devuelve `503` y el comando
+  sale `1`, que es lo que hace que el contenedor pase a *unhealthy*.
+- Tests: 68 en verde (antes 65). Cubren el `200` con la base en pie, el `503` con una sesión
+  que falla (sin filtrar el detalle) y que sigue sin pedir token.
