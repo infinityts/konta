@@ -21,8 +21,23 @@ from .models import (
     Transaccion,
 )
 from .recurrencia import hoy
+from .models import Periodicidad
+from .tasas import convertir
 
 CERO = Decimal("0.00")
+
+
+def _factor_mensual(periodicidad) -> Decimal:
+    """Cuánto cuenta al mes una suscripción según su periodicidad.
+
+    Semanal: 52/12 · Mensual: 1 · Trimestral: 1/3 · Anual: 1/12
+    """
+    return {
+        Periodicidad.SEMANAL: Decimal("52") / Decimal("12"),
+        Periodicidad.MENSUAL: Decimal("1"),
+        Periodicidad.TRIMESTRAL: Decimal("1") / Decimal("3"),
+        Periodicidad.ANUAL: Decimal("1") / Decimal("12"),
+    }.get(periodicidad, Decimal("1"))
 
 
 def _sumar_mes(fecha: date, n: int) -> date:
@@ -261,15 +276,25 @@ def diagnostico(db: Session, usuario_id) -> dict:
     ingresos, gastos = _totales_mes(db, usuario_id, mes_actual)
     ingresos_ant, gastos_ant = _totales_mes(db, usuario_id, mes_anterior)
 
-    fijos = Decimal(
-        db.scalar(
-            select(func.coalesce(func.sum(Suscripcion.monto), 0)).where(
-                Suscripcion.usuario_id == usuario_id,
-                Suscripcion.estado == EstadoSuscripcion.ACTIVA,
-            )
+    # Gasto fijo = suscripciones activas **normalizadas a mes** y **en COP**.
+    # Antes se sumaban los `monto` en crudo: una suscripción anual contaba como
+    # si se pagara cada mes, y una de USD 20 se sumaba como si fueran $20.
+    subs_activas = db.scalars(
+        select(Suscripcion).where(
+            Suscripcion.usuario_id == usuario_id,
+            Suscripcion.estado == EstadoSuscripcion.ACTIVA,
         )
-        or 0
-    )
+    ).all()
+    fijos = Decimal("0")
+    for _s in subs_activas:
+        monto_mes = Decimal(str(_s.monto)) * _factor_mensual(_s.periodicidad)
+        if _s.moneda != "COP":
+            convertido = convertir(db, _s.moneda, "COP", monto_mes)
+            if convertido is None:
+                continue  # sin tasa disponible: no se puede sumar con honestidad
+            monto_mes = convertido
+        fijos += monto_mes
+    fijos = fijos.quantize(Decimal("0.01"))
     sin_cuenta_n = (
         db.scalar(
             select(func.count())
