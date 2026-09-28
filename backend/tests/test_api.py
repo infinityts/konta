@@ -4,6 +4,12 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
+from app.defaults import DEFAULT_CATEGORIAS
+
+# Nº de categorías que recibe un usuario nuevo. Se lee de `app/defaults.py`
+# para que añadir o quitar una categoría por defecto no deje el test en rojo.
+N_DEFAULT = len(DEFAULT_CATEGORIAS)
+
 
 def _registrar(client, email: str | None = None):
     email = email or f"u{uuid.uuid4().hex[:8]}@x.com"
@@ -38,7 +44,7 @@ def test_sin_token_rechazado(client):
 
 def test_crud_categorias(client):
     _, h = _registrar(client)
-    assert len(client.get("/categorias", headers=h).json()) == 10  # por defecto
+    assert len(client.get("/categorias", headers=h).json()) == N_DEFAULT  # por defecto
 
     r = client.post("/categorias", headers=h, json={"nombre": "Mascotas", "tipo": "gasto"})
     assert r.status_code == 201
@@ -48,7 +54,7 @@ def test_crud_categorias(client):
     assert r.json()["color"] == "#000000"
 
     assert client.delete(f"/categorias/{cid}", headers=h).status_code == 204
-    assert len(client.get("/categorias", headers=h).json()) == 10
+    assert len(client.get("/categorias", headers=h).json()) == N_DEFAULT
 
 
 def test_flujo_tarjetas_suscripciones_transacciones(client):
@@ -622,7 +628,7 @@ def test_exportar_y_restaurar(client):
     assert r.status_code == 200
     backup = r.json()
     assert len(backup["transacciones"]) == 1
-    assert len(backup["categorias"]) == 10
+    assert len(backup["categorias"]) == N_DEFAULT
 
     # borrar y restaurar
     client.delete(f"/transacciones/{backup['transacciones'][0]['id']}", headers=h)
@@ -637,7 +643,7 @@ def test_exportar_y_restaurar(client):
     )
     assert r.status_code == 200, r.text
     assert len(client.get("/transacciones", headers=h).json()) == 1
-    assert len(client.get("/categorias", headers=h).json()) == 10
+    assert len(client.get("/categorias", headers=h).json()) == N_DEFAULT
 
     # exportar CSV
     r = client.get("/exportar/transacciones.csv", headers=h)
