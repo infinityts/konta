@@ -294,5 +294,6 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **OCR por línea**: `factura_lineas` + `reglas_ocr` expuestos en la API y en la UI de *Facturas*
 - [x] CI: `pytest` (con PostgreSQL 16 y `alembic check`) + `pnpm build` en GitHub Actions
 - [x] **WhatsApp** como canal de notificaciones (Cloud API de Meta; requiere plantilla *utility* aprobada para el envío diario)
-- [x] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima que genera su gasto, vigencia y vencimiento, beneficiarios con porcentaje y bien asegurado (placa)
-- [ ] Reporte del **costo anual de seguros** dentro de la página de Reportes (hoy está en el resumen de *Seguros* y en el gasto fijo del dashboard)
+- [x] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima que genera su gasto, vigencia y vencimiento, **varias personas cubiertas**, beneficiarios con porcentaje y bien asegurado (placa)
+- [x] **Costo anual de los seguros** en *Reportes* (con desglose por tipo) y en el gasto fijo del dashboard
+- [x] **Flujo de caja** en COP: convierte lo que esté en otra moneda, avisa si falta la tasa, e incluye las pólizas con su periodicidad real
