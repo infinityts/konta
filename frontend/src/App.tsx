@@ -7,6 +7,7 @@ import Etiquetas from './pages/Etiquetas'
 import Facturas from './pages/Facturas'
 import IngresosRecurrentes from './pages/IngresosRecurrentes'
 import Login from './pages/Login'
+import Presupuestos from './pages/Presupuestos'
 import Register from './pages/Register'
 import Reportes from './pages/Reportes'
 import Suscripciones from './pages/Suscripciones'
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/ingresos-recurrentes" element={<IngresosRecurrentes />} />
         <Route path="/etiquetas" element={<Etiquetas />} />
         <Route path="/reportes" element={<Reportes />} />
+        <Route path="/presupuestos" element={<Presupuestos />} />
         <Route path="/facturas" element={<Facturas />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>

@@ -263,3 +263,21 @@ class Factura(Base):
         ForeignKey("transacciones.id", ondelete="SET NULL"), nullable=True
     )
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class Presupuesto(Base):
+    """Límite de gasto mensual por categoría."""
+
+    __tablename__ = "presupuestos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    categoria_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("categorias.id", ondelete="CASCADE"), nullable=False
+    )
+    monto_limite: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

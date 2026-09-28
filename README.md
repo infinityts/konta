@@ -31,6 +31,7 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Dashboard**: balance del mes (ingresos vs gastos), top categorías, próximos pagos.
 - **Reportes**: evolución mensual (últimos 6 meses) y desglose por categoría.
 - **Alertas de pagos**: próximos vencimientos de suscripciones y de tarjetas (pago/corte).
+- **Presupuestos**: límite mensual por categoría, con gasto real, % consumido y aviso de exceso.
 
 ### Documentos
 - **Facturas PDF**: subida, extracción de texto (**pypdf** + **OCR tesseract** en
@@ -106,6 +107,7 @@ aislados por usuario.
 | **Alertas** | `GET /alertas?dias=15` |
 | **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM` |
 | **Facturas** | `GET/POST /facturas`, `POST /facturas/{id}/asociar`, `DELETE /facturas/{id}` |
+| **Presupuestos** | `GET/POST /presupuestos`, `PATCH/DELETE /presupuestos/{id}` |
 
 ---
 
@@ -119,6 +121,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0002_ingresos_recurrentes` | `ingresos_recurrentes` |
 | `0003_etiquetas` | `etiquetas` (autojerárquica) + `transacciones.etiqueta_id` |
 | `0004_facturas` | `facturas` |
+| `0005_presupuestos` | `presupuestos` |
 
 ---
 
@@ -137,8 +140,8 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR
-- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos
+- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos
 - [x] Despliegue con Docker/Podman
-- [ ] Presupuestos, importar CSV, mercado, multi-moneda (tasas), tasas de tarjetas, export/backup, flujo de caja, metas
+- [ ] Importar CSV, mercado, multi-moneda (tasas), tasas de tarjetas, export/backup, flujo de caja, metas
 - [ ] Notificaciones de alarmas por email/Telegram

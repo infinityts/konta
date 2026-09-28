@@ -226,3 +226,23 @@ def test_facturas_extraccion_y_subida(client):
     assert f["nombre_archivo"] == "f.pdf"
     assert f["monto_detectado"] is not None
     assert len(client.get("/facturas", headers=h).json()) == 1
+
+
+def test_presupuestos(client):
+    _, h = _registrar(client)
+    cats = client.get("/categorias", headers=h).json()
+    mercado = next(c for c in cats if c["nombre"] == "Mercado")
+    hoy = date.today()
+
+    # gasto de 300 en Mercado
+    client.post("/transacciones", headers=h, json={"tipo": "gasto", "monto": "300", "fecha": hoy.isoformat(), "categoria_id": mercado["id"]})
+
+    # presupuesto de 500 para Mercado
+    r = client.post("/presupuestos", headers=h, json={"categoria_id": mercado["id"], "monto_limite": "500"})
+    assert r.status_code == 201, r.text
+    p = r.json()
+    assert p["gastado"] == 300
+    assert p["restante"] == 200
+    assert p["porcentaje"] == 60.0
+
+    assert len(client.get("/presupuestos", headers=h).json()) == 1

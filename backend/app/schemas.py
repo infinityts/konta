@@ -286,3 +286,30 @@ class FacturaOut(BaseModel):
 
 class AsociarFacturaIn(BaseModel):
     transaccion_id: uuid.UUID
+
+
+# --- presupuestos ---
+
+
+class PresupuestoIn(BaseModel):
+    categoria_id: uuid.UUID
+    monto_limite: Decimal = Field(gt=0)
+    moneda: str = "COP"
+
+
+class PresupuestoUpdate(BaseModel):
+    monto_limite: Decimal | None = Field(None, gt=0)
+    moneda: str | None = None
+    activo: bool | None = None
+
+
+class PresupuestoOut(BaseModel):
+    id: uuid.UUID
+    categoria_id: uuid.UUID
+    categoria_nombre: str
+    monto_limite: Decimal
+    moneda: str
+    gastado: float
+    restante: float
+    porcentaje: float
+    activo: bool

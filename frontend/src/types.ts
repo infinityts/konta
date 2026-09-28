@@ -86,6 +86,18 @@ export interface Factura {
   creada_en: string
 }
 
+export interface Presupuesto {
+  id: string
+  categoria_id: string
+  categoria_nombre: string
+  monto_limite: number | string
+  moneda: string
+  gastado: number
+  restante: number
+  porcentaje: number
+  activo: boolean
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string
