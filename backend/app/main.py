@@ -16,6 +16,7 @@ from .routers import (
     importacion,
     ingresos_recurrentes,
     lista_mercado,
+    monedas,
     presupuestos,
     productos,
     reportes,
@@ -64,6 +65,7 @@ app.include_router(presupuestos.router)
 app.include_router(importacion.router)
 app.include_router(productos.router)
 app.include_router(lista_mercado.router)
+app.include_router(monedas.router)
 
 
 @app.get("/health")

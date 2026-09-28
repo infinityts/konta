@@ -284,3 +284,26 @@ def test_mercado_comparativo_y_lista(client):
     assert len(lista["items"]) == 1
     assert lista["total_estimado"] == 7000.0
     assert lista["pendientes"] == 1
+
+
+def test_monedas_y_tasas(client):
+    _, h = _registrar(client)
+
+    monedas = client.get("/monedas", headers=h).json()
+    assert any(m["codigo"] == "COP" for m in monedas)
+
+    r = client.post("/tasas", headers=h, json={"moneda_origen": "USD", "moneda_destino": "COP", "tasa": "4000"})
+    assert r.status_code == 201, r.text
+
+    r = client.get("/convertir", headers=h, params={"de": "USD", "a": "COP", "monto": 100})
+    assert r.status_code == 200
+    assert float(r.json()["resultado"]) == 400000.0
+
+    # conversión inversa usando la tasa inversa
+    r = client.get("/convertir", headers=h, params={"de": "COP", "a": "USD", "monto": 400000})
+    assert r.status_code == 200
+    assert abs(float(r.json()["resultado"]) - 100.0) < 0.01
+
+    # sin tasa -> 404
+    r = client.get("/convertir", headers=h, params={"de": "EUR", "a": "COP", "monto": 1})
+    assert r.status_code == 404

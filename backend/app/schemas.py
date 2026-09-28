@@ -418,3 +418,41 @@ class ListaMercadoOut(BaseModel):
     items: list[ItemListaOut]
     total_estimado: float
     pendientes: int
+
+
+# --- monedas y tasas de cambio ---
+
+
+class MonedaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    codigo: str
+    nombre: str
+    simbolo: str
+
+
+class TasaIn(BaseModel):
+    moneda_origen: str = Field(min_length=3, max_length=3)
+    moneda_destino: str = Field(min_length=3, max_length=3)
+    tasa: Decimal = Field(gt=0)
+    fecha: date | None = None
+    fuente: str | None = None
+
+
+class TasaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    moneda_origen: str
+    moneda_destino: str
+    tasa: Decimal
+    fecha: date
+    fuente: str | None
+
+
+class ConversionOut(BaseModel):
+    de: str
+    a: str
+    monto: Decimal
+    tasa: Decimal
+    resultado: Decimal

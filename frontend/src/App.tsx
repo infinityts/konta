@@ -9,6 +9,7 @@ import Importar from './pages/Importar'
 import IngresosRecurrentes from './pages/IngresosRecurrentes'
 import Login from './pages/Login'
 import Mercado from './pages/Mercado'
+import Monedas from './pages/Monedas'
 import Presupuestos from './pages/Presupuestos'
 import Register from './pages/Register'
 import Reportes from './pages/Reportes'
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/facturas" element={<Facturas />} />
         <Route path="/importar" element={<Importar />} />
         <Route path="/mercado" element={<Mercado />} />
+        <Route path="/monedas" element={<Monedas />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>
     </Routes>

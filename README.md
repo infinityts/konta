@@ -48,6 +48,12 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Comparativo de precios**: registra precios por **producto y tienda** (histórico) y
   muestra cuál tienda es **más barata**.
 
+### Multi-moneda
+- **Tasas de cambio**: registro manual o **descarga desde internet**
+  (API pública `open.er-api.com`), con histórico por fecha.
+- **Conversor** entre monedas y catálogo de monedas disponibles (COP, USD, EUR, MXN,
+  PEN, CLP, ARS, UYU, BRL, GBP).
+
 ---
 
 ## Stack
@@ -125,6 +131,7 @@ aislados por usuario.
 | **Importar** | `POST /importar/csv` (previsualizar), `POST /importar/confirmar` |
 | **Mercado** | `GET/POST /productos`, `GET/PATCH/DELETE /productos/{id}`, `GET /productos/{id}/comparativo`, `GET/POST /productos/{id}/precios` |
 | **Lista de compras** | `GET/POST /lista-mercado`, `PATCH/DELETE /lista-mercado/{id}` |
+| **Monedas / tasas** | `GET /monedas`, `GET/POST /tasas`, `DELETE /tasas/{id}`, `POST /tasas/actualizar`, `GET /convertir?de=&a=&monto=` |
 
 ---
 
@@ -158,8 +165,8 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado
-- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda
+- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas
 - [x] Despliegue con Docker/Podman
-- [ ] Multi-moneda (tasas), tasas de tarjetas, export/backup, flujo de caja, metas
+- [ ] Tasas de interés por tarjeta, export/backup, flujo de caja, metas
 - [ ] Notificaciones de alarmas por email/Telegram

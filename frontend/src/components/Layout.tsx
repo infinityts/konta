@@ -12,6 +12,7 @@ const items = [
   { to: '/facturas', label: 'Facturas', end: false },
   { to: '/importar', label: 'Importar', end: false },
   { to: '/mercado', label: 'Mercado', end: false },
+  { to: '/monedas', label: 'Monedas', end: false },
   { to: '/etiquetas', label: 'Etiquetas', end: false },
 ]
 

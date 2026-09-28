@@ -142,6 +142,29 @@ export interface ListaMercado {
   pendientes: number
 }
 
+export interface Moneda {
+  codigo: string
+  nombre: string
+  simbolo: string
+}
+
+export interface Tasa {
+  id: string
+  moneda_origen: string
+  moneda_destino: string
+  tasa: number | string
+  fecha: string
+  fuente: string | null
+}
+
+export interface Conversion {
+  de: string
+  a: string
+  monto: number | string
+  tasa: number | string
+  resultado: number | string
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string
