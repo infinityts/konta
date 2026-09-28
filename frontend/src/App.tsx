@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
 import Layout from './components/Layout'
+import Categorias from './pages/Categorias'
+import Cuentas from './pages/Cuentas'
 import Dashboard from './pages/Dashboard'
 import Etiquetas from './pages/Etiquetas'
 import Facturas from './pages/Facturas'
@@ -53,6 +55,8 @@ export default function App() {
         <Route path="/monedas" element={<Monedas />} />
         <Route path="/respaldo" element={<Respaldo />} />
         <Route path="/notificaciones" element={<Notificaciones />} />
+        <Route path="/cuentas" element={<Cuentas />} />
+        <Route path="/categorias" element={<Categorias />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>
     </Routes>

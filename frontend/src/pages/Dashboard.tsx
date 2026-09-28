@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { fmtMoney, type Alerta, type Categoria, type Suscripcion, type Tarjeta, type Transaccion } from '../types'
+import {
+  fmtMoney,
+  type Alerta,
+  type Categoria,
+  type Diagnostico,
+  type Suscripcion,
+  type Tarjeta,
+  type Transaccion,
+} from '../types'
 
 function Kpi({ label, value }: { label: string; value: string }) {
   return (
@@ -23,6 +31,7 @@ export default function Dashboard() {
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [alertas, setAlertas] = useState<Alerta[]>([])
+  const [diag, setDiag] = useState<Diagnostico | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -32,13 +41,15 @@ export default function Dashboard() {
       api<Tarjeta[]>('/tarjetas'),
       api<Categoria[]>('/categorias'),
       api<Alerta[]>('/alertas?dias=15'),
+      api<Diagnostico>('/saldos/diagnostico'),
     ])
-      .then(([t, s, ta, c, al]) => {
+      .then(([t, s, ta, c, al, d]) => {
         setTransacciones(t)
         setSuscripciones(s)
         setTarjetas(ta)
         setCategorias(c)
         setAlertas(al)
+        setDiag(d)
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
   }, [])
@@ -56,19 +67,28 @@ export default function Dashboard() {
   const activas = suscripciones.filter((s) => s.estado === 'activa')
   const costoSubs = activas.reduce((a, s) => a + Number(s.monto), 0)
 
+  // "Categoría › Subcategoría" cuando la categoría tiene padre
+  const etiquetaCategoria = (id: string | null): string => {
+    if (!id) return 'Sin categoría'
+    const c = categorias.find((x) => x.id === id)
+    if (!c) return 'Sin categoría'
+    if (c.padre_id) {
+      const padre = categorias.find((x) => x.id === c.padre_id)
+      if (padre) return `${padre.nombre} › ${c.nombre}`
+    }
+    return c.nombre
+  }
+
   const porCategoria = new Map<string, number>()
   for (const t of delMes) {
     if (t.tipo !== 'gasto') continue
-    const key = t.categoria_id ?? 'sin-categoria'
+    const key = etiquetaCategoria(t.categoria_id)
     porCategoria.set(key, (porCategoria.get(key) ?? 0) + Number(t.monto))
   }
   const topCategorias = [...porCategoria.entries()]
-    .map(([id, total]) => ({
-      nombre: categorias.find((c) => c.id === id)?.nombre ?? 'Sin categoría',
-      total,
-    }))
+    .map(([nombre, total]) => ({ nombre, total }))
     .sort((a, b) => b.total - a.total)
-    .slice(0, 5)
+    .slice(0, 6)
   const maxTop = topCategorias[0]?.total ?? 0
 
   return (
@@ -76,13 +96,39 @@ export default function Dashboard() {
       <h2 className="text-xl font-semibold">Resumen</h2>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
 
+      {/* Saldo real y el motivo */}
+      {diag && (
+        <div
+          className={`mt-4 rounded-2xl border p-6 ${
+            diag.sobregirado ? 'border-red-300 bg-red-50' : 'border-emerald-200 bg-emerald-50'
+          }`}
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-medium text-slate-600">
+              Saldo actual {diag.sobregirado && <span className="font-bold text-red-700">· SOBREGIRADO</span>}
+            </p>
+            <a href="/cuentas" className="text-xs text-slate-500 underline">ver cuentas</a>
+          </div>
+          <p className={`mt-1 text-4xl font-bold ${diag.sobregirado ? 'text-red-700' : 'text-emerald-700'}`}>
+            {fmtMoney(diag.saldo_actual)}
+          </p>
+          <ul className="mt-3 space-y-1 text-sm">
+            {diag.motivos.map((m, i) => (
+              <li key={i} className={diag.sobregirado ? 'text-red-700' : 'text-slate-600'}>
+                • {m}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div
         className={`mt-4 rounded-2xl border p-6 ${
-          positivo ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'
+          positivo ? 'border-slate-200 bg-white' : 'border-amber-200 bg-amber-50'
         }`}
       >
         <p className="text-sm font-medium text-slate-600">Balance de {mesLabel}</p>
-        <p className={`mt-1 text-3xl font-bold ${positivo ? 'text-emerald-700' : 'text-red-700'}`}>
+        <p className={`mt-1 text-3xl font-bold ${positivo ? 'text-slate-900' : 'text-amber-700'}`}>
           {positivo ? '+' : '-'}{fmtMoney(Math.abs(balance))}
         </p>
         <div className="mt-2 flex flex-wrap gap-6 text-sm">

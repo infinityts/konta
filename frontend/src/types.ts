@@ -4,6 +4,7 @@ export interface Categoria {
   tipo: 'ingreso' | 'gasto'
   icono: string | null
   color: string | null
+  padre_id: string | null
 }
 
 export interface Tarjeta {
@@ -44,6 +45,7 @@ export interface Transaccion {
   tarjeta_id: string | null
   suscripcion_id: string | null
   etiqueta_id: string | null
+  cuenta_id: string | null
   notas: string | null
 }
 
@@ -72,8 +74,65 @@ export interface ReporteMes {
 
 export interface ReporteCategoria {
   categoria: string
+  subcategoria: string | null
   tipo: 'ingreso' | 'gasto'
   total: number
+}
+
+export interface Cuenta {
+  id: string
+  nombre: string
+  tipo: string
+  moneda: string
+  activa: boolean
+  saldo_inicial: number | string
+  ingresos: number
+  gastos: number
+  saldo_actual: number
+}
+
+export interface SaldoResumen {
+  saldo_total: number
+  saldo_inicial_total: number
+  ingresos_total: number
+  gastos_total: number
+  sin_cuenta: number
+  sobregirado: boolean
+  cuentas: Cuenta[]
+}
+
+export interface ConsolidadoMes {
+  mes: string
+  saldo_inicial: number
+  ingresos: number
+  gastos: number
+  balance: number
+  saldo_final: number
+}
+
+export interface Consolidado {
+  meses: ConsolidadoMes[]
+  saldo_actual: number
+}
+
+export interface Motivo {
+  tipo: string
+  etiqueta: string
+  monto: number
+  detalle: string | null
+}
+
+export interface Diagnostico {
+  saldo_actual: number
+  sobregirado: boolean
+  ingresos_mes: number
+  gastos_mes: number
+  balance_mes: number
+  ingresos_mes_anterior: number
+  gastos_mes_anterior: number
+  gastos_fijos: number
+  motivos: string[]
+  top_categorias: Motivo[]
 }
 
 export interface Factura {

@@ -6,6 +6,8 @@ const items = [
   { to: '/tarjetas', label: 'Tarjetas', end: false },
   { to: '/suscripciones', label: 'Suscripciones', end: false },
   { to: '/ingresos-recurrentes', label: 'Ingresos recurrentes', end: false },
+  { to: '/cuentas', label: 'Cuentas', end: false },
+  { to: '/categorias', label: 'Categorías', end: false },
   { to: '/transacciones', label: 'Transacciones', end: false },
   { to: '/reportes', label: 'Reportes', end: false },
   { to: '/flujo', label: 'Flujo', end: false },

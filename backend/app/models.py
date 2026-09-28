@@ -122,6 +122,9 @@ class Categoria(Base):
     tipo: Mapped[TipoCategoria] = mapped_column(_tipo_categoria, nullable=False)
     icono: Mapped[str | None] = mapped_column(String(40), nullable=True)
     color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    padre_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("categorias.id", ondelete="CASCADE"), nullable=True
+    )
 
 
 class Tarjeta(Base):
@@ -188,6 +191,9 @@ class Transaccion(Base):
     )
     etiqueta_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
+    )
+    cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True, index=True
     )
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -366,6 +372,26 @@ class AporteMeta(Base):
     monto: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     fecha: Mapped[date] = mapped_column(Date, nullable=False, default=_ahora)
     notas: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class Cuenta(Base):
+    """Cuenta de dinero (efectivo, banco, ahorros…) con saldo inicial.
+
+    El saldo actual es `saldo_inicial + ingresos - gastos` de esa cuenta.
+    """
+
+    __tablename__ = "cuentas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(80), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, default="efectivo")
+    saldo_inicial: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=Decimal("0"))
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    activa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 

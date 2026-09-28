@@ -11,6 +11,7 @@ from .routers import (
     alertas,
     auth,
     categorias,
+    cuentas,
     etiquetas,
     facturas,
     flujo,
@@ -24,6 +25,7 @@ from .routers import (
     productos,
     reportes,
     respaldo,
+    saldos,
     suscripciones,
     tarjetas,
     transacciones,
@@ -74,6 +76,8 @@ app.include_router(respaldo.router)
 app.include_router(flujo.router)
 app.include_router(metas.router)
 app.include_router(notificaciones.router)
+app.include_router(cuentas.router)
+app.include_router(saldos.router)
 
 
 @app.get("/health")

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { fmtMoney, type Categoria, type Etiqueta, type Transaccion } from '../types'
+import { fmtMoney, type Categoria, type Cuenta, type Etiqueta, type SaldoResumen, type Transaccion } from '../types'
 
 const empty = {
   tipo: 'gasto',
@@ -10,12 +10,14 @@ const empty = {
   descripcion: '',
   categoria_id: '',
   etiqueta_id: '',
+  cuenta_id: '',
 }
 
 export default function Transacciones() {
   const [items, setItems] = useState<Transaccion[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
+  const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [form, setForm] = useState(empty)
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
@@ -32,6 +34,7 @@ export default function Transacciones() {
     cargar()
     api<Categoria[]>('/categorias').then(setCategorias)
     api<Etiqueta[]>('/etiquetas').then(setEtiquetas)
+    api<SaldoResumen>('/cuentas').then((r) => setCuentas(r.cuentas))
   }, [])
 
   async function crear() {
@@ -47,6 +50,7 @@ export default function Transacciones() {
           descripcion: form.descripcion || null,
           categoria_id: form.categoria_id || null,
           etiqueta_id: form.etiqueta_id || null,
+          cuenta_id: form.cuenta_id || null,
         }),
       })
       setForm({ ...empty, tipo: form.tipo, fecha: form.fecha })
@@ -67,9 +71,21 @@ export default function Transacciones() {
     setForm((f) => ({ ...f, tipo, categoria_id: '' }))
   }
 
-  const nombreCat = (id: string | null) => categorias.find((c) => c.id === id)?.nombre ?? '—'
+  const nombreCat = (id: string | null) => {
+    if (!id) return '—'
+    const c = categorias.find((x) => x.id === id)
+    if (!c) return '—'
+    if (c.padre_id) {
+      const padre = categorias.find((x) => x.id === c.padre_id)
+      if (padre) return `${padre.nombre} › ${c.nombre}`
+    }
+    return c.nombre
+  }
   const nombreEtiqueta = (id: string | null) => etiquetas.find((e) => e.id === id)?.nombre ?? null
+  const nombreCuenta = (id: string | null) => cuentas.find((c) => c.id === id)?.nombre ?? null
   const categoriasFiltradas = categorias.filter((c) => c.tipo === form.tipo)
+  const catRaices = categoriasFiltradas.filter((c) => !c.padre_id)
+  const subcatsDe = (id: string) => categoriasFiltradas.filter((c) => c.padre_id === id)
   const raices = etiquetas.filter((e) => !e.padre_id)
   const hijasDe = (id: string) => etiquetas.filter((e) => e.padre_id === id)
 
@@ -93,8 +109,19 @@ export default function Transacciones() {
           <input placeholder="Descripción (ej. Salario, Mercado...)" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <select value={form.categoria_id} onChange={(e) => set('categoria_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">Sin categoría</option>
-            {categoriasFiltradas.map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre}</option>
+            {catRaices.map((r) => (
+              <optgroup key={r.id} label={r.nombre}>
+                <option value={r.id}>{r.nombre}</option>
+                {subcatsDe(r.id).map((h) => (
+                  <option key={h.id} value={h.id}>— {h.nombre}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <select value={form.cuenta_id} onChange={(e) => set('cuenta_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="">Sin cuenta (no afecta el saldo de una cuenta)</option>
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre} · {fmtMoney(c.saldo_actual)}</option>
             ))}
           </select>
           <select value={form.etiqueta_id} onChange={(e) => set('etiqueta_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
@@ -126,7 +153,10 @@ export default function Transacciones() {
                   </span>
                 )}
               </p>
-              <p className="text-sm text-slate-500">{t.fecha} · {nombreCat(t.categoria_id)}</p>
+              <p className="text-sm text-slate-500">
+                {t.fecha} · {nombreCat(t.categoria_id)}
+                {nombreCuenta(t.cuenta_id) && <span className="ml-2 text-slate-400">· {nombreCuenta(t.cuenta_id)}</span>}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <span className={`text-sm font-medium ${t.tipo === 'gasto' ? 'text-red-600' : 'text-emerald-600'}`}>

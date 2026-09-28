@@ -464,3 +464,68 @@ def test_notificaciones(client):
     # detectar sin token -> 400
     r = client.post("/notificaciones/telegram/detectar", headers=h)
     assert r.status_code == 400
+
+
+def test_cuentas_saldos_y_subcategorias(client):
+    _, h = _registrar(client)
+
+    # cuenta con saldo inicial
+    cta = client.post("/cuentas", headers=h, json={"nombre": "Banco", "tipo": "banco", "saldo_inicial": "1000000"}).json()
+    assert cta["saldo_actual"] == 1000000.0
+
+    # categoría raíz + subcategoría
+    raiz = client.post("/categorias", headers=h, json={"nombre": "Transporte", "tipo": "gasto"}).json()
+    sub = client.post("/categorias", headers=h, json={"nombre": "Gasolina", "tipo": "gasto", "padre_id": raiz["id"]}).json()
+    assert sub["padre_id"] == raiz["id"]
+
+    arbol = client.get("/categorias/arbol", headers=h).json()
+    transp = next(n for n in arbol if n["nombre"] == "Transporte")
+    assert any(s["nombre"] == "Gasolina" for s in transp["subcategorias"])
+
+    hoy = date.today()
+    client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "200000", "fecha": hoy.isoformat(),
+        "categoria_id": sub["id"], "cuenta_id": cta["id"],
+    })
+    client.post("/transacciones", headers=h, json={
+        "tipo": "ingreso", "monto": "500000", "fecha": hoy.isoformat(), "cuenta_id": cta["id"],
+    })
+
+    # saldo = 1.000.000 + 500.000 - 200.000
+    r = client.get("/saldos", headers=h).json()
+    assert r["saldo_total"] == 1300000.0
+    assert r["sobregirado"] is False
+    assert r["cuentas"][0]["saldo_actual"] == 1300000.0
+
+    # desglose por categoría → subcategoría
+    rep = client.get(f"/reportes/categorias?mes={hoy.strftime('%Y-%m')}", headers=h).json()
+    gasto = next(x for x in rep if x["tipo"] == "gasto")
+    assert gasto["categoria"] == "Transporte"
+    assert gasto["subcategoria"] == "Gasolina"
+
+    diag = client.get("/saldos/diagnostico", headers=h).json()
+    assert diag["sobregirado"] is False
+    assert diag["saldo_actual"] == 1300000.0
+    assert any("Transporte" in m for m in diag["motivos"])
+
+    cons = client.get("/saldos/consolidado?meses=3", headers=h).json()
+    assert len(cons["meses"]) == 3
+    assert cons["meses"][-1]["saldo_final"] == 1300000.0
+
+
+def test_diagnostico_de_sobregiro(client):
+    _, h = _registrar(client)
+    cta = client.post("/cuentas", headers=h, json={"nombre": "Efectivo", "saldo_inicial": "100000"}).json()
+    hoy = date.today()
+    comida = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
+    client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "300000", "fecha": hoy.isoformat(),
+        "categoria_id": comida["id"], "cuenta_id": cta["id"],
+    })
+
+    diag = client.get("/saldos/diagnostico", headers=h).json()
+    assert diag["sobregirado"] is True
+    assert diag["saldo_actual"] == -200000.0
+    assert any("sobregirado" in m.lower() for m in diag["motivos"])
+    assert any("Mercado" in m for m in diag["motivos"])
+    assert diag["top_categorias"][0]["monto"] == 300000.0

@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .jerarquia import mapa_categorias, ruta_categoria
 from .models import Categoria, Transaccion
 from .recurrencia import hoy
 
@@ -54,10 +55,11 @@ def reporte_mensual(db: Session, usuario_id, meses: int = 6) -> list[dict]:
 
 
 def reporte_categorias(db: Session, usuario_id, mes: str) -> list[dict]:
-    """Desglose por categoría para un mes (YYYY-MM)."""
+    """Desglose por categoría → subcategoría para un mes (YYYY-MM)."""
+    mapa = mapa_categorias(db, usuario_id)
     filas = db.execute(
         select(
-            Categoria.nombre,
+            Categoria,
             Transaccion.tipo,
             func.sum(Transaccion.monto).label("total"),
         )
@@ -67,10 +69,18 @@ def reporte_categorias(db: Session, usuario_id, mes: str) -> list[dict]:
             Transaccion.usuario_id == usuario_id,
             func.to_char(Transaccion.fecha, "YYYY-MM") == mes,
         )
-        .group_by(Categoria.nombre, Transaccion.tipo)
+        .group_by(Categoria.id, Transaccion.tipo)
         .order_by(func.sum(Transaccion.monto).desc())
     ).all()
-    return [
-        {"categoria": nombre or "Sin categoría", "tipo": tipo.value, "total": float(total)}
-        for nombre, tipo, total in filas
-    ]
+    salida = []
+    for categoria, tipo, total in filas:
+        raiz, sub = ruta_categoria(categoria, mapa)
+        salida.append(
+            {
+                "categoria": raiz,
+                "subcategoria": sub,
+                "tipo": tipo.value,
+                "total": float(total),
+            }
+        )
+    return salida

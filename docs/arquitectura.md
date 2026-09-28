@@ -89,21 +89,23 @@ relacionan las piezas.
 | `respaldo.py` | Exportar/restaurar todos los datos del usuario |
 | `flujo.py` | Proyección de flujo de caja a N meses |
 | `metas.py` | Progreso de metas de ahorro y aporte sugerido |
+| `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro |
+| `jerarquia.py` | Helpers de categoría → subcategoría |
 | `notificaciones.py` | Envío por Telegram/SMTP + job diario con dedup |
 | `scheduler.py` | Jobs: ingresos recurrentes y notificaciones (cada hora) |
 
-### Routers (19)
-`auth`, `categorias`, `tarjetas` (incluye simulador), `suscripciones`,
-`transacciones`, `ingresos_recurrentes`, `etiquetas`, `alertas`, `reportes`,
-`facturas`, `presupuestos`, `importacion`, `productos`, `lista_mercado`,
-`monedas` (monedas/tasas/convertir), `respaldo`, `flujo`, `metas`,
-`notificaciones`.
+### Routers (21)
+`auth`, `categorias` (incluye `/arbol`), `cuentas`, `saldos`, `tarjetas`
+(incluye simulador), `suscripciones`, `transacciones`, `ingresos_recurrentes`,
+`etiquetas`, `alertas`, `reportes`, `facturas`, `presupuestos`, `importacion`,
+`productos`, `lista_mercado`, `monedas` (monedas/tasas/convertir), `respaldo`,
+`flujo`, `metas`, `notificaciones`.
 
 ---
 
 ## Modelo de datos
 
-18 tablas, creadas por 8 migraciones:
+18 tablas de negocio (más `alembic_version`), creadas por 9 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -115,27 +117,30 @@ relacionan las piezas.
 | `0006_mercado` | `productos`, `precios_mercado`, `lista_mercado` |
 | `0007_metas_ahorro` | `metas_ahorro`, `aportes_meta` |
 | `0008_notificaciones` | `config_notificaciones` |
+| `0009_cuentas_jerarquia` | `cuentas` + `transacciones.cuenta_id` + `categorias.padre_id` |
 
 ### Relaciones principales
 
 ```
-usuarios ─┬─ categorias ─┬─ presupuestos
-          │              ├─ transacciones
-          │              ├─ suscripciones
-          │              └─ ingresos_recurrentes
-          ├─ tarjetas ───┬─ transacciones
-          │              └─ suscripciones
-          ├─ transacciones ──┬─ etiquetas (autojerárquica)
+usuarios ─┬─ cuentas ────────── transacciones   (saldo = inicial + ingresos − gastos)
+          ├─ categorias ─┬───── presupuestos
+          │              ├───── transacciones
+          │              ├───── suscripciones
+          │              ├───── ingresos_recurrentes
+          │              └───── categorias     (autojerárquica: categoría → subcategoría)
+          ├─ tarjetas ───┬───── transacciones
+          │              └───── suscripciones
+          ├─ transacciones ──┬─ etiquetas       (autojerárquica)
           │                  └─ facturas
-          ├─ productos ──┬─ precios_mercado
-          │              └─ lista_mercado
-          ├─ metas_ahorro ── aportes_meta
+          ├─ productos ──┬───── precios_mercado
+          │              └───── lista_mercado
+          ├─ metas_ahorro ───── aportes_meta
           └─ config_notificaciones
 ```
 
-`monedas` es referenciada por `tarjetas`, `suscripciones`, `transacciones`,
-`ingresos_recurrentes`, `presupuestos`, `precios_mercado`, `metas_ahorro` y
-`tasas_cambio`.
+`monedas` es referenciada por `cuentas`, `tarjetas`, `suscripciones`,
+`transacciones`, `ingresos_recurrentes`, `presupuestos`, `precios_mercado`,
+`metas_ahorro` y `tasas_cambio`.
 
 ---
 

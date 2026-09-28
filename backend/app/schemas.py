@@ -56,6 +56,7 @@ class CategoriaIn(BaseModel):
     tipo: TipoCategoria
     icono: str | None = None
     color: str | None = None
+    padre_id: uuid.UUID | None = None
 
 
 class CategoriaUpdate(BaseModel):
@@ -63,6 +64,7 @@ class CategoriaUpdate(BaseModel):
     tipo: TipoCategoria | None = None
     icono: str | None = None
     color: str | None = None
+    padre_id: uuid.UUID | None = None
 
 
 class CategoriaOut(CategoriaIn):
@@ -155,6 +157,7 @@ class TransaccionIn(BaseModel):
     tarjeta_id: uuid.UUID | None = None
     suscripcion_id: uuid.UUID | None = None
     etiqueta_id: uuid.UUID | None = None
+    cuenta_id: uuid.UUID | None = None
     notas: str | None = None
 
 
@@ -168,6 +171,7 @@ class TransaccionUpdate(BaseModel):
     tarjeta_id: uuid.UUID | None = None
     suscripcion_id: uuid.UUID | None = None
     etiqueta_id: uuid.UUID | None = None
+    cuenta_id: uuid.UUID | None = None
     notas: str | None = None
 
 
@@ -265,6 +269,7 @@ class ReporteMesOut(BaseModel):
 
 class ReporteCategoriaOut(BaseModel):
     categoria: str
+    subcategoria: str | None = None
     tipo: str
     total: float
 
@@ -577,3 +582,78 @@ class ChatTelegramOut(BaseModel):
 
 class DetectarTelegramOut(BaseModel):
     chats: list[ChatTelegramOut]
+
+
+# --- cuentas, saldos y consolidado ---
+
+
+class CuentaIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=80)
+    tipo: str = "efectivo"
+    saldo_inicial: Decimal = Decimal("0")
+    moneda: str = "COP"
+    activa: bool = True
+
+
+class CuentaUpdate(BaseModel):
+    nombre: str | None = None
+    tipo: str | None = None
+    saldo_inicial: Decimal | None = None
+    moneda: str | None = None
+    activa: bool | None = None
+
+
+class CuentaOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    tipo: str
+    moneda: str
+    activa: bool
+    saldo_inicial: Decimal
+    ingresos: float
+    gastos: float
+    saldo_actual: float
+
+
+class SaldoResumenOut(BaseModel):
+    saldo_total: float
+    saldo_inicial_total: float
+    ingresos_total: float
+    gastos_total: float
+    sin_cuenta: float
+    sobregirado: bool
+    cuentas: list[CuentaOut]
+
+
+class ConsolidadoMesOut(BaseModel):
+    mes: str
+    saldo_inicial: float
+    ingresos: float
+    gastos: float
+    balance: float
+    saldo_final: float
+
+
+class ConsolidadoOut(BaseModel):
+    meses: list[ConsolidadoMesOut]
+    saldo_actual: float
+
+
+class MotivoOut(BaseModel):
+    tipo: str
+    etiqueta: str
+    monto: float
+    detalle: str | None = None
+
+
+class DiagnosticoOut(BaseModel):
+    saldo_actual: float
+    sobregirado: bool
+    ingresos_mes: float
+    gastos_mes: float
+    balance_mes: float
+    ingresos_mes_anterior: float
+    gastos_mes_anterior: float
+    gastos_fijos: float
+    motivos: list[str]
+    top_categorias: list[MotivoOut]

@@ -38,15 +38,27 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   tardas en pagar una deuda y cuánto pagas de intereses; avisa si el pago no cubre el interés.
 
 ### Organización
-- **Etiquetas y subetiquetas** jerárquicas (autojerárquicas) asociadas a transacciones.
+- **Categorías y subcategorías** jerárquicas: el dashboard y los reportes agrupan por
+  categoría y su subcategoría (ej. *Transporte › Gasolina*).
+- **Etiquetas y subetiquetas** jerárquicas asociadas a transacciones.
 
 ### Análisis
-- **Dashboard**: balance del mes (ingresos vs gastos), top categorías, próximos pagos.
+- **Dashboard**: **saldo actual** (con el motivo si estás sobregirado), balance del mes,
+  top categorías, próximos pagos.
 - **Reportes**: evolución mensual (últimos 6 meses) y desglose por categoría.
 - **Alertas de pagos**: próximos vencimientos de suscripciones y de tarjetas (pago/corte).
 - **Presupuestos**: límite mensual por categoría, con gasto real, % consumido y aviso de exceso.
 - **Flujo de caja**: proyección a 3/6/12 meses combinando ingresos recurrentes,
   suscripciones activas y el gasto variable promedio; muestra balance y acumulado.
+
+### Saldo y consolidado
+- **Cuentas** (efectivo, banco, ahorros…) cada una con su **saldo inicial**; el
+  **saldo actual** = `saldo inicial + ingresos − gastos`, por cuenta y total.
+- **Consolidado mes a mes** con saldo inicial, ingresos, gastos, balance y
+  **saldo final corrido**.
+- **Diagnóstico del saldo**: si estás **sobregirado** te dice **por qué** — qué
+  categorías pesan más, cuánto son los gastos fijos (suscripciones), cómo vas frente
+  al mes anterior y cuánto aportaron los ingresos.
 
 ### Ahorro
 - **Metas de ahorro**: objetivo, **aportes**, progreso (%) y **aporte mensual sugerido**
@@ -150,7 +162,7 @@ aislados por usuario.
 | Recurso | Endpoints |
 |---|---|
 | **Auth** | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
-| **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}` |
+| **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}`, `GET /categorias/arbol` |
 | **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}`, `GET /tarjetas/{id}/simulador` |
 | **Suscripciones** | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
 | **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
@@ -168,6 +180,8 @@ aislados por usuario.
 | **Flujo de caja** | `GET /flujo-caja?meses=6` |
 | **Metas de ahorro** | `GET/POST /metas`, `PATCH/DELETE /metas/{id}`, `GET/POST /metas/{id}/aportes`, `DELETE /metas/aportes/{id}` |
 | **Notificaciones** | `GET/PUT /notificaciones`, `POST /notificaciones/probar`, `POST /notificaciones/telegram/detectar` |
+| **Cuentas** | `GET/POST /cuentas`, `PATCH/DELETE /cuentas/{id}` |
+| **Saldos** | `GET /saldos`, `GET /saldos/consolidado?meses=6`, `GET /saldos/diagnostico` |
 
 ---
 
@@ -185,6 +199,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0006_mercado` | `productos`, `precios_mercado`, `lista_mercado` |
 | `0007_metas_ahorro` | `metas_ahorro`, `aportes_meta` |
 | `0008_notificaciones` | `config_notificaciones` |
+| `0009_cuentas_jerarquia` | `cuentas` + `transacciones.cuenta_id` + `categorias.padre_id` |
 
 ---
 
@@ -203,7 +218,7 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja + metas de ahorro + notificaciones
-- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja + metas de ahorro + notificaciones + cuentas/saldos + subcategorías
+- [x] Frontend: login/registro, dashboard con saldo, CRUD, cuentas, categorías, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
 - [x] Despliegue con Docker/Podman
 - [ ] WhatsApp como canal de notificaciones (requiere Cloud API de Meta o gateway)

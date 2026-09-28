@@ -57,6 +57,19 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
   **correo**, con días de anticipación configurables, dedup diario, envío de prueba
   y detección automática del chat ID.
 
+## v1.1 — Estado de cuenta real
+
+- **Cuentas con saldo inicial**: cada cuenta (efectivo, banco, ahorros)
+  tiene su saldo inicial y cada transacción puede asignarse a una cuenta. El saldo
+  actual es `saldo inicial + ingresos − gastos`, por cuenta y total.
+- **Consolidado mes a mes** con saldo inicial, ingresos, gastos, balance y **saldo
+  final corrido**.
+- **Subcategorías**: las categorías ahora son jerárquicas (categoría → subcategoría);
+  el dashboard y los reportes agrupan por ambas.
+- **Diagnóstico del saldo**: si estás **sobregirado**, el dashboard explica **por qué**
+  (categorías que más pesan, gastos fijos, comparación con el mes anterior e ingresos).
+- **Páginas nuevas**: *Cuentas* (con el consolidado) y *Categorías* (jerarquía).
+
 ---
 
 ## Pendiente / ideas
