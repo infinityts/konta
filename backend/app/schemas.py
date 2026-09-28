@@ -328,6 +328,53 @@ class AsociarFacturaIn(BaseModel):
     transaccion_id: uuid.UUID
 
 
+# --- líneas de factura (OCR por línea) ---
+
+
+class FacturaLineaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    factura_id: uuid.UUID
+    descripcion: str
+    cantidad: Decimal | None
+    valor_unitario: Decimal | None
+    valor_total: Decimal
+    etiqueta_id: uuid.UUID | None
+    origen: str  # historial | diccionario | embeddings | manual | sin_clasificar
+    confianza: Decimal | None
+    orden: int
+    transaccion_id: uuid.UUID | None
+
+
+class FacturaDetalleOut(FacturaOut):
+    """Factura con sus líneas detectadas por OCR."""
+
+    lineas: list[FacturaLineaOut] = []
+    tipo_documento: str | None = None  # mercado | gasolina | servicios | restaurante | otro
+
+
+class ParsearLineasIn(BaseModel):
+    """`texto` permite re-parsear un texto distinto del guardado (opcional)."""
+
+    texto: str | None = None
+
+
+class LineaUpdateIn(BaseModel):
+    """Editar una línea. `etiqueta_id` corregida se aprende en `reglas_ocr`."""
+
+    descripcion: str | None = None
+    valor_total: Decimal | None = Field(default=None, gt=0)
+    etiqueta_id: uuid.UUID | None = None
+
+
+class ConfirmarLineasIn(BaseModel):
+    """`linea_ids` vacío o ausente = todas las líneas sin confirmar."""
+
+    linea_ids: list[uuid.UUID] | None = None
+    cuenta_id: uuid.UUID | None = None
+
+
 # --- presupuestos ---
 
 

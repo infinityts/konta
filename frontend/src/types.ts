@@ -171,6 +171,26 @@ export interface Factura {
   creada_en: string
 }
 
+/** Un artículo detectado por OCR dentro de una factura. */
+export interface FacturaLinea {
+  id: string
+  factura_id: string
+  descripcion: string
+  cantidad: number | string | null
+  valor_unitario: number | string | null
+  valor_total: number | string
+  etiqueta_id: string | null
+  origen: 'historial' | 'diccionario' | 'embeddings' | 'manual' | 'sin_clasificar'
+  confianza: number | string | null
+  orden: number
+  transaccion_id: string | null
+}
+
+export interface FacturaDetalle extends Factura {
+  lineas: FacturaLinea[]
+  tipo_documento: string | null
+}
+
 export interface Presupuesto {
   id: string
   categoria_id: string

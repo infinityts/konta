@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     smtp_from: str | None = None
     smtp_tls: bool = True
 
+    # OCR de facturas: embeddings opcionales (Ollama) para el tercer nivel del
+    # clasificador de artículos. Si `ollama_url` está vacío, el clasificador usa
+    # solo historial + diccionario y no sale a la red.
+    ollama_url: str | None = None
+    ollama_embedding_model: str = "nomic-embed-text"
+    ollama_timeout: float = 5.0
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -845,3 +845,162 @@ def test_diagnostico_de_sobregiro(client):
     assert any("sobregirado" in m.lower() for m in diag["motivos"])
     assert any("Mercado" in m for m in diag["motivos"])
     assert diag["top_categorias"][0]["monto"] == 300000.0
+
+
+# --- OCR por línea --------------------------------------------------------- #
+
+# Recibo colombiano con los dos formatos: descripción + línea de cantidad
+# («PECHUGA POLLO BANDEJA» / «1.234 KG X 12.900  15.916») y todo en una línea.
+RECIBO = """D1 SAS
+NIT 900.123.456-7
+FACTURA DE VENTA
+PECHUGA POLLO BANDEJA
+1.234 KG X 12.900            15.916
+ARROZ DIANA 500G 2 UN X 2.500      5.000
+LECHE ALQUERIA 1100ML               4.200
+TOTAL                        25.116
+EFECTIVO                     30.000
+CAMBIO                        4.884
+"""
+
+
+def test_parser_de_lineas_de_recibo():
+    """El parser entiende el formato de dinero colombiano y descarta lo que no es artículo."""
+    from app.lineas import cantidad, detectar_tipo, monto, parsear_lineas
+
+    # El punto separa miles y la coma es decimal
+    assert str(monto("15.916")) == "15916"
+    assert str(monto("15,50")) == "15.50"
+    # La ambigüedad del peso se resuelve por unidad: 1.234 KG son 1,234 kg
+    assert str(cantidad("1.234", "KG")) == "1.234"
+    assert str(cantidad("1.234", "UN")) == "1234"
+
+    articulos = parsear_lineas(RECIBO)
+    assert [a["descripcion"] for a in articulos] == [
+        "PECHUGA POLLO BANDEJA",
+        "ARROZ DIANA 500G",
+        "LECHE ALQUERIA 1100ML",
+    ]
+    assert articulos[0]["cantidad"] == Decimal("1.234")
+    assert articulos[0]["valor_unitario"] == Decimal("12900")
+    assert articulos[0]["valor_total"] == Decimal("15916")
+    assert articulos[1]["valor_unitario"] == Decimal("2500")
+    assert articulos[2]["valor_total"] == Decimal("4200")
+
+    # Ni el total ni los medios de pago son artículos
+    assert sum(a["valor_total"] for a in articulos) == Decimal("25116")
+    assert detectar_tipo(RECIBO, articulos) == "mercado"
+
+
+def test_ocr_por_linea_clasifica_aprende_y_confirma(client, engine):
+    """Flujo completo: parsear → clasificar → corregir (aprende) → confirmar."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Factura
+
+    _, h = _registrar(client)
+    usuario_id = client.get("/auth/me", headers=h).json()["id"]
+    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
+    carnes = client.post(
+        "/etiquetas", headers=h, json={"nombre": "Carnes", "categoria_id": cat["id"]}
+    ).json()
+    lacteos = client.post(
+        "/etiquetas", headers=h, json={"nombre": "Lácteos y huevos", "categoria_id": cat["id"]}
+    ).json()
+
+    # Factura con el texto ya extraído (no depende del OCR real)
+    Session = sessionmaker(bind=engine)
+    with Session.begin() as s:
+        factura = Factura(
+            usuario_id=usuario_id,
+            nombre_archivo="d1.txt",
+            texto_extraido=RECIBO,
+            monto_detectado=Decimal("25116"),
+            fecha_detectada=date(2026, 9, 20),
+        )
+        s.add(factura)
+        s.flush()
+        fid = str(factura.id)
+
+    # 1) Parsear: las líneas quedan guardadas y clasificadas
+    r = client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    assert r.status_code == 200, r.text
+    detalle = r.json()
+    assert detalle["tipo_documento"] == "mercado"
+    assert len(detalle["lineas"]) == 3
+
+    por_desc = {li["descripcion"].split()[0]: li for li in detalle["lineas"]}
+    assert por_desc["PECHUGA"]["origen"] == "diccionario"
+    assert por_desc["PECHUGA"]["etiqueta_id"] == carnes["id"]
+    assert por_desc["LECHE"]["etiqueta_id"] == lacteos["id"]
+    # «Despensa» no existe entre las etiquetas del usuario -> sin clasificar
+    assert por_desc["ARROZ"]["etiqueta_id"] is None
+    assert por_desc["ARROZ"]["origen"] == "sin_clasificar"
+
+    # 2) Corregir el arroz: se aprende la regla
+    r = client.patch(
+        f"/facturas/{fid}/lineas/{por_desc['ARROZ']['id']}",
+        headers=h,
+        json={"etiqueta_id": carnes["id"]},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["origen"] == "manual"
+    assert r.json()["confianza"] == "1.000"
+
+    # 3) Re-parsear: ahora el arroz se reconoce por historial (idempotente)
+    r = client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    assert len(r.json()["lineas"]) == 3  # no se duplican
+    arroz = next(li for li in r.json()["lineas"] if li["descripcion"].startswith("ARROZ"))
+    assert arroz["origen"] == "historial"
+    assert arroz["etiqueta_id"] == carnes["id"]
+
+    # 4) Confirmar: una transacción de gasto por línea, con su categoría y etiqueta
+    r = client.post(f"/facturas/{fid}/confirmar", headers=h, json={})
+    assert r.status_code == 200, r.text
+    assert all(li["transaccion_id"] for li in r.json()["lineas"])
+
+    txs = client.get("/transacciones", headers=h).json()
+    assert len(txs) == 3
+    assert all(t["tipo"] == "gasto" for t in txs)
+    assert sum(Decimal(t["monto"]) for t in txs) == Decimal("25116")
+    assert all(t["categoria_id"] == cat["id"] for t in txs)
+    assert all(t["fecha"] == "2026-09-20" for t in txs)
+    assert {t["etiqueta_id"] for t in txs} == {carnes["id"], lacteos["id"]}
+
+    # 5) Idempotente: ya no quedan líneas pendientes
+    assert client.post(f"/facturas/{fid}/confirmar", headers=h, json={}).status_code == 400
+
+    # 6) Una línea ya confirmada no se puede editar ni borrar
+    linea_id = r.json()["lineas"][0]["id"]
+    assert client.patch(
+        f"/facturas/{fid}/lineas/{linea_id}", headers=h, json={"valor_total": "1"}
+    ).status_code == 409
+    assert client.delete(f"/facturas/{fid}/lineas/{linea_id}", headers=h).status_code == 409
+
+
+def test_ocr_linea_descartar_y_aislamiento(client, engine):
+    """Se pueden descartar líneas y no se ven facturas de otro usuario."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Factura
+
+    _, h = _registrar(client)
+    usuario_id = client.get("/auth/me", headers=h).json()["id"]
+    Session = sessionmaker(bind=engine)
+    with Session.begin() as s:
+        factura = Factura(usuario_id=usuario_id, nombre_archivo="r.txt", texto_extraido=RECIBO)
+        s.add(factura)
+        s.flush()
+        fid = str(factura.id)
+
+    detalle = client.post(f"/facturas/{fid}/lineas", headers=h, json={}).json()
+    primera = detalle["lineas"][0]["id"]
+    assert client.delete(f"/facturas/{fid}/lineas/{primera}", headers=h).status_code == 204
+    assert len(client.get(f"/facturas/{fid}", headers=h).json()["lineas"]) == 2
+
+    # Otro usuario no ve ni toca esta factura
+    _, h2 = _registrar(client)
+    assert client.get(f"/facturas/{fid}", headers=h2).status_code == 404
+    assert client.post(f"/facturas/{fid}/lineas", headers=h2, json={}).status_code == 404
+    assert len(client.get(f"/facturas/{fid}", headers=h).json()["lineas"]) == 2
+
