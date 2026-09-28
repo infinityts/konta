@@ -66,7 +66,7 @@ relacionan las piezas.
 |---|---|
 | `config.py` | Settings con prefijo `FINANZAS_` (BD, JWT, zona horaria, Telegram, SMTP) |
 | `db.py` | Engine, `SessionLocal`, `get_db` |
-| `models.py` | 23 tablas + enums |
+| `models.py` | 24 tablas + enums |
 | `schemas.py` | Pydantic (entradas/salidas) |
 | `security.py` | Hash bcrypt + creación/validación de JWT |
 | `deps.py` | `get_db`, `get_current_user` |
@@ -101,7 +101,7 @@ relacionan las piezas.
 ### Routers (22)
 `auth`, `categorias` (incluye `/arbol`), `cuentas`, `saldos`, `tarjetas`
 (incluye simulador), `suscripciones`, `polizas` (incluye `/resumen` y
-`/beneficiarios`), `transacciones`, `ingresos_recurrentes`,
+`/beneficiarios` y `/asegurados`), `transacciones`, `ingresos_recurrentes`,
 `etiquetas`, `alertas`, `reportes` (incluye `/seguros`), `facturas` (incluye el OCR por línea:
 `/lineas`, `/lineas/{id}` y `/confirmar`), `presupuestos`, `importacion`,
 `productos`, `lista_mercado`, `monedas` (monedas/tasas/convertir), `respaldo`,
@@ -111,7 +111,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-23 tablas de negocio (más `alembic_version`), creadas por 19 migraciones:
+24 tablas de negocio (más `alembic_version`), creadas por 20 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -134,6 +134,7 @@ relacionan las piezas.
 | `0017_nombres_indices_orm` | renombra 22 índices al nombre que espera el ORM (`ix_tabla_columna`) |
 | `0018_whatsapp` | `config_notificaciones.whatsapp_numero` (canal WhatsApp) |
 | `0019_polizas` | `polizas`, `beneficiarios` + `transacciones.poliza_id` + `periodicidad.semestral` |
+| `0020_poliza_asegurados` | `poliza_asegurados` (varias personas cubiertas por póliza) |
 
 ### Relaciones principales
 
@@ -151,7 +152,8 @@ usuarios ─┬─ cuentas ────────── transacciones   (saldo
           │              ├───── polizas        (el cargo de la prima)
           │              ├───── deudas_tarjeta  (deuda por moneda)
           │              └───── cuentas         (solo débito: instrumento de la cuenta)
-          ├─ polizas ────────── beneficiarios  (nombre, parentesco, porcentaje)
+          ├─ polizas ───┬────── beneficiarios  (nombre, parentesco, porcentaje)
+          │              └────── poliza_asegurados (personas cubiertas; una es titular)
           ├─ transacciones ──┬─ etiquetas       (etiqueta_id, dentro del árbol)
           │                  ├─ polizas         (poliza_id: gasto generado por la prima)
           │                  └─ facturas ─── factura_lineas ─── reglas_ocr
@@ -170,9 +172,10 @@ distinguir mayúsculas (índices `uq_etiquetas_raiz` / `uq_etiquetas_hija`).
 `metas_ahorro` y `tasas_cambio`.
 
 Una **póliza** es un compromiso recurrente (prima + `proximo_pago`) con vigencia
-(`fecha_inicio` / `fecha_fin`); cubre a una **persona** (`asegurado_nombre`) o a un **bien**
-(los campos de vehículo). Sus **beneficiarios** cuelgan de ella y sus porcentajes no pueden
-sumar más de 100.
+(`fecha_inicio` / `fecha_fin`); cubre a una **persona** (`asegurado_nombre`, el principal) o a un **bien**
+(los campos de vehículo), y el detalle de las personas cubiertas vive en
+`poliza_asegurados` (una de ellas, como mucho, es la titular). Sus **beneficiarios** cuelgan
+de ella y sus porcentajes no pueden sumar más de 100.
 
 ---
 

@@ -244,9 +244,14 @@ A nivel de servidor también puedes hacer `pg_dump` (ver [`despliegue.md`](despl
 - Si la póliza está en otra moneda y no hay tasa registrada, te lo dice **en vez de sumar
   mal**: regístrala en **Monedas**.
 
-**Beneficiarios** (típico en seguros de vida): botón *Beneficiarios* en la póliza → nombre,
-parentesco y **porcentaje**. Los porcentajes **no pueden sumar más de 100**; la app te dice
-cuánto suman si te pasas.
+**Personas cubiertas** (botón *Personas cubiertas* en la póliza): en una póliza familiar
+añade a cada persona con su parentesco y fecha de nacimiento, y marca **quién es el titular**
+(solo puede haber uno). El campo *Persona asegurada* de la póliza sigue siendo la principal,
+la que da el nombre a la póliza.
+
+**Beneficiarios** (típico en seguros de vida): en el mismo panel → nombre, parentesco y
+**porcentaje**. Los porcentajes **no pueden sumar más de 100**; la app te dice cuánto suman
+si te pasas.
 
 > Para **pausar** un seguro (por ejemplo, un vehículo vendido) usa *Pausar*: deja de generar
 > el gasto y de avisar, pero conserva el histórico.

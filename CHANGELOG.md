@@ -74,9 +74,6 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 
 ## Pendiente / ideas
 
-- **Varias personas cubiertas por póliza**: el modelo cubre el caso normal (un asegurado y
-  sus beneficiarios). Una póliza familiar con varias personas aseguradas pediría una tabla
-  `poliza_asegurados`.
 - **Quitar un valor de un ENUM**: `periodicidad.semestral` se queda aunque se baje la
   migración `0019` (PostgreSQL no lo permite sin recrear el tipo).
 
@@ -438,3 +435,24 @@ Era el pendiente que quedó de la v1.20: el resumen de seguros vivía solo en su
 - Tests: 45 en verde (antes 44). El nuevo comprueba la normalización (anual y semestral al
   mes), el desglose por tipo, que una póliza pausada no cuenta, que una moneda sin tasa no
   se suma pero se informa, el aislamiento entre usuarios y que los dos endpoints coinciden.
+
+## v1.23 — Varias personas aseguradas por póliza
+
+El modelo cubría un asegurado más beneficiarios, que es el caso de un seguro individual.
+Una **póliza familiar** cubre a varias personas, y no había dónde ponerlas.
+
+- **Migración `0020`**: tabla `poliza_asegurados` (nombre, parentesco, fecha de nacimiento,
+  `es_titular`), con `ON DELETE CASCADE` desde la póliza.
+- **Endpoints**: `POST /polizas/{id}/asegurados`, `PATCH|DELETE /polizas/asegurados/{id}`.
+  La póliza devuelve sus asegurados junto a los beneficiarios.
+- **Un solo titular**: al marcar otro, el anterior deja de serlo (el servidor lo desmarca,
+  no se confía a que el cliente lo haga).
+- **Validación**: la fecha de nacimiento no puede estar en el futuro (422).
+- `polizas.asegurado_nombre` **se conserva**: sigue siendo la persona asegurada principal (o
+  el tomador, en vehículo) y es lo que usa el título de la póliza.
+- **Frontend**: el panel de la póliza pasa a *Personas cubiertas* y muestra las dos listas
+  (asegurados y beneficiarios), con alta, baja y «Hacer titular».
+- **Respaldo**: `poliza_asegurados` entra en la exportación y la restauración (si no, se
+  habrían perdido al restaurar, como pasó con las otras tablas en la v1.20).
+- Tests: 46 en verde (antes 45). El nuevo cubre el alta de varias personas, que el titular
+  es único, la fecha futura, el aislamiento entre usuarios y el borrado en cascada.

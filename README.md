@@ -51,6 +51,9 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Pólizas de vida, salud, vehículo u hogar** para personas y/o bienes: aseguradora,
   número de póliza, **asegurado** (persona) o **bien asegurado** (vehículo con **placa**,
   marca, modelo y **valor asegurado**).
+- **Varias personas cubiertas** por póliza (una póliza familiar): nombre, parentesco y fecha
+  de nacimiento, con un **titular** (solo uno: al marcar otro, el anterior deja de serlo).
+  El *asegurado principal* de la póliza se conserva para el título.
 - **Prima** con su moneda y periodicidad (mensual, trimestral, semestral o anual): al
   vencer, un job genera **automáticamente el gasto**, heredando categoría, etiqueta,
   tarjeta y cuenta — igual que las suscripciones, e **idempotente**.
@@ -208,7 +211,7 @@ aislados por usuario.
 | **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}`, `GET /categorias/arbol` |
 | **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}`, `GET/POST /tarjetas/{id}/deudas`, `DELETE /tarjetas/{id}/deudas/{deuda_id}`, `GET /tarjetas/{id}/simulador` |
 | **Suscripciones** | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
-| **Pólizas** | `GET/POST /polizas`, `GET/PATCH/DELETE /polizas/{id}`, `GET /polizas/resumen`, `POST /polizas/{id}/beneficiarios`, `PATCH/DELETE /polizas/beneficiarios/{beneficiario_id}` |
+| **Pólizas** | `GET/POST /polizas`, `GET/PATCH/DELETE /polizas/{id}`, `GET /polizas/resumen`, `POST /polizas/{id}/asegurados`, `PATCH/DELETE /polizas/asegurados/{asegurado_id}`, `POST /polizas/{id}/beneficiarios`, `PATCH/DELETE /polizas/beneficiarios/{beneficiario_id}` |
 | **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
 | **Ingresos recurrentes** | `GET/POST /ingresos-recurrentes`, `GET/PATCH/DELETE /ingresos-recurrentes/{id}` |
 | **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}` |
@@ -255,6 +258,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0017_nombres_indices_orm` | renombra los índices al nombre que espera el ORM (`alembic check` limpio) |
 | `0018_whatsapp` | `config_notificaciones.whatsapp_numero` (canal WhatsApp) |
 | `0019_polizas` | `polizas`, `beneficiarios` + `transacciones.poliza_id` + periodicidad `semestral` |
+| `0020_poliza_asegurados` | `poliza_asegurados` (varias personas cubiertas por póliza) |
 
 ---
 
@@ -274,7 +278,7 @@ clasificación y aprendizaje), presupuestos, importar
 CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caja,
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**45 tests en verde.** El esquema se mantiene alineado con el ORM:
+**46 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
