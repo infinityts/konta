@@ -355,6 +355,19 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 **68 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
+**Antes de subir cambios**, los mismos tres pasos que corre el CI:
+
+```bash
+cd backend
+ruff check .          # la config vive en pyproject.toml
+alembic check         # los modelos no se separan de las migraciones
+pytest
+```
+
+> `ruff check --fix` puede tocar archivos **fuera** de donde estabas mirando (pasó con los
+> imports de 24 migraciones en `alembic/`): revisa `git status` y commitea todo lo que el
+> linter arregló, o el CI fallará aunque en tu máquina pase.
+
 ---
 
 ## Estado

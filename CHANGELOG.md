@@ -817,3 +817,8 @@ acotada a lo que **caza bugs** y arregla los hallazgos reales.
 - **CI**: paso `ruff check .` antes de las migraciones y los tests (es lo más rápido y lo
   que mejor explica un fallo), y `ruff` añadido a las dependencias de desarrollo.
 - Resultado: **`ruff check .` limpio** y 68 tests en verde.
+- **El primer CI en rojo fue por mi culpa, no del linter**: `ruff --fix` también reordenó
+  los imports de `alembic/` (24 archivos) y solo commiteé `app/`, `tests/` y
+  `pyproject.toml`. En local pasaba porque los arreglos estaban en el árbol de trabajo, pero
+  el CI parte del repo limpio. Queda anotado en el README: `git status` antes de subir y
+  commitear todo lo que el linter haya tocado.
