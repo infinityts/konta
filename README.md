@@ -229,5 +229,7 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 - [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja + metas de ahorro + notificaciones + cuentas/saldos + subcategorías
 - [x] Frontend: login/registro, dashboard con saldo y motivo, cuentas y consolidado, categorías y subcategorías, transacciones con **edición** y etiquetas, tarjetas con deuda y simulador, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
+- [x] Navegación agrupada: `Resumen` + 5 grupos en barra superior (hover en escritorio, hamburguesa en móvil), definidos en `frontend/src/nav.ts`
+- [x] Loader `AccordionLoader` (alias `@` → `src`) y **carga diferida por página** (bundle inicial 271 kB → 183 kB)
 - [x] Despliegue con Docker/Podman
 - [ ] WhatsApp como canal de notificaciones (requiere Cloud API de Meta o gateway)
