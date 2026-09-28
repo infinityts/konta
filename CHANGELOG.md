@@ -85,10 +85,6 @@ Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de 
 - **Dos huecos de UI** (el backend ya lo permite): **borrar un aporte** a una meta —hoy un
   monto mal tecleado obliga a borrar la meta entera— y **editar o borrar un producto** del
   mercado.
-- **Linter en CI**: no hay ninguno configurado. Al pasar `ruff` aparecen 303 hallazgos, de
-  los que casi todos son falsos positivos para FastAPI (`B008` con `Depends(...)`) o estilo;
-  los reales eran **dos imports muertos** y **un `date.today()`** que rompía la convención de
-  zona horaria del proyecto. Sin linter, eso vuelve a colarse.
 - **Quitar un valor de un ENUM**: `periodicidad.semestral` se queda aunque se baje la
   migración `0019` (PostgreSQL no lo permite sin recrear el tipo).
 
@@ -778,3 +774,46 @@ sobre él.
   sale `1`, que es lo que hace que el contenedor pase a *unhealthy*.
 - Tests: 68 en verde (antes 65). Cubren el `200` con la base en pie, el `503` con una sesión
   que falla (sin filtrar el detalle) y que sigue sin pedir token.
+
+## v1.32 — Linter en CI (y lo que encontró)
+
+No había ningún linter, así que un import muerto, una fecha sin zona horaria o un
+`except` que se traga el error entraban sin que nadie los viera. Al pasar `ruff` salieron
+**358 hallazgos**, de los que casi todos eran ruido (232 `B008` por `Depends(...)` en los
+valores por defecto, que es la forma canónica de FastAPI). Esta versión deja la config
+acotada a lo que **caza bugs** y arregla los hallazgos reales.
+
+- **`[tool.ruff]` en `pyproject.toml`** con `select` explícito —nombres e imports muertos
+  (F), orden de imports (I), sintaxis obsoleta (UP), trampas conocidas (B), `except` ciego
+  (BLE), fechas sin zona (DTZ), simplificaciones (SIM) y `noqa` muertos (RUF100)— e
+  **ignorados con motivo**: `B008` (FastAPI) y `FURB157` (`Decimal("0.00")` fija la escala
+  exacta del dinero) y `SIM108` (a veces el `if`/`else` con su comentario se lee mejor que
+  el ternario). El `select` explícito importa: el set por defecto de esta versión de ruff
+  trae familias enteras que el proyecto no había elegido.
+- **Hallazgos reales corregidos**:
+  - **dos imports muertos** (`select` en `presupuestos.py` y `obtener_tasa` en
+    `tarjetas.py`, que quedó sin uso al mover la deuda a `app/tarjetas.py`);
+  - **un `date.today()`** en el validador de fecha de nacimiento: usaba la zona del
+    servidor en vez de `recurrencia.hoy()` (`FINANZAS_TIMEZONE`), así que podía rechazar
+    un nacimiento de hoy. Y **26 más en los tests**, que ahora usan el «hoy» de la app
+    (importado como `hoy_app` porque hay tests con una variable local llamada `hoy`).
+    Ojo: mi primer reemplazo dejó `hoy = hoy()` en esos sitios (una variable que se
+    referencia a sí misma); el linter lo cazó con `F823` antes de que llegara a `main`.
+  - **`main.py`: el catch-up del arranque se tragaba el error** con un `except: pass`.
+    Ahora lo registra en el log y sigue arrancando.
+  - **10 `raise` dentro de `except`** que perdían el error original: ahora encadenan
+    (`from exc`) cuando el motivo es útil —fallos de red en monedas y notificaciones— y lo
+    cortan (`from None`) cuando el detalle es interno y la API ya da su propio mensaje
+    (token inválido, nombre duplicado, JSON de respaldo inválido).
+  - **6 enums** pasan de `(str, enum.Enum)` a **`enum.StrEnum`** (Python 3.11+); además
+    `str(miembro)` devuelve el valor y no `"TipoTransaccion.GASTO"`.
+  - Un `zip()` sin `strict=` (las longitudes ya se validaban), un `if` anidado, una
+    condición «yoda» en un test y un `strptime` sin zona que **sí** es correcto (solo se
+    usa la fecha) quedan con `# noqa` y su motivo.
+  - Los **8 `except Exception` deliberados** (embeddings opcionales, OCR con binarios
+    externos, `decode_token`, respaldo, health, el arranque y un test que necesita permisos
+    de base) llevan `# noqa: BLE001` **con la razón escrita al lado**: la regla sigue
+    activa, así que un `except` ciego *nuevo* sí falla.
+- **CI**: paso `ruff check .` antes de las migraciones y los tests (es lo más rápido y lo
+  que mejor explica un fallo), y `ruff` añadido a las dependencias de desarrollo.
+- Resultado: **`ruff check .` limpio** y 68 tests en verde.

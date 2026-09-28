@@ -352,7 +352,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**68 tests en verde.** El esquema se mantiene alineado con el ORM:
+**68 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
@@ -366,7 +366,7 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] Despliegue con Docker/Podman
 - [x] Esquema sin deriva: `alembic check` limpio y `downgrade base` → `upgrade head` sin errores
 - [x] **OCR por línea**: `factura_lineas` + `reglas_ocr` expuestos en la API y en la UI de *Facturas*
-- [x] CI: `pytest` (con PostgreSQL 16 y `alembic check`) + `pnpm build` en GitHub Actions
+- [x] CI: `ruff check` + `pytest` (con PostgreSQL 16 y `alembic check`) + `pnpm build` en GitHub Actions
 - [x] **WhatsApp** como canal de notificaciones (Cloud API de Meta; requiere plantilla *utility* aprobada para el envío diario)
 - [x] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima que genera su gasto, vigencia y vencimiento, **varias personas cubiertas**, beneficiarios con porcentaje y bien asegurado (placa)
 - [x] **Costo anual de los seguros** en *Reportes* (con desglose por tipo) y en el gasto fijo del dashboard
@@ -376,10 +376,11 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **Recurrente u ocasional**: al crear un movimiento se elige «una sola vez» o «se repite», y la app crea el compromiso que lo genera solo; los recurrentes (gastos e ingresos) tienen su propio grupo en el menú
 - [x] **Pago de la tarjeta**: baja el saldo de la cuenta **y** la deuda, sin contarse como gasto; la deuda vigente es el último extracto menos los pagos posteriores
 - [x] **`/health` que comprueba la base**: 503 si PostgreSQL no contesta, y el `healthcheck` de compose lo usa (el frontend espera a que el backend esté *healthy*)
+- [x] **Linter (`ruff`) en CI**, con config acotada en `pyproject.toml` y `ruff check .` limpio
 
 Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
 decisión, en el `CHANGELOG`):
 
 - [ ] **Reglas de OCR con interfaz** (ver, corregir y borrar lo aprendido), **confirmar un
-  recibo como un solo gasto**, **borrar un aporte** a una meta, **editar/borrar productos**
-  y **linter en CI** (detalle en el `CHANGELOG`)
+  recibo como un solo gasto**, **borrar un aporte** a una meta y **editar/borrar productos**
+  (detalle en el `CHANGELOG`)
