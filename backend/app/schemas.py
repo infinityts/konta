@@ -87,6 +87,7 @@ class TarjetaIn(BaseModel):
     limite: Decimal | None = Field(None, ge=0)
     tasa_interes: Decimal | None = Field(None, ge=0)
     tasa_interes_ea: Decimal | None = Field(None, ge=0)
+    cuenta_id: uuid.UUID | None = None
     activa: bool = True
 
 
@@ -100,6 +101,7 @@ class TarjetaUpdate(BaseModel):
     limite: Decimal | None = Field(None, ge=0)
     tasa_interes: Decimal | None = Field(None, ge=0)
     tasa_interes_ea: Decimal | None = Field(None, ge=0)
+    cuenta_id: uuid.UUID | None = None
     activa: bool | None = None
 
 
@@ -134,6 +136,7 @@ class TarjetaConDeudaOut(TarjetaOut):
     deudas: list[DeudaOut] = []
     deuda_por_moneda: dict[str, float] = {}
     deuda_total_cop: float | None = None
+    cuenta_nombre: str | None = None
 
 
 # --- suscripciones ---

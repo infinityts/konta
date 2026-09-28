@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
 from ..intereses import mensual_desde_ea, pago_minimo, simular_pago
-from ..models import DeudaTarjeta, Tarjeta, Usuario
+from ..models import Cuenta, DeudaTarjeta, Tarjeta, TipoTarjeta, Usuario
 from ..recurrencia import hoy
 from ..schemas import (
     DeudaIn,
@@ -30,6 +30,19 @@ router = APIRouter(prefix="/tarjetas", tags=["tarjetas"])
 # Topes de cordura: ninguna tarjeta colombiana se acerca a esto
 TASA_MENSUAL_MAX = Decimal("0.20")  # 20 % mensual
 TASA_EA_MAX = Decimal("3")  # 300 % E.A.
+
+
+def _normalizar_cuenta(db: Session, user: Usuario, tarjeta: Tarjeta) -> None:
+    """La cuenta asociada solo aplica al DÉBITO.
+
+    - **Débito**: es un instrumento de una cuenta (activo) → se asocia y debe ser del usuario.
+    - **Crédito**: es un pasivo con deuda propia → no se asocia a ninguna cuenta.
+    """
+    if tarjeta.tipo == TipoTarjeta.CREDITO:
+        tarjeta.cuenta_id = None
+        return
+    if tarjeta.cuenta_id is not None:
+        get_owned(db, Cuenta, tarjeta.cuenta_id, user.id)
 
 
 def _validar_tasa(tarjeta: Tarjeta) -> None:
@@ -87,6 +100,11 @@ def _con_deuda(db: Session, tarjeta: Tarjeta) -> dict:
             break
         total_cop += monto * float(tasa)
 
+    nombre_cuenta = None
+    if tarjeta.cuenta_id:
+        cuenta = db.get(Cuenta, tarjeta.cuenta_id)
+        nombre_cuenta = cuenta.nombre if cuenta else None
+
     return {
         "id": tarjeta.id,
         "usuario_id": tarjeta.usuario_id,
@@ -99,6 +117,8 @@ def _con_deuda(db: Session, tarjeta: Tarjeta) -> dict:
         "limite": tarjeta.limite,
         "tasa_interes": tarjeta.tasa_interes,
         "tasa_interes_ea": tarjeta.tasa_interes_ea,
+        "cuenta_id": tarjeta.cuenta_id,
+        "cuenta_nombre": nombre_cuenta,
         "activa": tarjeta.activa,
         "deudas": deudas,
         "deuda_por_moneda": por_moneda,
@@ -119,6 +139,7 @@ def crear(data: TarjetaIn, db: Session = Depends(get_db), user: Usuario = Depend
     obj = Tarjeta(usuario_id=user.id, **data.model_dump())
     _aplicar_tasa(obj)
     _validar_tasa(obj)
+    _normalizar_cuenta(db, user, obj)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -137,6 +158,7 @@ def actualizar(id: uuid.UUID, data: TarjetaUpdate, db: Session = Depends(get_db)
         setattr(obj, campo, valor)
     _aplicar_tasa(obj)
     _validar_tasa(obj)
+    _normalizar_cuenta(db, user, obj)
     db.commit()
     db.refresh(obj)
     return obj

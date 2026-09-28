@@ -454,6 +454,43 @@ def test_editar_transaccion_y_asignar_etiquetas(client):
     assert r.json()["etiqueta_id"] is None
 
 
+def test_tarjeta_debito_asociada_a_cuenta(client):
+    """Débito = instrumento de una cuenta. Crédito = pasivo, no toca cuentas."""
+    _, h = _registrar(client)
+
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "Ahorros Bancolombia", "tipo": "ahorro", "saldo_inicial": "3000000"}).json()
+
+    # débito asociada a la cuenta de ahorros
+    debito = client.post("/tarjetas", headers=h, json={
+        "nombre": "Débito Ahorros", "banco": "Bancolombia", "tipo": "debito",
+        "moneda": "COP", "cuenta_id": cuenta["id"],
+    }).json()
+    assert debito["cuenta_id"] == cuenta["id"]
+
+    lista = client.get("/tarjetas", headers=h).json()
+    d = next(t for t in lista if t["id"] == debito["id"])
+    assert d["cuenta_nombre"] == "Ahorros Bancolombia"
+
+    # el movimiento con la débito baja el saldo de ESA cuenta
+    client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "127240", "fecha": date.today().isoformat(),
+        "descripcion": "Internet Movistar", "tarjeta_id": debito["id"], "cuenta_id": cuenta["id"],
+    })
+    saldos = client.get("/saldos", headers=h).json()
+    assert saldos["cuentas"][0]["saldo_actual"] == 2872760.0  # 3.000.000 − 127.240
+
+    # el crédito NO se puede asociar a una cuenta (es un pasivo)
+    credito = client.post("/tarjetas", headers=h, json={
+        "nombre": "AMEX", "tipo": "credito", "cuenta_id": cuenta["id"],
+    }).json()
+    assert credito["cuenta_id"] is None
+
+    # y si cambio una débito a crédito, se desasocia
+    r = client.patch(f"/tarjetas/{debito['id']}", headers=h, json={"tipo": "credito"})
+    assert r.status_code == 200
+    assert r.json()["cuenta_id"] is None
+
+
 def test_exportar_y_restaurar(client):
     _, h = _registrar(client)
     cat = client.get("/categorias", headers=h).json()[0]

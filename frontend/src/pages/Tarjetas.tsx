@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { fmtMoney, type Simulacion, type Tarjeta } from '../types'
+import { fmtMoney, type Cuenta, type SaldoResumen, type Simulacion, type Tarjeta } from '../types'
 
 const empty = {
   nombre: '',
@@ -11,6 +11,7 @@ const empty = {
   dia_pago: '',
   limite: '',
   tasa: '',
+  cuenta_id: '',
 }
 
 /** (1 + EA)^(1/12) − 1  — igual que el backend */
@@ -22,6 +23,7 @@ const MONEDAS = ['COP', 'USD', 'EUR', 'MXN', 'PEN', 'CLP', 'ARS', 'UYU']
 
 export default function Tarjetas() {
   const [items, setItems] = useState<Tarjeta[]>([])
+  const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [form, setForm] = useState(empty)
   const [tasaModo, setTasaModo] = useState<'ea' | 'mensual'>('ea')
   const [editando, setEditando] = useState<string | null>(null)
@@ -48,6 +50,7 @@ export default function Tarjetas() {
 
   useEffect(() => {
     cargar()
+    api<SaldoResumen>('/cuentas').then((r) => setCuentas(r.cuentas))
   }, [])
 
   function nueva() {
@@ -76,6 +79,7 @@ export default function Tarjetas() {
           : t.tasa_interes != null
             ? String(Number(t.tasa_interes) * 100)
             : '',
+      cuenta_id: t.cuenta_id ?? '',
     })
     setShow(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -95,6 +99,7 @@ export default function Tarjetas() {
         limite: form.limite || null,
         tasa_interes_ea: tasaModo === 'ea' ? tasa : null,
         tasa_interes: tasaModo === 'mensual' ? tasa : null,
+        cuenta_id: form.tipo === 'debito' ? form.cuenta_id || null : null,
       }
       if (editando) {
         await api(`/tarjetas/${editando}`, { method: 'PATCH', body: JSON.stringify(cuerpo) })
@@ -181,23 +186,45 @@ export default function Tarjetas() {
           <select value={form.moneda} onChange={(e) => set('moneda', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             {MONEDAS.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
-          <input type="number" min={1} max={31} placeholder="Día de corte (1-31)" value={form.dia_corte} onChange={(e) => set('dia_corte', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <input type="number" min={1} max={31} placeholder="Día de pago (1-31)" value={form.dia_pago} onChange={(e) => set('dia_pago', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <input placeholder="Cupo total (no el disponible)" value={form.limite} onChange={(e) => set('limite', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <div className="flex gap-2">
-            <select value={tasaModo} onChange={(e) => setTasaModo(e.target.value as 'ea' | 'mensual')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="ea">E.A. (% anual)</option>
-              <option value="mensual">Mensual (%)</option>
-            </select>
-            <input placeholder={tasaModo === 'ea' ? 'Ej. 25.93' : 'Ej. 1.94'} value={form.tasa} onChange={(e) => set('tasa', e.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <p className="text-xs text-slate-500 sm:col-span-2">
-            Está en tu extracto como <strong>“Tasa de interés efectiva anual (E.A.)”</strong>. Si te dan la
-            mensual, cámbiala en el selector. La app convierte sola:
-            {form.tasa && tasaModo === 'ea' && (
-              <> {form.tasa}% E.A. = <strong>{mensualDesdeEa(Number(form.tasa)).toFixed(2)}% mensual</strong></>
-            )}
-          </p>
+          {form.tipo === 'debito' ? (
+            <div className="sm:col-span-2">
+              <label className="text-xs text-slate-500">
+                Cuenta asociada — una tarjeta <strong>débito</strong> es la llave de esa cuenta, no un
+                saldo aparte (así no cuentas tu plata dos veces)
+              </label>
+              <select value={form.cuenta_id} onChange={(e) => set('cuenta_id', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <option value="">Sin cuenta asociada</option>
+                {cuentas.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre} · {fmtMoney(c.saldo_actual)}</option>
+                ))}
+              </select>
+              {cuentas.length === 0 && (
+                <p className="mt-1 text-xs text-amber-600">
+                  Aún no tienes cuentas. Crea primero la cuenta de ahorros en <strong>Cuentas</strong>.
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <input type="number" min={1} max={31} placeholder="Día de corte (1-31)" value={form.dia_corte} onChange={(e) => set('dia_corte', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <input type="number" min={1} max={31} placeholder="Día de pago (1-31)" value={form.dia_pago} onChange={(e) => set('dia_pago', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <input placeholder="Cupo total (no el disponible)" value={form.limite} onChange={(e) => set('limite', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <div className="flex gap-2">
+                <select value={tasaModo} onChange={(e) => setTasaModo(e.target.value as 'ea' | 'mensual')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                  <option value="ea">E.A. (% anual)</option>
+                  <option value="mensual">Mensual (%)</option>
+                </select>
+                <input placeholder={tasaModo === 'ea' ? 'Ej. 25.93' : 'Ej. 1.94'} value={form.tasa} onChange={(e) => set('tasa', e.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <p className="text-xs text-slate-500 sm:col-span-2">
+                Está en tu extracto como <strong>“Tasa de interés efectiva anual (E.A.)”</strong>. Si te dan la
+                mensual, cámbiala en el selector. La app convierte sola:
+                {form.tasa && tasaModo === 'ea' && (
+                  <> {form.tasa}% E.A. = <strong>{mensualDesdeEa(Number(form.tasa)).toFixed(2)}% mensual</strong></>
+                )}
+              </p>
+            </>
+          )}
           <button onClick={guardar} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-2">
             {editando ? 'Guardar cambios' : 'Guardar'}
           </button>
@@ -217,28 +244,36 @@ export default function Tarjetas() {
                   <p className="font-medium">{t.nombre}{t.banco ? ` · ${t.banco}` : ''}</p>
                   <p className="text-sm text-slate-500">
                     {t.tipo} · {t.moneda}
-                    {t.dia_corte ? ` · corte ${t.dia_corte}` : ''}
-                    {t.dia_pago ? ` · pago ${t.dia_pago}` : ''}
-                    {t.tasa_interes_ea
+                    {t.tipo === 'debito'
+                      ? t.cuenta_nombre
+                        ? ` · → ${t.cuenta_nombre}`
+                        : ' · ⚠️ sin cuenta asociada'
+                      : ''}
+                    {t.tipo === 'credito' && t.dia_corte ? ` · corte ${t.dia_corte}` : ''}
+                    {t.tipo === 'credito' && t.dia_pago ? ` · pago ${t.dia_pago}` : ''}
+                    {t.tipo === 'credito' && t.tasa_interes_ea
                       ? ` · ${(Number(t.tasa_interes_ea) * 100).toFixed(2)}% E.A. (${(Number(t.tasa_interes) * 100).toFixed(2)}%/mes)`
-                      : t.tasa_interes
+                      : t.tipo === 'credito' && t.tasa_interes
                         ? ` · ${(Number(t.tasa_interes) * 100).toFixed(2)}%/mes`
                         : ''}
-                    {t.limite ? ` · cupo ${fmtMoney(t.limite)}` : ''}
+                    {t.tipo === 'credito' && t.limite ? ` · cupo ${fmtMoney(t.limite)}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button onClick={() => abrirEditar(t)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
                     Editar
                   </button>
-                  <button onClick={() => setDeudaEn(deudaEn === t.id ? null : t.id)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-                    {deudaEn === t.id ? 'Cerrar' : 'Registrar deuda'}
-                  </button>
+                  {t.tipo === 'credito' && (
+                    <button onClick={() => setDeudaEn(deudaEn === t.id ? null : t.id)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+                      {deudaEn === t.id ? 'Cerrar' : 'Registrar deuda'}
+                    </button>
+                  )}
                   <button onClick={() => eliminar(t.id)} className="text-sm text-red-600 hover:underline">Eliminar</button>
                 </div>
               </div>
 
-              {/* Deuda registrada */}
+              {/* Deuda registrada (solo tarjetas de crédito: el débito no genera deuda) */}
+              {t.tipo === 'credito' && (
               <div className="mt-3 rounded-lg bg-red-50 px-3 py-2">
                 {monedasDeuda.length === 0 ? (
                   <p className="text-sm text-slate-500">Sin deuda registrada.</p>
@@ -268,6 +303,7 @@ export default function Tarjetas() {
                   </ul>
                 )}
               </div>
+              )}
 
               {deudaEn === t.id && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">

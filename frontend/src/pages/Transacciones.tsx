@@ -6,6 +6,7 @@ import {
   type Cuenta,
   type Etiqueta,
   type SaldoResumen,
+  type Tarjeta,
   type Transaccion,
 } from '../types'
 
@@ -18,6 +19,7 @@ const empty = {
   categoria_id: '',
   etiqueta_id: '',
   cuenta_id: '',
+  tarjeta_id: '',
 }
 
 export default function Transacciones() {
@@ -25,6 +27,7 @@ export default function Transacciones() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
+  const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
   const [form, setForm] = useState(empty)
   const [editando, setEditando] = useState<string | null>(null)
   const [show, setShow] = useState(false)
@@ -55,6 +58,7 @@ export default function Transacciones() {
       // Con una sola cuenta se preselecciona, para que el movimiento afecte el saldo real
       if (r.cuentas.length === 1) setForm((f) => ({ ...f, cuenta_id: r.cuentas[0].id }))
     })
+    api<Tarjeta[]>('/tarjetas').then(setTarjetas)
   }, [])
 
   function nueva() {
@@ -78,6 +82,7 @@ export default function Transacciones() {
       categoria_id: t.categoria_id ?? '',
       etiqueta_id: t.etiqueta_id ?? '',
       cuenta_id: t.cuenta_id ?? '',
+      tarjeta_id: t.tarjeta_id ?? '',
     })
     setShow(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -95,6 +100,7 @@ export default function Transacciones() {
         categoria_id: form.categoria_id || null,
         etiqueta_id: form.etiqueta_id || null,
         cuenta_id: form.cuenta_id || null,
+        tarjeta_id: form.tarjeta_id || null,
       }
       if (editando) {
         await api(`/transacciones/${editando}`, { method: 'PATCH', body: JSON.stringify(cuerpo) })
@@ -133,6 +139,18 @@ export default function Transacciones() {
   }
 
   const set = (k: keyof typeof empty, v: string) => setForm((f) => ({ ...f, [k]: v }))
+
+  /** Contabilidad: el débito descuenta de SU cuenta; el crédito no toca cuentas (es un pasivo). */
+  function elegirTarjeta(id: string) {
+    const t = tarjetas.find((x) => x.id === id)
+    setForm((f) => {
+      const nuevo = { ...f, tarjeta_id: id }
+      if (t?.tipo === 'debito' && t.cuenta_id) nuevo.cuenta_id = t.cuenta_id
+      if (t?.tipo === 'credito') nuevo.cuenta_id = ''
+      return nuevo
+    })
+  }
+
   function setTipo(tipo: string) {
     setForm((f) => ({ ...f, tipo, categoria_id: '' }))
   }
@@ -157,6 +175,7 @@ export default function Transacciones() {
     return e.nombre
   }
   const nombreCuenta = (id: string | null) => cuentas.find((c) => c.id === id)?.nombre ?? null
+  const nombreTarjeta = (id: string | null) => tarjetas.find((t) => t.id === id)?.nombre ?? null
 
   const categoriasFiltradas = categorias.filter((c) => c.tipo === form.tipo)
   const catRaices = categoriasFiltradas.filter((c) => !c.padre_id)
@@ -213,12 +232,39 @@ export default function Transacciones() {
             ))}
           </select>
 
+          <select value={form.tarjeta_id} onChange={(e) => elegirTarjeta(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="">Sin tarjeta</option>
+            {tarjetas.some((t) => t.tipo === 'debito') && (
+              <optgroup label="Débito (descuenta de su cuenta)">
+                {tarjetas.filter((t) => t.tipo === 'debito').map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}{t.cuenta_nombre ? ` → ${t.cuenta_nombre}` : ' (sin cuenta asociada)'}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {tarjetas.some((t) => t.tipo === 'credito') && (
+              <optgroup label="Crédito (no toca tus cuentas)">
+                {tarjetas.filter((t) => t.tipo === 'credito').map((t) => (
+                  <option key={t.id} value={t.id}>{t.nombre}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+
           <select value={form.cuenta_id} onChange={(e) => set('cuenta_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">Sin cuenta (no afecta el saldo de una cuenta)</option>
             {cuentas.map((c) => (
               <option key={c.id} value={c.id}>{c.nombre} · {fmtMoney(c.saldo_actual)}</option>
             ))}
           </select>
+
+          {form.tarjeta_id && tarjetas.find((t) => t.id === form.tarjeta_id)?.tipo === 'credito' && (
+            <p className="text-xs text-slate-500 sm:col-span-2">
+              💳 Tarjeta de crédito: es un <strong>pasivo</strong>, no descuenta de tus cuentas.
+              Su deuda se registra en <strong>Tarjetas</strong>.
+            </p>
+          )}
 
           {/* Etiqueta / subetiqueta */}
           <select value={form.etiqueta_id} onChange={(e) => set('etiqueta_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
@@ -296,6 +342,7 @@ export default function Transacciones() {
               </p>
               <p className="text-sm text-slate-500">
                 {t.fecha} · {nombreCat(t.categoria_id)}
+                {nombreTarjeta(t.tarjeta_id) && <span className="ml-2 text-slate-400">· 💳 {nombreTarjeta(t.tarjeta_id)}</span>}
                 {nombreCuenta(t.cuenta_id) && <span className="ml-2 text-slate-400">· {nombreCuenta(t.cuenta_id)}</span>}
               </p>
             </div>

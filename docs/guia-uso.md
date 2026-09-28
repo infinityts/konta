@@ -66,6 +66,30 @@ Para categorías, usa la página **Categorías**.
 | **Día de pago** | el del extracto (⚠️ no confundir con el corte) |
 | **Tasa** | del extracto → ver abajo |
 
+### Débito vs. crédito (el concepto contable)
+
+| | **Débito** | **Crédito** |
+|---|---|---|
+| Qué es | **Instrumento** de una cuenta | **Pasivo**: plata que debes |
+| ¿Tiene saldo propio? | No — el saldo es el de **su cuenta** | Sí: su **deuda** |
+| En Konta | Se **asocia a una cuenta** | No se asocia a ninguna cuenta |
+| Un gasto con ella | Descuenta de **su cuenta** | No toca tus cuentas (sube la deuda) |
+
+**Caso típico:** tienes una cuenta de ahorros donde llega el salario y una **tarjeta débito**
+de esa misma cuenta. La tarjeta **no es un saldo aparte**, es la *llave* de la cuenta.
+
+Entonces:
+
+1. Crea **una sola** cuenta: `Ahorros Bancolombia` con su saldo inicial.
+2. Crea la tarjeta **débito** y **asóciala** a esa cuenta (el formulario lo pide).
+3. Al registrar un gasto, elige la tarjeta débito → **la cuenta se llena sola** y su saldo baja.
+
+Si en cambio crearas la tarjeta débito como una cuenta separada, **contarías tu plata dos veces**.
+
+**Con el crédito es distinto:** es un pasivo. Un gasto con la tarjeta de crédito **no** baja tu
+cuenta de ahorros (todavía no has pagado); lo que sube es la **deuda** de la tarjeta — y esa la
+registras desde el extracto (ver *Registrar la deuda*).
+
 ### La tasa: cuidado con la escala
 
 Los extractos colombianos publican la **tasa efectiva anual (E.A.)**, y en la misma

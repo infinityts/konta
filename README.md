@@ -33,6 +33,8 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 
 ### Gastos, tarjetas y suscripciones
 - **Tarjetas** de crédito/débito (banco, día de corte, día de pago, **cupo total**, tasa).
+  Las de **débito** se **asocian a su cuenta** (son un instrumento de esa cuenta, no un saldo
+  aparte); las de **crédito** son un pasivo y no tocan las cuentas.
   La tasa se toma del extracto como **E.A. (efectiva anual)** y la app la convierte a la
   mensual real (`(1+EA)^(1/12)−1`), que es la que usa el simulador.
 - **Deuda de la tarjeta** por moneda — lo que dice el extracto (ej. `COP 8.912.816` + `USD 700`),

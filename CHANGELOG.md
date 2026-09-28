@@ -135,3 +135,16 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
   (elige "es principal" o "subetiqueta de…").
 - **Filtros**: por Gastos / Ingresos / Todos y búsqueda por descripción o categoría.
 - El listado muestra la etiqueta con su ruta (`#Hogar › Internet`) y la cuenta.
+
+## v1.6 — Tarjeta débito asociada a su cuenta
+
+- **Concepto contable**: una **cuenta** es un activo (lo que tienes); una tarjeta **débito** es
+  un **instrumento** de esa cuenta; una tarjeta **crédito** es un **pasivo** (lo que debes).
+- Nuevo `tarjetas.cuenta_id`: las tarjetas de **débito** se asocian a su cuenta, para no contar
+  el mismo dinero dos veces.
+- En **Transacciones** ahora se elige la tarjeta: al elegir una de **débito**, la **cuenta se
+  llena sola** con la de la tarjeta. Al elegir una de **crédito**, la cuenta se limpia y se
+  avisa de que es un pasivo (su deuda se registra en Tarjetas).
+- El formulario de tarjeta cambia según el tipo: **débito** pide la cuenta asociada; **crédito**
+  pide corte, pago, cupo y tasa. Un crédito nunca queda asociado a una cuenta (el backend lo
+  desasocia al cambiar de tipo).

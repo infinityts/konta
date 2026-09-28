@@ -143,6 +143,11 @@ class Tarjeta(Base):
     limite: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     tasa_interes: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
     tasa_interes_ea: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
+    # Solo para tarjetas DÉBITO: la cuenta de la que descuentan (la tarjeta es un
+    # instrumento de esa cuenta, no un saldo aparte). En crédito va NULL.
+    cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True
+    )
     activa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
