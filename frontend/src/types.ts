@@ -165,6 +165,16 @@ export interface Conversion {
   resultado: number | string
 }
 
+export interface Simulacion {
+  saldo_inicial: number | string
+  tasa_mensual: number | string
+  pago_mensual: number | string
+  meses: number
+  total_intereses: number | string
+  total_pagado: number | string
+  viable: boolean
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string

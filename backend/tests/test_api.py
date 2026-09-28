@@ -307,3 +307,23 @@ def test_monedas_y_tasas(client):
     # sin tasa -> 404
     r = client.get("/convertir", headers=h, params={"de": "EUR", "a": "COP", "monto": 1})
     assert r.status_code == 404
+
+
+def test_simulador_tarjeta(client):
+    _, h = _registrar(client)
+    tar = client.post("/tarjetas", headers=h, json={"nombre": "Visa", "tipo": "credito", "tasa_interes": "0.02"}).json()
+
+    r = client.get(f"/tarjetas/{tar['id']}/simulador", headers=h, params={"saldo": 1000000, "pago_mensual": 200000})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["viable"] is True
+    assert d["meses"] > 0
+    assert float(d["total_intereses"]) > 0
+
+    # pago que no cubre el interés del mes -> no viable
+    d2 = client.get(f"/tarjetas/{tar['id']}/simulador", headers=h, params={"saldo": 1000000, "pago_mensual": 10000}).json()
+    assert d2["viable"] is False
+
+    # tarjeta sin tasa -> 400
+    tar2 = client.post("/tarjetas", headers=h, json={"nombre": "Sin tasa", "tipo": "credito"}).json()
+    assert client.get(f"/tarjetas/{tar2['id']}/simulador", headers=h, params={"saldo": 100}).status_code == 400

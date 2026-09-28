@@ -23,6 +23,8 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Tarjetas** de crédito/débito (banco, día de corte, día de pago, límite, tasa).
 - **Suscripciones** (monto, moneda, periodicidad, próximo pago, tarjeta y categoría).
 - **Transacciones** de gasto/ingreso con categoría, tarjeta y suscripción.
+- **Simulador de intereses**: con la tasa **mensual** de la tarjeta, calcula cuántos meses
+  tardas en pagar una deuda y cuánto pagas de intereses; avisa si el pago no cubre el interés.
 
 ### Organización
 - **Etiquetas y subetiquetas** jerárquicas (autojerárquicas) asociadas a transacciones.
@@ -119,7 +121,7 @@ aislados por usuario.
 |---|---|
 | **Auth** | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
 | **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}` |
-| **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}` |
+| **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}`, `GET /tarjetas/{id}/simulador` |
 | **Suscripciones** | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
 | **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
 | **Ingresos recurrentes** | `GET/POST /ingresos-recurrentes`, `GET/PATCH/DELETE /ingresos-recurrentes/{id}` |
@@ -165,8 +167,8 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses
 - [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas
 - [x] Despliegue con Docker/Podman
-- [ ] Tasas de interés por tarjeta, export/backup, flujo de caja, metas
+- [ ] Exportar y respaldar datos, proyección de flujo de caja, metas
 - [ ] Notificaciones de alarmas por email/Telegram

@@ -456,3 +456,16 @@ class ConversionOut(BaseModel):
     monto: Decimal
     tasa: Decimal
     resultado: Decimal
+
+
+# --- simulador de intereses de tarjeta ---
+
+
+class SimulacionOut(BaseModel):
+    saldo_inicial: Decimal
+    tasa_mensual: Decimal
+    pago_mensual: Decimal
+    meses: int
+    total_intereses: Decimal
+    total_pagado: Decimal
+    viable: bool
