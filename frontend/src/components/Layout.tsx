@@ -10,6 +10,7 @@ const items = [
   { to: '/reportes', label: 'Reportes', end: false },
   { to: '/presupuestos', label: 'Presupuestos', end: false },
   { to: '/facturas', label: 'Facturas', end: false },
+  { to: '/importar', label: 'Importar', end: false },
   { to: '/etiquetas', label: 'Etiquetas', end: false },
 ]
 

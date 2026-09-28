@@ -246,3 +246,22 @@ def test_presupuestos(client):
     assert p["porcentaje"] == 60.0
 
     assert len(client.get("/presupuestos", headers=h).json()) == 1
+
+
+def test_importar_csv(client):
+    _, h = _registrar(client)
+    csv_txt = "fecha,descripcion,valor\n2026-09-20,Mercado,-50000\n2026-09-21,Salario,2000000\n"
+    r = client.post(
+        "/importar/csv", headers=h,
+        files={"archivo": ("estado.csv", csv_txt.encode("utf-8"), "text/csv")},
+    )
+    assert r.status_code == 200, r.text
+    datos = r.json()
+    assert datos["total"] == 2
+    assert datos["filas"][0]["tipo"] == "gasto"    # monto negativo
+    assert datos["filas"][1]["tipo"] == "ingreso"  # monto positivo
+
+    r = client.post("/importar/confirmar", headers=h, json={"filas": datos["filas"]})
+    assert r.status_code == 200
+    assert r.json()["creadas"] == 2
+    assert len(client.get("/transacciones", headers=h).json()) == 2

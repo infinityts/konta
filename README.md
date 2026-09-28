@@ -37,6 +37,11 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Facturas PDF**: subida, extracción de texto (**pypdf** + **OCR tesseract** en
   español) y detección heurística de **monto** y **fecha**; asociación a transacciones.
 
+### Datos
+- **Importar estado de cuenta (CSV)**: sube el CSV del banco; detecta las columnas de
+  fecha, descripción y monto, y muestra una **previsualización** antes de crear las
+  transacciones.
+
 ---
 
 ## Stack
@@ -108,6 +113,7 @@ aislados por usuario.
 | **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM` |
 | **Facturas** | `GET/POST /facturas`, `POST /facturas/{id}/asociar`, `DELETE /facturas/{id}` |
 | **Presupuestos** | `GET/POST /presupuestos`, `PATCH/DELETE /presupuestos/{id}` |
+| **Importar** | `POST /importar/csv` (previsualizar), `POST /importar/confirmar` |
 
 ---
 
@@ -143,5 +149,5 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 - [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos
 - [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos
 - [x] Despliegue con Docker/Podman
-- [ ] Importar CSV, mercado, multi-moneda (tasas), tasas de tarjetas, export/backup, flujo de caja, metas
+- [ ] Mercado, multi-moneda (tasas), tasas de tarjetas, export/backup, flujo de caja, metas
 - [ ] Notificaciones de alarmas por email/Telegram

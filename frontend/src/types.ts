@@ -98,6 +98,15 @@ export interface Presupuesto {
   activo: boolean
 }
 
+export interface ImportarFila {
+  fecha: string
+  descripcion: string | null
+  monto: number | string
+  tipo: 'ingreso' | 'gasto'
+  moneda: string
+  categoria_id: string | null
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string

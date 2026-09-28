@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Etiquetas from './pages/Etiquetas'
 import Facturas from './pages/Facturas'
+import Importar from './pages/Importar'
 import IngresosRecurrentes from './pages/IngresosRecurrentes'
 import Login from './pages/Login'
 import Presupuestos from './pages/Presupuestos'
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/reportes" element={<Reportes />} />
         <Route path="/presupuestos" element={<Presupuestos />} />
         <Route path="/facturas" element={<Facturas />} />
+        <Route path="/importar" element={<Importar />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>
     </Routes>

@@ -313,3 +313,28 @@ class PresupuestoOut(BaseModel):
     restante: float
     porcentaje: float
     activo: bool
+
+
+# --- importar CSV ---
+
+
+class ImportarFilaIn(BaseModel):
+    fecha: date
+    descripcion: str | None = None
+    monto: Decimal = Field(gt=0)
+    tipo: TipoTransaccion
+    moneda: str = "COP"
+    categoria_id: uuid.UUID | None = None
+
+
+class ImportarConfirmarIn(BaseModel):
+    filas: list[ImportarFilaIn]
+
+
+class ImportarPreviewOut(BaseModel):
+    filas: list[ImportarFilaIn]
+    total: int
+
+
+class ImportarResultadoOut(BaseModel):
+    creadas: int
