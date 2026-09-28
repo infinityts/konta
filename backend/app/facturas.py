@@ -1,9 +1,14 @@
-"""Extracción de datos de facturas PDF.
+"""Extracción de datos de facturas y recibos.
 
-1. Intenta extraer el texto con `pypdf` (PDFs digitales).
-2. Si no hay texto (PDF escaneado), intenta OCR con `pytesseract` + `pdf2image`
-   (requiere los binarios `tesseract-ocr` y `poppler-utils`).
-3. Aplica heurísticas para detectar monto y fecha.
+1. PDF digital  -> texto con `pypdf`.
+2. PDF escaneado o **foto** (JPG/PNG) -> OCR con `pytesseract`.
+   Las fotos pasan por un preprocesado (grises, autocontraste, reescalado y
+   binarizado) porque Tesseract falla con fotos de recibos arrugados.
+3. Heurísticas para detectar monto, fecha y **las líneas de artículos**
+   (ver `lineas.py`).
+
+Requiere los binarios `tesseract-ocr` (con el paquete de español) y
+`poppler-utils` (solo para el OCR de PDF).
 """
 
 from __future__ import annotations
@@ -13,8 +18,48 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+TIPOS_IMAGEN = ("image/jpeg", "image/jpg", "image/png", "image/webp")
+EXTENSIONES_IMAGEN = (".jpg", ".jpeg", ".png", ".webp")
 
-def extraer_texto(contenido: bytes) -> str:
+
+def es_imagen(nombre: str, content_type: str | None = None) -> bool:
+    if content_type and content_type.split(";")[0].strip().lower() in TIPOS_IMAGEN:
+        return True
+    return nombre.lower().endswith(EXTENSIONES_IMAGEN)
+
+
+def _preprocesar(imagen):
+    """Mejora la legibilidad de una foto de recibo antes del OCR."""
+    from PIL import Image, ImageFilter, ImageOps
+
+    img = imagen.convert("L")  # escala de grises
+    # Si la foto es pequeña, se agranda: Tesseract lee mejor a partir de ~1000 px
+    if min(img.size) < 1000:
+        factor = max(1, 1000 // max(1, min(img.size)))
+        img = img.resize((img.width * factor, img.height * factor), Image.LANCZOS)
+    img = ImageOps.autocontrast(img)
+    img = img.filter(ImageFilter.SHARPEN)
+    # Binarizado adaptativo simple: el umbral a la media ayuda con sombras
+    return img.point(lambda p: 255 if p > 140 else 0)
+
+
+def _ocr_imagen(imagen) -> str:
+    import pytesseract
+
+    return pytesseract.image_to_string(_preprocesar(imagen), lang="spa")
+
+
+def extraer_texto(contenido: bytes, nombre: str = "", content_type: str | None = None) -> str:
+    """Devuelve el texto de un PDF o de una foto de recibo."""
+    if es_imagen(nombre, content_type):
+        try:
+            from PIL import Image
+
+            return _ocr_imagen(Image.open(io.BytesIO(contenido)))
+        except Exception:
+            return ""
+
+    # 1. PDF digital
     texto = ""
     try:
         from pypdf import PdfReader
@@ -27,13 +72,13 @@ def extraer_texto(contenido: bytes) -> str:
     if texto.strip():
         return texto
 
-    # Fallback OCR para PDFs escaneados
+    # 2. PDF escaneado -> OCR
     try:
         import pytesseract
         from pdf2image import convert_from_bytes
 
         paginas = convert_from_bytes(contenido)
-        return "\n".join(pytesseract.image_to_string(p, lang="spa") for p in paginas)
+        return "\n".join(pytesseract.image_to_string(_preprocesar(p), lang="spa") for p in paginas)
     except Exception:
         return texto
 

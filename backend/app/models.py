@@ -286,6 +286,54 @@ class Factura(Base):
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 
+class FacturaLinea(Base):
+    """Un artículo detectado por OCR dentro de una factura.
+
+    Una factura pasa de 1 a N transacciones: cada línea confirmada crea la suya.
+    """
+
+    __tablename__ = "factura_lineas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    factura_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("facturas.id", ondelete="CASCADE"), nullable=False
+    )
+    descripcion: Mapped[str] = mapped_column(String(200), nullable=False)
+    cantidad: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    valor_unitario: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    valor_total: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    etiqueta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
+    )
+    # historial | diccionario | embeddings | manual | sin_clasificar
+    origen: Mapped[str] = mapped_column(String(20), nullable=False, default="sin_clasificar")
+    confianza: Mapped[Decimal | None] = mapped_column(Numeric(4, 3), nullable=True)
+    orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    transaccion_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("transacciones.id", ondelete="SET NULL"), nullable=True
+    )
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class ReglaOcr(Base):
+    """Aprendizaje: «este artículo va siempre a esta etiqueta»."""
+
+    __tablename__ = "reglas_ocr"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False
+    )
+    # Descripción normalizada (mayúsculas, sin acentos ni códigos) para emparejar
+    patron: Mapped[str] = mapped_column(String(120), nullable=False)
+    etiqueta_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("etiquetas.id", ondelete="CASCADE"), nullable=False
+    )
+    veces_usada: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+    actualizada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
 class Presupuesto(Base):
     """Límite de gasto mensual por categoría."""
 
