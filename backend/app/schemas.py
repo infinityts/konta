@@ -149,6 +149,7 @@ class SuscripcionIn(BaseModel):
     proximo_pago: date | None = None
     categoria_id: uuid.UUID | None = None
     tarjeta_id: uuid.UUID | None = None
+    etiqueta_id: uuid.UUID | None = None
     estado: EstadoSuscripcion = EstadoSuscripcion.ACTIVA
     notas: str | None = None
 
@@ -162,6 +163,7 @@ class SuscripcionUpdate(BaseModel):
     proximo_pago: date | None = None
     categoria_id: uuid.UUID | None = None
     tarjeta_id: uuid.UUID | None = None
+    etiqueta_id: uuid.UUID | None = None
     estado: EstadoSuscripcion | None = None
     notas: str | None = None
 

@@ -167,6 +167,10 @@ class Suscripcion(Base):
     tarjeta_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("tarjetas.id", ondelete="SET NULL"), nullable=True
     )
+    # Etiqueta (dentro de la categoría) para que el cargo caiga en el árbol correcto
+    etiqueta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
+    )
     estado: Mapped[EstadoSuscripcion] = mapped_column(_estado_suscripcion, nullable=False, default=EstadoSuscripcion.ACTIVA)
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
 

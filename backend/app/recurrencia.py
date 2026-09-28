@@ -11,10 +11,19 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .db import make_engine, make_session_factory
-from .models import IngresoRecurrente, PeriodicidadIngreso, TipoTransaccion, Transaccion
+from .models import (
+    EstadoSuscripcion,
+    IngresoRecurrente,
+    Periodicidad,
+    PeriodicidadIngreso,
+    Suscripcion,
+    TipoTransaccion,
+    Transaccion,
+)
 
 
 def hoy() -> date:
@@ -92,5 +101,88 @@ def procesar_ingresos_vencidos() -> int:
                 )
                 generados += 1
         return generados
+    finally:
+        engine.dispose()
+
+
+# --------------------------------------------------------------------------- #
+# Suscripciones: generan su transacción de gasto al vencer
+# --------------------------------------------------------------------------- #
+
+MAX_CATCHUP = 24  # tope de periodos que se ponen al día en una sola pasada
+
+
+def siguiente_pago(periodicidad: Periodicidad, desde: date) -> date:
+    """Siguiente fecha de cobro de una suscripción."""
+    if periodicidad == Periodicidad.SEMANAL:
+        return desde + timedelta(days=7)
+
+    meses = {
+        Periodicidad.MENSUAL: 1,
+        Periodicidad.TRIMESTRAL: 3,
+        Periodicidad.ANUAL: 12,
+    }.get(periodicidad, 1)
+
+    year, month = desde.year, desde.month + meses
+    while month > 12:
+        month -= 12
+        year += 1
+    ultimo = calendar.monthrange(year, month)[1]
+    return date(year, month, min(desde.day, ultimo))
+
+
+def procesar_suscripciones(s: Session, hoy_: date) -> int:
+    """Genera las transacciones de las suscripciones vencidas (lógica pura).
+
+    Recibe la sesión y la fecha para poder probarla sin arrancar el scheduler.
+    Devuelve cuántas transacciones generó.
+    """
+    vencidas = s.scalars(
+        select(Suscripcion).where(
+            Suscripcion.estado == EstadoSuscripcion.ACTIVA,
+            Suscripcion.proximo_pago.is_not(None),
+            Suscripcion.proximo_pago <= hoy_,
+        )
+    ).all()
+
+    generadas = 0
+    for sub in vencidas:
+        periodos = 0
+        while (
+            sub.proximo_pago is not None
+            and sub.proximo_pago <= hoy_
+            and periodos < MAX_CATCHUP
+        ):
+            s.add(
+                Transaccion(
+                    usuario_id=sub.usuario_id,
+                    tipo=TipoTransaccion.GASTO,
+                    monto=sub.monto,
+                    moneda=sub.moneda,
+                    fecha=sub.proximo_pago,
+                    descripcion=sub.nombre,
+                    categoria_id=sub.categoria_id,
+                    etiqueta_id=sub.etiqueta_id,
+                    tarjeta_id=sub.tarjeta_id,
+                    suscripcion_id=sub.id,
+                )
+            )
+            sub.proximo_pago = siguiente_pago(sub.periodicidad, sub.proximo_pago)
+            generadas += 1
+            periodos += 1
+    return generadas
+
+
+def procesar_suscripciones_vencidas() -> int:
+    """Envoltorio del scheduler: abre su propia sesión y aplica la lógica.
+
+    La transacción hereda cuenta, categoría, etiqueta y tarjeta de la suscripción.
+    Es idempotente: cada periodo procesado avanza `proximo_pago`.
+    """
+    engine = make_engine()
+    sf = make_session_factory(engine)
+    try:
+        with sf.begin() as s:
+            return procesar_suscripciones(s, hoy())
     finally:
         engine.dispose()

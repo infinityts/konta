@@ -5,7 +5,7 @@ from __future__ import annotations
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from .notificaciones import procesar_notificaciones
-from .recurrencia import procesar_ingresos_vencidos
+from .recurrencia import procesar_ingresos_vencidos, procesar_suscripciones_vencidas
 
 _scheduler: BackgroundScheduler | None = None
 
@@ -20,6 +20,15 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         hours=1,
         id="ingresos-recurrentes",
+        max_instances=1,
+        coalesce=True,
+    )
+    # Las suscripciones generan su transacción de gasto al vencer
+    _scheduler.add_job(
+        procesar_suscripciones_vencidas,
+        "interval",
+        hours=1,
+        id="suscripciones-vencidas",
         max_instances=1,
         coalesce=True,
     )

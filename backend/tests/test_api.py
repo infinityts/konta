@@ -530,13 +530,83 @@ def test_unicidad_entre_hermanos(client):
     # las categorías son planas (sin subcategorías)
     assert client.get("/categorias/arbol", headers=h).json()[0]["subcategorias"] == []
 
-    # …y la misma subetiqueta sí puede existir bajo etiquetas de categorías distintas
+    # la misma subetiqueta sí puede existir bajo etiquetas de categorías distintas
     serv_transporte = next(
         e for e in client.get("/etiquetas", headers=h).json()
         if e["nombre"].lower() == "servicios" and e["categoria_id"] == transporte["id"]
     )
     r = client.post("/etiquetas", headers=h, json={"nombre": "Internet", "padre_id": serv_transporte["id"]})
     assert r.status_code == 201
+
+
+def test_siguiente_pago():
+    from app.models import Periodicidad
+    from app.recurrencia import siguiente_pago
+
+    assert siguiente_pago(Periodicidad.SEMANAL, date(2026, 1, 1)) == date(2026, 1, 8)
+    assert siguiente_pago(Periodicidad.MENSUAL, date(2026, 1, 15)) == date(2026, 2, 15)
+    assert siguiente_pago(Periodicidad.MENSUAL, date(2026, 1, 31)) == date(2026, 2, 28)  # clamp
+    assert siguiente_pago(Periodicidad.TRIMESTRAL, date(2026, 1, 15)) == date(2026, 4, 15)
+    assert siguiente_pago(Periodicidad.ANUAL, date(2026, 3, 1)) == date(2027, 3, 1)
+
+
+def test_suscripcion_genera_transaccion(client, engine):
+    """Una suscripción vencida crea su gasto y avanza la fecha (idempotente)."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.recurrencia import procesar_suscripciones
+
+    _, h = _registrar(client)
+    cats = client.get("/categorias", headers=h).json()
+    cat = next(c for c in cats if c["nombre"] == "Suscripciones")
+    etq = client.post("/etiquetas", headers=h, json={"nombre": "Streaming", "categoria_id": cat["id"]}).json()
+    sub_etq = client.post("/etiquetas", headers=h, json={"nombre": "Netflix", "padre_id": etq["id"]}).json()
+
+    hoy = date.today()
+    vencido = (hoy - timedelta(days=1)).isoformat()
+    r = client.post("/suscripciones", headers=h, json={
+        "nombre": "Netflix", "monto": "44900", "periodicidad": "mensual",
+        "proximo_pago": vencido, "categoria_id": cat["id"], "etiqueta_id": sub_etq["id"],
+    })
+    assert r.status_code == 201, r.text
+
+    sf = sessionmaker(bind=engine, expire_on_commit=False)
+    with sf.begin() as s:
+        assert procesar_suscripciones(s, hoy) == 1
+
+    txs = client.get("/transacciones", headers=h).json()
+    assert len(txs) == 1
+    tx = txs[0]
+    assert tx["tipo"] == "gasto"
+    assert float(tx["monto"]) == 44900.0
+    assert tx["descripcion"] == "Netflix"
+    assert tx["categoria_id"] == cat["id"]
+    assert tx["etiqueta_id"] == sub_etq["id"]  # cae en Suscripciones › Streaming › Netflix
+
+    # idempotente: una segunda pasada no genera nada
+    with sf.begin() as s:
+        assert procesar_suscripciones(s, hoy) == 0
+    assert len(client.get("/transacciones", headers=h).json()) == 1
+
+    # y la próxima fecha avanzó
+    assert client.get("/suscripciones", headers=h).json()[0]["proximo_pago"] != vencido
+
+
+def test_suscripcion_pausada_no_genera(client, engine):
+    from sqlalchemy.orm import sessionmaker
+
+    from app.recurrencia import procesar_suscripciones
+
+    _, h = _registrar(client)
+    hoy = date.today()
+    client.post("/suscripciones", headers=h, json={
+        "nombre": "Pausada", "monto": "10000", "periodicidad": "mensual",
+        "proximo_pago": (hoy - timedelta(days=5)).isoformat(), "estado": "pausada",
+    })
+    sf = sessionmaker(bind=engine, expire_on_commit=False)
+    with sf.begin() as s:
+        assert procesar_suscripciones(s, hoy) == 0
+    assert client.get("/transacciones", headers=h).json() == []
 
 
 def test_exportar_y_restaurar(client):

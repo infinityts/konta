@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { fmtMoney, type Categoria, type Suscripcion, type Tarjeta } from '../types'
+import { fmtMoney, type Categoria, type Etiqueta, type Suscripcion, type Tarjeta } from '../types'
 
 const empty = {
   nombre: '',
@@ -9,12 +9,14 @@ const empty = {
   periodicidad: 'mensual',
   proximo_pago: '',
   categoria_id: '',
+  etiqueta_id: '',
   tarjeta_id: '',
 }
 
 export default function Suscripciones() {
   const [items, setItems] = useState<Suscripcion[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
   const [form, setForm] = useState(empty)
   const [show, setShow] = useState(false)
@@ -31,6 +33,7 @@ export default function Suscripciones() {
   useEffect(() => {
     cargar()
     api<Categoria[]>('/categorias').then(setCategorias)
+    api<Etiqueta[]>('/etiquetas').then(setEtiquetas)
     api<Tarjeta[]>('/tarjetas').then(setTarjetas)
   }, [])
 
@@ -46,6 +49,7 @@ export default function Suscripciones() {
           periodicidad: form.periodicidad,
           proximo_pago: form.proximo_pago || null,
           categoria_id: form.categoria_id || null,
+          etiqueta_id: form.etiqueta_id || null,
           tarjeta_id: form.tarjeta_id || null,
         }),
       })
@@ -64,6 +68,30 @@ export default function Suscripciones() {
 
   const set = (k: keyof typeof empty, v: string) => setForm((f) => ({ ...f, [k]: v }))
   const nombreTarjeta = (id: string | null) => tarjetas.find((t) => t.id === id)?.nombre ?? '—'
+
+  const porId = (id: string | null) => etiquetas.find((e) => e.id === id)
+
+  /** "Streaming › Netflix" */
+  function rutaEtiqueta(id: string | null): string {
+    const partes: string[] = []
+    let actual = porId(id)
+    let guarda = 0
+    while (actual && guarda++ < 10) {
+      partes.unshift(actual.nombre)
+      actual = porId(actual.padre_id)
+    }
+    return partes.join(' › ')
+  }
+
+  /** Etiquetas (raíz o sub) que cuelgan de una categoría. */
+  function etqDeCategoria(catId: string): Etiqueta[] {
+    return etiquetas.filter((e) => {
+      let actual: Etiqueta | undefined = e
+      let guarda = 0
+      while (actual?.padre_id && guarda++ < 10) actual = porId(actual.padre_id)
+      return (actual?.categoria_id ?? null) === catId
+    })
+  }
 
   return (
     <div>
@@ -90,10 +118,25 @@ export default function Suscripciones() {
             <option value="EUR">EUR</option>
           </select>
           <input type="date" value={form.proximo_pago} onChange={(e) => set('proximo_pago', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <select value={form.categoria_id} onChange={(e) => set('categoria_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <select
+            value={form.categoria_id}
+            onChange={(e) => setForm((f) => ({ ...f, categoria_id: e.target.value, etiqueta_id: '' }))}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
             <option value="">Sin categoría</option>
             {categorias.map((c) => (
               <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </select>
+          <select
+            value={form.etiqueta_id}
+            onChange={(e) => set('etiqueta_id', e.target.value)}
+            disabled={!form.categoria_id}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="">Sin etiqueta</option>
+            {etqDeCategoria(form.categoria_id).map((e) => (
+              <option key={e.id} value={e.id}>{rutaEtiqueta(e.id)}</option>
             ))}
           </select>
           <select value={form.tarjeta_id} onChange={(e) => set('tarjeta_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
@@ -115,6 +158,7 @@ export default function Suscripciones() {
               <p className="font-medium">{s.nombre}</p>
               <p className="text-sm text-slate-500">
                 {s.periodicidad} · {nombreTarjeta(s.tarjeta_id)}
+                {s.etiqueta_id ? ` · ${rutaEtiqueta(s.etiqueta_id)}` : ''}
                 {s.proximo_pago ? ` · próximo ${s.proximo_pago}` : ''}
               </p>
             </div>

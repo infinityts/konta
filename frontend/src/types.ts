@@ -43,6 +43,7 @@ export interface Suscripcion {
   fecha_inicio: string | null
   proximo_pago: string | null
   categoria_id: string | null
+  etiqueta_id: string | null
   tarjeta_id: string | null
   estado: string
   notas: string | null

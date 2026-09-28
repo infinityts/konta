@@ -200,3 +200,20 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
   `AccordionLoaderColor` con los tres colores. Se usa como pantalla de carga.
 - **Carga diferida (code splitting)**: cada página es un chunk aparte → el bundle inicial
   baja de **271 kB a 183 kB**, y el loader se muestra mientras baja cada página.
+
+## v1.10 — Las suscripciones generan su gasto
+
+Antes eran solo un recordatorio: **no aparecían** en el dashboard, presupuestos ni reportes.
+
+- **`suscripciones.etiqueta_id`** (migración `0015`): cada suscripción lleva su etiqueta del
+  árbol, así el cargo queda como `Suscripciones › Streaming › Netflix`.
+- **`procesar_suscripciones()`**: al vencer, se crea la transacción de gasto heredando
+  monto, moneda, categoría, etiqueta y tarjeta de la suscripción, y `proximo_pago` avanza
+  un periodo. Es **idempotente** (una segunda pasada no duplica) y se pone al día con un
+  tope de 24 periodos.
+- **Job horario** en el scheduler (`suscripciones-vencidas`).
+- `siguiente_pago()` respeta el fin de mes (31 ene → 28 feb) para semanal/mensual/trimestral/anual.
+- **Validación de referencias**: categoría, tarjeta y etiqueta deben ser del usuario
+  (antes un id ajeno daba error 500).
+- **Frontend**: selector de etiqueta en cascada con la categoría, y la ruta (`Streaming › Netflix`)
+  se muestra en el listado.
