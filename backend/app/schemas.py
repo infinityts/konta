@@ -108,6 +108,32 @@ class TarjetaOut(TarjetaIn):
     usuario_id: uuid.UUID
 
 
+class DeudaIn(BaseModel):
+    moneda: str = "COP"
+    monto: Decimal = Field(gt=0)
+    fecha: date | None = None
+    notas: str | None = None
+
+
+class DeudaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tarjeta_id: uuid.UUID
+    moneda: str
+    monto: Decimal
+    fecha: date
+    notas: str | None
+
+
+class TarjetaConDeudaOut(TarjetaOut):
+    """Tarjeta con su deuda (por moneda y total convertido a COP si hay tasa)."""
+
+    deudas: list[DeudaOut] = []
+    deuda_por_moneda: dict[str, float] = {}
+    deuda_total_cop: float | None = None
+
+
 # --- suscripciones ---
 
 

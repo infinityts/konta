@@ -411,3 +411,25 @@ class ConfigNotificaciones(Base):
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ultima_notificacion: Mapped[date | None] = mapped_column(Date, nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class DeudaTarjeta(Base):
+    """Saldo deudor de una tarjeta en una moneda (lo que dice el extracto).
+
+    Una tarjeta puede tener deuda en varias monedas (ej. COP y USD).
+    """
+
+    __tablename__ = "deudas_tarjeta"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tarjeta_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tarjetas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    monto: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    fecha: Mapped[date] = mapped_column(Date, nullable=False, default=_ahora)
+    notas: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

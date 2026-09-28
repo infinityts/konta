@@ -105,7 +105,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-18 tablas de negocio (más `alembic_version`), creadas por 9 migraciones:
+19 tablas de negocio (más `alembic_version`), creadas por 10 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -118,6 +118,7 @@ relacionan las piezas.
 | `0007_metas_ahorro` | `metas_ahorro`, `aportes_meta` |
 | `0008_notificaciones` | `config_notificaciones` |
 | `0009_cuentas_jerarquia` | `cuentas` + `transacciones.cuenta_id` + `categorias.padre_id` |
+| `0010_deudas_tarjeta` | `deudas_tarjeta` |
 
 ### Relaciones principales
 
@@ -129,7 +130,8 @@ usuarios ─┬─ cuentas ────────── transacciones   (saldo
           │              ├───── ingresos_recurrentes
           │              └───── categorias     (autojerárquica: categoría → subcategoría)
           ├─ tarjetas ───┬───── transacciones
-          │              └───── suscripciones
+          │              ├───── suscripciones
+          │              └───── deudas_tarjeta  (deuda por moneda)
           ├─ transacciones ──┬─ etiquetas       (autojerárquica)
           │                  └─ facturas
           ├─ productos ──┬───── precios_mercado

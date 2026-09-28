@@ -329,6 +329,40 @@ def test_simulador_tarjeta(client):
     assert client.get(f"/tarjetas/{tar2['id']}/simulador", headers=h, params={"saldo": 100}).status_code == 400
 
 
+def test_deuda_tarjeta_multimoneda(client):
+    """Reproduce el extracto real: AMEX con deuda en COP y USD."""
+    _, h = _registrar(client)
+    tar = client.post("/tarjetas", headers=h, json={
+        "nombre": "AMEX Platinum", "banco": "Bancolombia", "tipo": "credito",
+        "moneda": "COP", "dia_corte": 20, "dia_pago": 5, "tasa_interes": "0.02",
+    }).json()
+
+    client.post(f"/tarjetas/{tar['id']}/deudas", headers=h, json={"moneda": "COP", "monto": "8912816", "notas": "extracto sep"})
+    client.post(f"/tarjetas/{tar['id']}/deudas", headers=h, json={"moneda": "USD", "monto": "700"})
+
+    t = client.get("/tarjetas", headers=h).json()[0]
+    assert t["deuda_por_moneda"]["COP"] == 8912816.0
+    assert t["deuda_por_moneda"]["USD"] == 700.0
+    # sin tasa USD->COP no se puede dar el total
+    assert t["deuda_total_cop"] is None
+
+    # registro la TRM que aparecía en el extracto
+    client.post("/tasas", headers=h, json={"moneda_origen": "USD", "moneda_destino": "COP", "tasa": "3329.61"})
+    t = client.get("/tarjetas", headers=h).json()[0]
+    esperado = 8912816 + 700 * 3329.61
+    assert abs(t["deuda_total_cop"] - esperado) < 1
+
+    # el simulador toma la deuda registrada sin volver a escribirla
+    r = client.get(f"/tarjetas/{tar['id']}/simulador", headers=h)
+    assert r.status_code == 200, r.text
+    assert abs(float(r.json()["saldo_inicial"]) - esperado) < 1
+
+    # se puede quitar una deuda
+    deuda_id = t["deudas"][0]["id"]
+    assert client.delete(f"/tarjetas/{tar['id']}/deudas/{deuda_id}", headers=h).status_code == 204
+    assert len(client.get(f"/tarjetas/{tar['id']}/deudas", headers=h).json()) == 1
+
+
 def test_exportar_y_restaurar(client):
     _, h = _registrar(client)
     cat = client.get("/categorias", headers=h).json()[0]

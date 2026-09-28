@@ -95,3 +95,13 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
   cuando se guarda sin cuenta.
 - **`POST /cuentas/{id}/adoptar-movimientos`**: asigna en bloque todos los movimientos
   que quedaron sin cuenta, para poner al día un saldo ya existente.
+
+## v1.2 — Deuda de tarjeta
+
+- **Deuda por moneda**: una tarjeta puede deber en varias monedas a la vez (el caso real
+  del extracto AMEX: `COP 8.912.816` + `USD 700`). Se registra con fecha y notas.
+- **Total en COP**: si hay tasa de cambio registrada (p. ej. la TRM), el listado muestra
+  la deuda total convertida; si falta, avisa cuál tasa registrar.
+- **Simulador conectado**: si no indicas saldo, el simulador usa la **deuda registrada**
+  de la tarjeta en vez de volver a escribirla.
+- Nuevos endpoints `GET/POST /tarjetas/{id}/deudas` y `DELETE /tarjetas/{id}/deudas/{deuda_id}`.

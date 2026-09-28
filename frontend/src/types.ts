@@ -7,6 +7,15 @@ export interface Categoria {
   padre_id: string | null
 }
 
+export interface Deuda {
+  id: string
+  tarjeta_id: string
+  moneda: string
+  monto: number | string
+  fecha: string
+  notas: string | null
+}
+
 export interface Tarjeta {
   id: string
   nombre: string
@@ -18,6 +27,9 @@ export interface Tarjeta {
   limite: number | string | null
   tasa_interes: number | string | null
   activa: boolean
+  deudas: Deuda[]
+  deuda_por_moneda: Record<string, number>
+  deuda_total_cop: number | null
 }
 
 export interface Suscripcion {

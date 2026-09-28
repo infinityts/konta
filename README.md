@@ -31,11 +31,14 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   corresponde (y hace *catch-up* si la app estaba apagada).
 
 ### Gastos, tarjetas y suscripciones
-- **Tarjetas** de crédito/débito (banco, día de corte, día de pago, límite, tasa).
+- **Tarjetas** de crédito/débito (banco, día de corte, día de pago, **cupo total**, tasa).
+- **Deuda de la tarjeta** por moneda — lo que dice el extracto (ej. `COP 8.912.816` + `USD 700`),
+  con **total en COP** cuando hay tasa de cambio registrada.
 - **Suscripciones** (monto, moneda, periodicidad, próximo pago, tarjeta y categoría).
 - **Transacciones** de gasto/ingreso con categoría, tarjeta y suscripción.
 - **Simulador de intereses**: con la tasa **mensual** de la tarjeta, calcula cuántos meses
   tardas en pagar una deuda y cuánto pagas de intereses; avisa si el pago no cubre el interés.
+  Si no indicas saldo, usa la **deuda registrada** de la tarjeta.
 
 ### Organización
 - **Categorías y subcategorías** jerárquicas: el dashboard y los reportes agrupan por
@@ -163,7 +166,7 @@ aislados por usuario.
 |---|---|
 | **Auth** | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
 | **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}`, `GET /categorias/arbol` |
-| **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}`, `GET /tarjetas/{id}/simulador` |
+| **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}`, `GET/POST /tarjetas/{id}/deudas`, `DELETE /tarjetas/{id}/deudas/{deuda_id}`, `GET /tarjetas/{id}/simulador` |
 | **Suscripciones** | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
 | **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
 | **Ingresos recurrentes** | `GET/POST /ingresos-recurrentes`, `GET/PATCH/DELETE /ingresos-recurrentes/{id}` |
@@ -200,6 +203,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0007_metas_ahorro` | `metas_ahorro`, `aportes_meta` |
 | `0008_notificaciones` | `config_notificaciones` |
 | `0009_cuentas_jerarquia` | `cuentas` + `transacciones.cuenta_id` + `categorias.padre_id` |
+| `0010_deudas_tarjeta` | `deudas_tarjeta` |
 
 ---
 
