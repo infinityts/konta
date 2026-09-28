@@ -77,16 +77,6 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de Contexto
 (RAG); aquí queda el **porqué** de cada decisión, para que no se pierda.
 
-- **Reutilizar las etiquetas entre categorías** (crear «Casa 2» con las etiquetas que ya
-  tiene «Casa 1», sin volver a crearlas una a una). La solución propuesta es **copiar el
-  árbol**: un botón *«Copiar etiquetas de…»* que duplica etiquetas y subetiquetas en la
-  categoría nueva, **sin duplicar** las que ya existan y con vista previa de lo que se va a
-  crear y lo que se omite. Se descarta **compartir** la misma etiqueta entre dos categorías:
-  en el modelo actual una etiqueta vive dentro de una (`etiquetas.categoria_id`) y los
-  reportes agrupan por `Categoría › Etiqueta › Subetiqueta`, así que compartir exigiría una
-  relación N:M y decidir qué categoría aparece en el reporte cuando un gasto usa una etiqueta
-  de dos; además rompería la unicidad «entre hermanos **dentro de una** categoría». Copiando,
-  cada casa es independiente: renombrar «Internet» en Casa 1 no cambia Casa 2.
 - **Transacción recurrente u ocasional**: al crear un movimiento, poder elegir «una sola vez»
   o «se repite» (con periodicidad y día) sin salir del formulario. La maquinaria ya existe
   —los gastos recurrentes **son** las suscripciones, con su job horario que genera el gasto
@@ -657,3 +647,38 @@ El **pago de la tarjeta** se separa a su propia tarea, porque no es solo una tra
 deuda se guarda como snapshots («lo que dice el extracto», un *nivel*) y sumarle pagos como
 filas negativas se rompe en cuanto registres el extracto siguiente. El `CHANGELOG` deja las
 tres opciones de modelo sobre la mesa.
+
+## v1.28 — «Casa 2» nace con las etiquetas de «Casa 1»
+
+Crear una segunda vivienda (o un segundo coche, o cualquier cosa que se repita) obligaba a
+volver a teclear el mismo árbol de etiquetas: *Servicios › Internet, Agua*, *Aseo › Señora*,
+*Arriendo*… Y como el diccionario del OCR empareja contra **nombres de etiquetas**, teclear
+una variante («Internet» contra «Internet Casa 2») rompía de paso la clasificación automática.
+
+- **`POST /categorias/{id}/copiar-etiquetas`** con `{origen_id}`: trae el árbol de otra
+  categoría —etiquetas **y subetiquetas**, conservando el anidamiento— dentro de esta.
+  - **No duplica**: lo que ya exista se informa en `omitidas`. Y si una raíz ya está pero le
+    faltan hijas, **se añaden** (copiar *Servicios › Internet, Agua* sobre una categoría que
+    ya tiene *Servicios* añade las dos hijas, no una segunda *Servicios*).
+  - **Idempotente**: repetirlo no añade nada.
+  - **`previsualizar: true` devuelve el plan sin guardar nada** (hace `rollback`), que es lo
+    que permite enseñar «se crearán 6 etiquetas: Servicios › Internet, …» antes de tocar nada.
+  - Rechaza copiar sobre la **misma** categoría y entre categorías de **distinto tipo**
+    (una etiqueta de ingresos dentro de una de gastos rompería los reportes por tipo y los
+    presupuestos, que dan por hecho esa coherencia).
+- **Se copia, no se comparte** — y es una decisión, no una limitación: aquí una etiqueta vive
+  dentro de una categoría (`etiquetas.categoria_id`) y los reportes agrupan por
+  `Categoría › Etiqueta › Subetiqueta`. Compartir la misma etiqueta entre dos categorías
+  exigiría una relación N:M y decidir **qué categoría aparece en el reporte** cuando un gasto
+  usa una etiqueta que pertenece a dos; además rompería la unicidad «entre hermanos dentro de
+  una categoría». Copiando, cada casa es independiente: renombrar «Internet» en Casa 1 no
+  cambia Casa 2.
+- **UI**: en *Categorías*, cada una tiene **«Copiar etiquetas de…»**; al elegir el origen se
+  ve el plan (lo que se crea y lo que ya existía) y solo entonces se confirma.
+- La lógica del árbol vive en `jerarquia.py` (`copiar_etiquetas`), junto a los demás helpers
+  de `Categoría › Etiqueta › Subetiqueta`, y es recursiva por si algún día hay más de tres
+  niveles.
+- Tests: 58 en verde (antes 56). Cubren la previsualización (que **no** crea nada), el
+  anidamiento copiado, la idempotencia, las hijas que se añaden bajo una raíz existente, que
+  las copiadas son etiquetas **propias** (no las mismas de Casa 1) y sirven para clasificar, y
+  las validaciones (misma categoría, tipos distintos y categorías de otro usuario).

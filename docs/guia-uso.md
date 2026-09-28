@@ -234,7 +234,31 @@ A nivel de servidor también puedes hacer `pg_dump` (ver [`despliegue.md`](despl
 
 ---
 
-## 11. Seguros y pólizas
+## 11. Casa 2 con las etiquetas de Casa 1
+
+Si vas a llevar dos viviendas (o dos coches, o dos negocios), no hace falta volver a teclear
+el mismo árbol.
+
+👉 **Categorías** → en la fila de la categoría nueva, **«Copiar etiquetas de…»** → elige el
+origen.
+
+1. Al elegir el origen la app **enseña el plan**: «se crearán 6 etiqueta(s): Servicios ›
+   Internet, Servicios › Agua, Aseo › Señora del aseo…». Todavía **no ha tocado nada**.
+2. Pulsa **Copiar**. Se crean las etiquetas y subetiquetas, conservando el anidamiento.
+3. Lo que ya existía **no se duplica**: si la categoría nueva ya tenía «Servicios» pero no sus
+   hijas, se añaden las hijas.
+
+**Por qué copiar y no compartir**: cada categoría tiene sus propias etiquetas. Si renombras
+«Internet» en Casa 1, Casa 2 no cambia. Compartir una misma etiqueta entre dos categorías
+dejaría los reportes sin saber a cuál asignar el gasto.
+
+> Truco: como el OCR clasifica por **nombres de etiquetas**, copiar el árbol en vez de
+> inventar nombres nuevos («Internet Casa 2») hace que la tira del súper y las facturas de
+> servicios se sigan clasificando solas en la casa que corresponda.
+
+---
+
+## 12. Seguros y pólizas
 
 👉 **Seguros** → *Nueva póliza*
 
@@ -274,7 +298,7 @@ si te pasas.
 
 ---
 
-## 12. Subir un recibo (OCR por línea)
+## 13. Subir un recibo (OCR por línea)
 
 👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
 

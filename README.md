@@ -94,6 +94,18 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - En **Cuentas** se ven los movimientos por transferencia de cada cuenta, para que el saldo no
   parezca inventado.
 
+### Categorías y etiquetas
+- **Copiar las etiquetas de otra categoría**: al crear «Casa 2» no hay que volver a teclear
+  el árbol de «Casa 1». `POST /categorias/{id}/copiar-etiquetas` trae etiquetas **y
+  subetiquetas** conservando el anidamiento, **sin duplicar** las que ya existan (y si una
+  raíz ya está pero le faltan hijas, se añaden). Con `previsualizar: true` devuelve el plan
+  **sin guardar nada**, que es lo que enseña la UI antes de tocar el árbol.
+- Se **copia** en vez de compartir la etiqueta entre dos categorías a propósito: aquí una
+  etiqueta vive dentro de una categoría y los reportes agrupan por
+  `Categoría › Etiqueta › Subetiqueta`; compartirla obligaría a decidir qué categoría aparece
+  en el reporte. Copiando, cada categoría es independiente: renombrar «Internet» en Casa 1 no
+  cambia Casa 2.
+
 ### Saldo y consolidado
 - **Cuentas** (efectivo, banco, ahorros…) cada una con su **saldo inicial**; el
   **saldo actual** = `saldo inicial + ingresos − gastos`, por cuenta y total.
@@ -234,7 +246,7 @@ aislados por usuario.
 | Recurso | Endpoints |
 |---|---|
 | **Auth** | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
-| **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}`, `GET /categorias/arbol` |
+| **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}`, `GET /categorias/arbol`, `POST /categorias/{id}/copiar-etiquetas` |
 | **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}`, `GET/POST /tarjetas/{id}/deudas`, `DELETE /tarjetas/{id}/deudas/{deuda_id}`, `GET /tarjetas/{id}/simulador` |
 | **Suscripciones** | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
 | **Pólizas** | `GET/POST /polizas`, `GET/PATCH/DELETE /polizas/{id}`, `GET /polizas/resumen`, `POST /polizas/{id}/asegurados`, `PATCH/DELETE /polizas/asegurados/{asegurado_id}`, `POST /polizas/{id}/beneficiarios`, `PATCH/DELETE /polizas/beneficiarios/{beneficiario_id}` |
@@ -307,7 +319,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**56 tests en verde.** El esquema se mantiene alineado con el ORM:
+**58 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
@@ -327,14 +339,13 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **Costo anual de los seguros** en *Reportes* (con desglose por tipo) y en el gasto fijo del dashboard
 - [x] **Flujo de caja** en COP: convierte lo que esté en otra moneda, avisa si falta la tasa, e incluye las pólizas con su periodicidad real
 - [x] **Transferencias entre cuentas**: un movimiento que mueve saldo de una cuenta a otra sin pasar por ingresos ni gastos
+- [x] **Copiar las etiquetas de otra categoría**: «Casa 2» nace con el árbol de «Casa 1» (con vista previa, sin duplicar y sin volver a teclearlo)
 
 Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
 decisión, en el `CHANGELOG`):
 
 - [ ] **Pago de la tarjeta de crédito**: hoy la deuda se actualiza a mano («lo que dice el
   extracto») porque es un *nivel*, no un *flujo*; hay que decidir el modelo antes de tocarlo
-- [ ] **Reutilizar las etiquetas entre categorías**: copiar el árbol de etiquetas de una
-  categoría a otra (crear «Casa 2» con lo que ya tiene «Casa 1»), con vista previa
 - [ ] **Transacción recurrente u ocasional**: marcarla como «se repite» al crearla, y llamar
   *Recurrentes* a los gastos y ingresos recurrentes (hoy «Suscripciones»)
 - [ ] **Reglas de OCR con interfaz** (ver, corregir y borrar lo aprendido), **confirmar un
