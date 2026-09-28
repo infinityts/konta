@@ -74,6 +74,47 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 
 ## Pendiente / ideas
 
+Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de Contexto
+(RAG); aquí queda el **porqué** de cada decisión, para que no se pierda.
+
+- **Reutilizar las etiquetas entre categorías** (crear «Casa 2» con las etiquetas que ya
+  tiene «Casa 1», sin volver a crearlas una a una). La solución propuesta es **copiar el
+  árbol**: un botón *«Copiar etiquetas de…»* que duplica etiquetas y subetiquetas en la
+  categoría nueva, **sin duplicar** las que ya existan y con vista previa de lo que se va a
+  crear y lo que se omite. Se descarta **compartir** la misma etiqueta entre dos categorías:
+  en el modelo actual una etiqueta vive dentro de una (`etiquetas.categoria_id`) y los
+  reportes agrupan por `Categoría › Etiqueta › Subetiqueta`, así que compartir exigiría una
+  relación N:M y decidir qué categoría aparece en el reporte cuando un gasto usa una etiqueta
+  de dos; además rompería la unicidad «entre hermanos **dentro de una** categoría». Copiando,
+  cada casa es independiente: renombrar «Internet» en Casa 1 no cambia Casa 2.
+- **Transacción recurrente u ocasional**: al crear un movimiento, poder elegir «una sola vez»
+  o «se repite» (con periodicidad y día) sin salir del formulario. La maquinaria ya existe
+  —los gastos recurrentes **son** las suscripciones, con su job horario que genera el gasto
+  solo—; lo que falta es el atajo desde la transacción y el **nombre**: llamar
+  *Suscripciones* a un arriendo, un colegio o los servicios confunde. El concepto visible
+  debería ser **Recurrentes**, con gastos (hoy suscripciones) e ingresos (hoy ingresos
+  recurrentes) en el mismo sitio.
+- **Transferencias entre cuentas y pago de la tarjeta** (lo más grande que falta). No existe
+  el concepto: `TipoTransaccion` solo tiene `ingreso` y `gasto`. Mover dinero de ahorros a la
+  cuenta del día a día obliga a registrar un gasto y un ingreso del mismo monto, así que los
+  saldos quedan bien pero **los reportes y el flujo de caja se contaminan** con un gasto y un
+  ingreso que no existieron. Lo mismo al pagar la tarjeta: no hay forma de que el pago baje
+  el saldo de la cuenta **y** la deuda de la tarjeta a la vez (hoy la deuda se actualiza a
+  mano, «lo que dice el extracto»).
+- **Reglas de OCR sin interfaz**: el clasificador aprende (`reglas_ocr`) pero no se pueden
+  ver, corregir ni borrar. Si aprende algo mal, no hay forma de deshacerlo desde la app.
+- **Confirmar un recibo como un solo gasto**: hoy cada línea confirmada crea su transacción,
+  así que una compra de dos ítems son dos movimientos. Falta la opción de registrarlo como
+  **un único gasto** con el total, dejando las líneas como detalle.
+- **Dos huecos de UI** (el backend ya lo permite): **borrar un aporte** a una meta —hoy un
+  monto mal tecleado obliga a borrar la meta entera— y **editar o borrar un producto** del
+  mercado.
+- **`GET /health` no comprueba la base**: responde `ok` aunque PostgreSQL esté caído. El
+  `depends_on: service_healthy` de compose solo valida al arrancar.
+- **Linter en CI**: no hay ninguno configurado. Al pasar `ruff` aparecen 303 hallazgos, de
+  los que casi todos son falsos positivos para FastAPI (`B008` con `Depends(...)`) o estilo;
+  los reales eran **dos imports muertos** y **un `date.today()`** que rompía la convención de
+  zona horaria del proyecto. Sin linter, eso vuelve a colarse.
 - **Quitar un valor de un ENUM**: `periodicidad.semestral` se queda aunque se baje la
   migración `0019` (PostgreSQL no lo permite sin recrear el tipo).
 

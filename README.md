@@ -315,3 +315,16 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima que genera su gasto, vigencia y vencimiento, **varias personas cubiertas**, beneficiarios con porcentaje y bien asegurado (placa)
 - [x] **Costo anual de los seguros** en *Reportes* (con desglose por tipo) y en el gasto fijo del dashboard
 - [x] **Flujo de caja** en COP: convierte lo que esté en otra moneda, avisa si falta la tasa, e incluye las pólizas con su periodicidad real
+
+Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
+decisión, en el `CHANGELOG`):
+
+- [ ] **Transferencias entre cuentas y pago de la tarjeta**: hoy mover dinero entre tus
+  cuentas se registra como gasto + ingreso, lo que ensucia reportes y flujo de caja
+- [ ] **Reutilizar las etiquetas entre categorías**: copiar el árbol de etiquetas de una
+  categoría a otra (crear «Casa 2» con lo que ya tiene «Casa 1»), con vista previa
+- [ ] **Transacción recurrente u ocasional**: marcarla como «se repite» al crearla, y llamar
+  *Recurrentes* a los gastos y ingresos recurrentes (hoy «Suscripciones»)
+- [ ] **Reglas de OCR con interfaz** (ver, corregir y borrar lo aprendido), **confirmar un
+  recibo como un solo gasto**, **borrar un aporte** a una meta, **editar/borrar productos**,
+  **`/health` que compruebe la base** y **linter en CI** (detalle en el `CHANGELOG`)
