@@ -1,62 +1,53 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../auth'
 import { api } from '../api'
-
-interface Categoria {
-  id: string
-  nombre: string
-  tipo: string
-  icono: string | null
-  color: string | null
-}
+import { fmtMoney, type Suscripcion, type Tarjeta, type Transaccion } from '../types'
 
 export default function Dashboard() {
-  const { user, logout } = useAuth()
-  const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [transacciones, setTransacciones] = useState<Transaccion[]>([])
+  const [suscripciones, setSuscripciones] = useState<Suscripcion[]>([])
+  const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api<Categoria[]>('/categorias')
-      .then(setCategorias)
-      .catch((e) => setError(e.message))
+    Promise.all([
+      api<Transaccion[]>('/transacciones'),
+      api<Suscripcion[]>('/suscripciones'),
+      api<Tarjeta[]>('/tarjetas'),
+    ])
+      .then(([t, s, ta]) => {
+        setTransacciones(t)
+        setSuscripciones(s)
+        setTarjetas(ta)
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
   }, [])
 
+  const mes = new Date().toISOString().slice(0, 7)
+  const delMes = transacciones.filter((t) => t.fecha.startsWith(mes))
+  const gastoMes = delMes.filter((t) => t.tipo === 'gasto').reduce((a, t) => a + Number(t.monto), 0)
+  const ingresoMes = delMes.filter((t) => t.tipo === 'ingreso').reduce((a, t) => a + Number(t.monto), 0)
+  const activas = suscripciones.filter((s) => s.estado === 'activa')
+  const costoSubs = activas.reduce((a, s) => a + Number(s.monto), 0)
+
+  const kpis = [
+    { label: 'Gasto del mes', value: fmtMoney(gastoMes), color: 'text-red-600' },
+    { label: 'Ingresos del mes', value: fmtMoney(ingresoMes), color: 'text-emerald-600' },
+    { label: 'Suscripciones activas', value: `${activas.length} · ${fmtMoney(costoSubs)}`, color: 'text-indigo-600' },
+    { label: 'Tarjetas', value: String(tarjetas.length), color: 'text-slate-900' },
+  ]
+
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-        <div>
-          <h1 className="text-lg font-semibold">Konta</h1>
-          <p className="text-sm text-slate-500">Hola, {user?.nombre ?? 'usuario'}</p>
-        </div>
-        <button
-          onClick={logout}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-        >
-          Salir
-        </button>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-6 py-8">
-        <h2 className="text-xl font-semibold">Resumen</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Aquí verás tus KPIs (gasto del mes, suscripciones activas, etc.) — próximo paso.
-        </p>
-
-        <div className="mt-8">
-          <h3 className="font-medium text-slate-700">Tus categorías</h3>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {categorias.map((c) => (
-              <span
-                key={c.id}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700"
-              >
-                {c.nombre} · {c.tipo}
-              </span>
-            ))}
+    <div>
+      <h2 className="text-xl font-semibold">Resumen</h2>
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpis.map((k) => (
+          <div key={k.label} className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">{k.label}</p>
+            <p className={`mt-1 text-2xl font-semibold ${k.color}`}>{k.value}</p>
           </div>
-        </div>
-      </main>
+        ))}
+      </div>
     </div>
   )
 }

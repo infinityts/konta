@@ -1,9 +1,13 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
+import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import Suscripciones from './pages/Suscripciones'
+import Tarjetas from './pages/Tarjetas'
+import Transacciones from './pages/Transacciones'
 
 function Protected({ children }: { children: ReactNode }) {
   const { token } = useAuth()
@@ -16,13 +20,17 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route
-        path="/"
         element={
           <Protected>
-            <Dashboard />
+            <Layout />
           </Protected>
         }
-      />
+      >
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/tarjetas" element={<Tarjetas />} />
+        <Route path="/suscripciones" element={<Suscripciones />} />
+        <Route path="/transacciones" element={<Transacciones />} />
+      </Route>
     </Routes>
   )
 }
