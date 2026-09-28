@@ -327,3 +327,39 @@ def test_simulador_tarjeta(client):
     # tarjeta sin tasa -> 400
     tar2 = client.post("/tarjetas", headers=h, json={"nombre": "Sin tasa", "tipo": "credito"}).json()
     assert client.get(f"/tarjetas/{tar2['id']}/simulador", headers=h, params={"saldo": 100}).status_code == 400
+
+
+def test_exportar_y_restaurar(client):
+    _, h = _registrar(client)
+    cat = client.get("/categorias", headers=h).json()[0]
+    client.post(
+        "/transacciones", headers=h,
+        json={"tipo": "gasto", "monto": "100", "fecha": "2026-09-27", "descripcion": "X", "categoria_id": cat["id"]},
+    )
+
+    # exportar JSON
+    r = client.get("/exportar/json", headers=h)
+    assert r.status_code == 200
+    backup = r.json()
+    assert len(backup["transacciones"]) == 1
+    assert len(backup["categorias"]) == 10
+
+    # borrar y restaurar
+    client.delete(f"/transacciones/{backup['transacciones'][0]['id']}", headers=h)
+    assert len(client.get("/transacciones", headers=h).json()) == 0
+
+    import json as _json
+
+    contenido = _json.dumps(backup).encode("utf-8")
+    r = client.post(
+        "/respaldar/restaurar", headers=h,
+        files={"archivo": ("respaldo.json", contenido, "application/json")},
+    )
+    assert r.status_code == 200, r.text
+    assert len(client.get("/transacciones", headers=h).json()) == 1
+    assert len(client.get("/categorias", headers=h).json()) == 10
+
+    # exportar CSV
+    r = client.get("/exportar/transacciones.csv", headers=h)
+    assert r.status_code == 200
+    assert "fecha,tipo,monto" in r.text

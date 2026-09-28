@@ -34,3 +34,20 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
   }
   return res.json() as Promise<T>
 }
+
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const token = localStorage.getItem('konta_token')
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}

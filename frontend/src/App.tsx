@@ -13,6 +13,7 @@ import Monedas from './pages/Monedas'
 import Presupuestos from './pages/Presupuestos'
 import Register from './pages/Register'
 import Reportes from './pages/Reportes'
+import Respaldo from './pages/Respaldo'
 import Suscripciones from './pages/Suscripciones'
 import Tarjetas from './pages/Tarjetas'
 import Transacciones from './pages/Transacciones'
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/importar" element={<Importar />} />
         <Route path="/mercado" element={<Mercado />} />
         <Route path="/monedas" element={<Monedas />} />
+        <Route path="/respaldo" element={<Respaldo />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>
     </Routes>

@@ -56,6 +56,12 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Conversor** entre monedas y catálogo de monedas disponibles (COP, USD, EUR, MXN,
   PEN, CLP, ARS, UYU, BRL, GBP).
 
+### Respaldo
+- **Exportar**: respaldo completo en **JSON** y transacciones en **CSV**.
+- **Restaurar**: recupera todos tus datos desde un respaldo JSON (reemplaza lo actual).
+- A nivel de servidor también se puede respaldar la base con `pg_dump`
+  (ver [`docs/despliegue.md`](docs/despliegue.md)).
+
 ---
 
 ## Stack
@@ -134,6 +140,7 @@ aislados por usuario.
 | **Mercado** | `GET/POST /productos`, `GET/PATCH/DELETE /productos/{id}`, `GET /productos/{id}/comparativo`, `GET/POST /productos/{id}/precios` |
 | **Lista de compras** | `GET/POST /lista-mercado`, `PATCH/DELETE /lista-mercado/{id}` |
 | **Monedas / tasas** | `GET /monedas`, `GET/POST /tasas`, `DELETE /tasas/{id}`, `POST /tasas/actualizar`, `GET /convertir?de=&a=&monto=` |
+| **Respaldo** | `GET /exportar/json`, `GET /exportar/transacciones.csv`, `POST /respaldar/restaurar` |
 
 ---
 
@@ -167,8 +174,8 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses
-- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo
+- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo
 - [x] Despliegue con Docker/Podman
-- [ ] Exportar y respaldar datos, proyección de flujo de caja, metas
+- [ ] Proyección de flujo de caja, metas de ahorro
 - [ ] Notificaciones de alarmas por email/Telegram
