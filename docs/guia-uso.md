@@ -255,3 +255,31 @@ si te pasas.
 
 > Para **pausar** un seguro (por ejemplo, un vehículo vendido) usa *Pausar*: deja de generar
 > el gasto y de avisar, pero conserva el histórico.
+
+---
+
+## 11. Subir un recibo (OCR por línea)
+
+👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
+
+| Paso | Qué pasa |
+|---|---|
+| 1. Subes el archivo | Se extrae el texto (OCR si es una foto, con preprocesado) y se detectan monto y fecha |
+| 2. **Leer líneas** | Parte el recibo en artículos y los clasifica: `historial` → `diccionario` → `embeddings` |
+| 3. Revisas la tabla | Cada línea trae su etiqueta sugerida y de dónde salió (el *badge* de la derecha) |
+| 4. Corriges lo que esté mal | Cambia la etiqueta en el desplegable: la app **lo aprende** y la próxima vez lo acierta |
+| 5. Dices de dónde sale el dinero | **Tarjeta** (💳) y/o **cuenta**, y la **fecha** si el recibo es de otro día |
+| 6. **Confirmar N línea(s)** | Se crea **una transacción por artículo**, con su categoría y etiqueta |
+
+**Si sale todo «sin clasificar»**: pulsa **«Preparar etiquetas del diccionario y volver a
+clasificar»**. Crea las etiquetas que el OCR sabe reconocer (Carnes, Despensa, Ropa…) dentro
+de *Mercado*, *Transporte* y *Otros gastos*. Vienen de fábrica al registrarte, así que solo
+hace falta en cuentas antiguas o si borraste esas etiquetas.
+
+**Tarjeta de débito o de crédito**: al elegir una de **débito** se rellena sola su cuenta
+(la tarjeta es un instrumento de esa cuenta); al elegir una de **crédito** la cuenta se
+limpia, porque ese gasto no sale de tu cuenta sino que engorda la deuda de la tarjeta.
+
+**Artículos que la app no conoce** (una marca rara, un producto nuevo): quedan *sin
+clasificar*. Asígnales la etiqueta una vez —eso queda aprendido— y la próxima tira ya sale
+clasificada.

@@ -108,7 +108,18 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   **historial** (lo que ya corregiste) → **diccionario** (palabras típicas de un recibo) →
   **embeddings** (similitud semántica vía Ollama, opcional). Lo que no sabe decidir queda
   *sin clasificar* para que lo elijas una vez — y a la próxima ya lo sabe.
-  Al confirmar, **cada línea crea su propia transacción** con su categoría y etiqueta.
+- **Funciona de fábrica**: al registrarte se crean las **etiquetas que el diccionario
+  reconoce** dentro de *Mercado* (Carnes, Frutas y verduras, Lácteos y huevos, Despensa,
+  Aseo del hogar, Cuidado personal), *Transporte* (Gasolina) y *Otros gastos* (Ropa,
+  Calzado, Tecnología). Sin ellas el clasificador no tiene con qué comparar —empareja
+  contra nombres de etiquetas— y toda la tira salía «sin clasificar». Si ya tenías cuenta,
+  `POST /etiquetas/diccionario` (o el botón en *Facturas*) las crea sin tocar nada más.
+- **Cubre algo más que el mercado**: además de alimentos y aseo, el diccionario reconoce
+  **ropa, calzado y tecnología**, así que una compra de jeans no hay que clasificarla a mano.
+- **Al confirmar se indica de dónde sale el dinero**: la **tarjeta** o la **cuenta** y la
+  **fecha** de la compra (útil si el recibo es de otro día o no trae fecha legible). Si la
+  tarjeta es de **débito**, la transacción hereda su cuenta; si es de **crédito**, el gasto
+  no toca la cuenta. **Cada línea crea su propia transacción** con su categoría y etiqueta.
 
 ### Datos
 - **Importar estado de cuenta (CSV)**: sube el CSV del banco; detecta las columnas de
@@ -214,7 +225,7 @@ aislados por usuario.
 | **Pólizas** | `GET/POST /polizas`, `GET/PATCH/DELETE /polizas/{id}`, `GET /polizas/resumen`, `POST /polizas/{id}/asegurados`, `PATCH/DELETE /polizas/asegurados/{asegurado_id}`, `POST /polizas/{id}/beneficiarios`, `PATCH/DELETE /polizas/beneficiarios/{beneficiario_id}` |
 | **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
 | **Ingresos recurrentes** | `GET/POST /ingresos-recurrentes`, `GET/PATCH/DELETE /ingresos-recurrentes/{id}` |
-| **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}` |
+| **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}`, `POST /etiquetas/diccionario` |
 | **Alertas** | `GET /alertas?dias=15` |
 | **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM`, `GET /reportes/seguros` |
 | **Facturas** | `GET/POST /facturas`, `GET/DELETE /facturas/{id}`, `POST /facturas/{id}/asociar`, `POST /facturas/{id}/lineas`, `PATCH/DELETE /facturas/{id}/lineas/{linea_id}`, `POST /facturas/{id}/confirmar` |
@@ -280,7 +291,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**48 tests en verde.** El esquema se mantiene alineado con el ORM:
+**52 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---

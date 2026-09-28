@@ -71,7 +71,7 @@ relacionan las piezas.
 | `security.py` | Hash bcrypt + creación/validación de JWT |
 | `deps.py` | `get_db`, `get_current_user` |
 | `crud_utils.py` | `get_owned` (aislamiento por usuario) |
-| `defaults.py` | Categorías por defecto al registrarse |
+| `defaults.py` | Categorías y **etiquetas del diccionario** por defecto al registrarse (+ `sembrar_etiquetas_diccionario`) |
 | `main.py` | App FastAPI + lifespan (arranca el scheduler) + registro de routers |
 
 ### Lógica de negocio
@@ -102,7 +102,7 @@ relacionan las piezas.
 `auth`, `categorias` (incluye `/arbol`), `cuentas`, `saldos`, `tarjetas`
 (incluye simulador), `suscripciones`, `polizas` (incluye `/resumen` y
 `/beneficiarios` y `/asegurados`), `transacciones`, `ingresos_recurrentes`,
-`etiquetas`, `alertas`, `reportes` (incluye `/seguros`), `facturas` (incluye el OCR por línea:
+`etiquetas` (incluye `/diccionario`), `alertas`, `reportes` (incluye `/seguros`), `facturas` (incluye el OCR por línea:
 `/lineas`, `/lineas/{id}` y `/confirmar`), `presupuestos`, `importacion`,
 `productos`, `lista_mercado`, `monedas` (monedas/tasas/convertir), `respaldo`,
 `flujo`, `metas`, `notificaciones`.

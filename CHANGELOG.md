@@ -504,3 +504,52 @@ Del test sale un aviso que no estaba escrito en ninguna parte: **una etiqueta qu
 implicación operativa). Solo afecta a quien actualice desde la v1.7 o anterior: hay que
 re-categorizar las etiquetas entre la `0013` y la `0014`. Queda anotado en
 `docs/despliegue.md`.
+
+## v1.25 — El OCR, usable de fábrica (y con la tarjeta)
+
+Al probarlo con un usuario nuevo aparecieron dos huecos que hacían la función poco práctica:
+**no clasificaba nada** y **no preguntaba de dónde salía el dinero**.
+
+### Clasificaba, pero no para un usuario nuevo
+
+El diccionario empareja contra **nombres de etiquetas**, y un usuario nuevo recibía las 11
+categorías y **cero etiquetas**: una tira de D1 de 6 artículos salía entera «sin
+clasificar». Había que crear a mano las etiquetas con los nombres exactos que espera el
+diccionario, y nada te decía cuáles eran.
+
+- **`ETIQUETAS_DICCIONARIO`** (`defaults.py`): al registrarse se crean las etiquetas que el
+  diccionario reconoce, en su categoría natural — *Mercado* (Carnes, Frutas y verduras,
+  Lácteos y huevos, Despensa, Aseo del hogar, Cuidado personal), *Transporte* (Gasolina) y
+  *Otros gastos* (Ropa, Calzado, Tecnología).
+- **`POST /etiquetas/diccionario`**: crea las que falten para quien ya tenía cuenta, sin
+  tocar nada más (idempotente, y se salta las categorías que el usuario haya renombrado o
+  borrado). En *Facturas* aparece un botón cuando hay líneas sin clasificar, y vuelve a
+  clasificar solo.
+- **Un test guarda la coherencia**: si alguien añade una etiqueta a `ETIQUETAS_DICCIONARIO`
+  que el diccionario no conoce (o al revés), el test falla. Se siembra para nada y nadie se
+  enteraría.
+
+### El diccionario tampoco sabía de ropa
+
+Una compra de jeans, camisetas y zapatillas salía entera «sin clasificar», y al confirmar
+las transacciones quedaban **sin categoría** — o sea, invisibles para los reportes por
+categoría y para los presupuestos. Se añaden tres grupos al diccionario: **Ropa**, **Calzado**
+y **Tecnología**, sembrados en *Otros gastos* (no hay categoría propia para ellos).
+
+### No preguntaba la tarjeta
+
+`POST /facturas/{id}/confirmar` solo aceptaba `cuenta_id`, así que el gasto del OCR quedaba
+**sin tarjeta**: no cuadraba con el extracto. Ahora acepta también `tarjeta_id` y `fecha`:
+
+- Si la tarjeta es de **débito**, la transacción **hereda su cuenta** (una tarjeta de débito
+  es un instrumento de esa cuenta, no un saldo aparte).
+- Si es de **crédito**, el gasto no toca la cuenta (es un pasivo) y la UI lo avisa.
+- La **fecha** permite registrar la compra en su día real cuando el recibo no la trae
+  legible; si no se indica, se usa la detectada o la de hoy.
+- En *Facturas* el panel de líneas gana selector de tarjeta, selector de cuenta y fecha, con
+  la misma regla que *Transacciones* (el débito llena la cuenta, el crédito la limpia).
+
+Tests: 52 en verde (antes 48). Los nuevos cubren la clasificación automática de una tira de
+mercado y de una compra de ropa, la tarjeta (crédito y débito con herencia de cuenta), la
+fecha, el sembrado idempotente de las etiquetas, el aislamiento entre usuarios al usar una
+tarjeta ajena y la coherencia entre el diccionario y las etiquetas por defecto.
