@@ -45,7 +45,7 @@ export default function Transacciones() {
           categoria_id: form.categoria_id || null,
         }),
       })
-      setForm(empty)
+      setForm({ ...empty, tipo: form.tipo, fecha: form.fecha })
       setShow(false)
       cargar()
     } catch (e) {
@@ -59,7 +59,13 @@ export default function Transacciones() {
   }
 
   const set = (k: keyof typeof empty, v: string) => setForm((f) => ({ ...f, [k]: v }))
+  function setTipo(tipo: string) {
+    // Al cambiar el tipo, resetea la categoría si no corresponde al nuevo tipo
+    setForm((f) => ({ ...f, tipo, categoria_id: '' }))
+  }
+
   const nombreCat = (id: string | null) => categorias.find((c) => c.id === id)?.nombre ?? '—'
+  const categoriasFiltradas = categorias.filter((c) => c.tipo === form.tipo)
 
   return (
     <div>
@@ -72,16 +78,16 @@ export default function Transacciones() {
 
       {show && (
         <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
-          <select value={form.tipo} onChange={(e) => set('tipo', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <select value={form.tipo} onChange={(e) => setTipo(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="gasto">Gasto</option>
             <option value="ingreso">Ingreso</option>
           </select>
           <input placeholder="Monto" value={form.monto} onChange={(e) => set('monto', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <input placeholder="Descripción" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <input placeholder="Descripción (ej. Salario, Freelance, Mercado...)" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <select value={form.categoria_id} onChange={(e) => set('categoria_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">Sin categoría</option>
-            {categorias.map((c) => (
+            {categoriasFiltradas.map((c) => (
               <option key={c.id} value={c.id}>{c.nombre}</option>
             ))}
           </select>
