@@ -1,0 +1,93 @@
+"""Tests de la API: auth, CRUD y aislamiento multi-usuario."""
+
+import uuid
+
+
+def _registrar(client, email: str | None = None):
+    email = email or f"u{uuid.uuid4().hex[:8]}@x.com"
+    r = client.post(
+        "/auth/register",
+        json={"email": email, "nombre": "Test", "password": "password123"},
+    )
+    assert r.status_code == 201, r.text
+    token = client.post(
+        "/auth/login", json={"email": email, "password": "password123"}
+    ).json()["access_token"]
+    return email, {"Authorization": f"Bearer {token}"}
+
+
+def test_registro_y_login(client):
+    email, _ = _registrar(client)
+    assert email.endswith("@x.com")
+
+
+def test_email_duplicado(client):
+    email, _ = _registrar(client)
+    r = client.post(
+        "/auth/register",
+        json={"email": email, "nombre": "Test", "password": "password123"},
+    )
+    assert r.status_code == 409
+
+
+def test_sin_token_rechazado(client):
+    assert client.get("/categorias").status_code == 401
+
+
+def test_crud_categorias(client):
+    _, h = _registrar(client)
+    assert len(client.get("/categorias", headers=h).json()) == 10  # por defecto
+
+    r = client.post("/categorias", headers=h, json={"nombre": "Mascotas", "tipo": "gasto"})
+    assert r.status_code == 201
+    cid = r.json()["id"]
+
+    r = client.patch(f"/categorias/{cid}", headers=h, json={"color": "#000000"})
+    assert r.json()["color"] == "#000000"
+
+    assert client.delete(f"/categorias/{cid}", headers=h).status_code == 204
+    assert len(client.get("/categorias", headers=h).json()) == 10
+
+
+def test_flujo_tarjetas_suscripciones_transacciones(client):
+    _, h = _registrar(client)
+    cats = client.get("/categorias", headers=h).json()
+    cat = next(x for x in cats if x["nombre"] == "Suscripciones")
+
+    tar = client.post(
+        "/tarjetas", headers=h,
+        json={"nombre": "Visa", "tipo": "credito", "moneda": "COP", "dia_corte": 15, "dia_pago": 5},
+    ).json()
+
+    sub = client.post(
+        "/suscripciones", headers=h,
+        json={
+            "nombre": "Netflix", "monto": "26000", "moneda": "COP",
+            "periodicidad": "mensual", "proximo_pago": "2026-10-15",
+            "categoria_id": cat["id"], "tarjeta_id": tar["id"],
+        },
+    ).json()
+
+    tx = client.post(
+        "/transacciones", headers=h,
+        json={
+            "tipo": "gasto", "monto": "26000", "moneda": "COP", "fecha": "2026-10-15",
+            "descripcion": "Netflix", "categoria_id": cat["id"],
+            "tarjeta_id": tar["id"], "suscripcion_id": sub["id"],
+        },
+    ).json()
+    assert tx["tipo"] == "gasto"
+
+    assert len(client.get("/tarjetas", headers=h).json()) == 1
+    assert len(client.get("/suscripciones", headers=h).json()) == 1
+    assert len(client.get("/transacciones", headers=h).json()) == 1
+
+
+def test_aislamiento_multiusuario(client):
+    _, h1 = _registrar(client, "a@x.com")
+    _, h2 = _registrar(client, "b@x.com")
+
+    tar = client.post("/tarjetas", headers=h1, json={"nombre": "Visa", "tipo": "credito"}).json()
+
+    assert len(client.get("/tarjetas", headers=h2).json()) == 0
+    assert client.get(f"/tarjetas/{tar['id']}", headers=h2).status_code == 404
