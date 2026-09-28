@@ -54,6 +54,15 @@ export interface Etiqueta {
   padre_id: string | null
 }
 
+export interface Alerta {
+  tipo: 'suscripcion' | 'tarjeta_pago' | 'tarjeta_corte'
+  titulo: string
+  fecha: string
+  dias_restantes: number
+  monto: number | string | null
+  moneda: string | null
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string

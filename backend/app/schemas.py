@@ -238,3 +238,15 @@ class EtiquetaOut(EtiquetaIn):
 
     id: uuid.UUID
     usuario_id: uuid.UUID
+
+
+# --- alertas ---
+
+
+class AlertaOut(BaseModel):
+    tipo: str  # 'suscripcion' | 'tarjeta_pago' | 'tarjeta_corte'
+    titulo: str
+    fecha: date
+    dias_restantes: int  # negativo = ya vencido
+    monto: Decimal | None = None
+    moneda: str | None = None

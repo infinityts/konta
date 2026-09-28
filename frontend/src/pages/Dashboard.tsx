@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { fmtMoney, type Categoria, type Suscripcion, type Tarjeta, type Transaccion } from '../types'
+import { fmtMoney, type Alerta, type Categoria, type Suscripcion, type Tarjeta, type Transaccion } from '../types'
 
 function Kpi({ label, value }: { label: string; value: string }) {
   return (
@@ -11,11 +11,18 @@ function Kpi({ label, value }: { label: string; value: string }) {
   )
 }
 
+const ETIQUETA_ALERTA: Record<string, string> = {
+  suscripcion: 'suscripción',
+  tarjeta_pago: 'pago tarjeta',
+  tarjeta_corte: 'corte tarjeta',
+}
+
 export default function Dashboard() {
   const [transacciones, setTransacciones] = useState<Transaccion[]>([])
   const [suscripciones, setSuscripciones] = useState<Suscripcion[]>([])
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [alertas, setAlertas] = useState<Alerta[]>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -24,12 +31,14 @@ export default function Dashboard() {
       api<Suscripcion[]>('/suscripciones'),
       api<Tarjeta[]>('/tarjetas'),
       api<Categoria[]>('/categorias'),
+      api<Alerta[]>('/alertas?dias=15'),
     ])
-      .then(([t, s, ta, c]) => {
+      .then(([t, s, ta, c, al]) => {
         setTransacciones(t)
         setSuscripciones(s)
         setTarjetas(ta)
         setCategorias(c)
+        setAlertas(al)
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
   }, [])
@@ -47,7 +56,6 @@ export default function Dashboard() {
   const activas = suscripciones.filter((s) => s.estado === 'activa')
   const costoSubs = activas.reduce((a, s) => a + Number(s.monto), 0)
 
-  // Top categorías (gastos del mes)
   const porCategoria = new Map<string, number>()
   for (const t of delMes) {
     if (t.tipo !== 'gasto') continue
@@ -81,6 +89,36 @@ export default function Dashboard() {
           <span className="font-medium text-emerald-700">Ingresos: {fmtMoney(ingresoMes)}</span>
           <span className="font-medium text-red-700">Gastos: {fmtMoney(gastoMes)}</span>
         </div>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="font-medium text-slate-700">🔔 Próximos pagos (15 días)</h3>
+        {alertas.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">Sin pagos próximos.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-slate-100">
+            {alertas.map((a, i) => (
+              <li key={i} className="flex items-center justify-between py-2 text-sm">
+                <span className="text-slate-700">
+                  {a.titulo}
+                  <span className="ml-2 text-xs text-slate-400">{ETIQUETA_ALERTA[a.tipo] ?? a.tipo}</span>
+                  {a.monto != null && <span className="ml-2 text-xs text-slate-500">{fmtMoney(a.monto)}</span>}
+                </span>
+                <span
+                  className={
+                    a.dias_restantes <= 0
+                      ? 'font-medium text-red-600'
+                      : a.dias_restantes <= 3
+                        ? 'font-medium text-amber-600'
+                        : 'text-slate-500'
+                  }
+                >
+                  {a.fecha} · {a.dias_restantes <= 0 ? 'vencido' : `en ${a.dias_restantes}d`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-3">

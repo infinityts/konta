@@ -1,6 +1,7 @@
 """Tests de la API: auth, CRUD y aislamiento multi-usuario."""
 
 import uuid
+from datetime import date, timedelta
 
 
 def _registrar(client, email: str | None = None):
@@ -143,3 +144,26 @@ def test_etiquetas_y_subetiquetas(client):
     # borrar la raíz elimina la subetiqueta en cascada
     assert client.delete(f"/etiquetas/{root['id']}", headers=h).status_code == 204
     assert len(client.get("/etiquetas", headers=h).json()) == 0
+
+
+def test_alertas_de_pagos(client):
+    _, h = _registrar(client)
+    hoy = date.today()
+
+    # suscripción que vence en 3 días
+    client.post(
+        "/suscripciones", headers=h,
+        json={"nombre": "Netflix", "monto": "26000", "periodicidad": "mensual", "proximo_pago": (hoy + timedelta(days=3)).isoformat()},
+    )
+    # tarjeta con día de pago y corte hoy
+    client.post(
+        "/tarjetas", headers=h,
+        json={"nombre": "Visa", "tipo": "credito", "dia_pago": hoy.day, "dia_corte": hoy.day},
+    )
+
+    r = client.get("/alertas", headers=h)
+    assert r.status_code == 200
+    tipos = {a["tipo"] for a in r.json()}
+    assert "suscripcion" in tipos
+    assert "tarjeta_pago" in tipos
+    assert "tarjeta_corte" in tipos

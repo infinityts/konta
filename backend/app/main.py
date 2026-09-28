@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .recurrencia import procesar_ingresos_vencidos
 from .routers import (
+    alertas,
     auth,
     categorias,
     etiquetas,
@@ -50,6 +51,7 @@ app.include_router(suscripciones.router)
 app.include_router(transacciones.router)
 app.include_router(ingresos_recurrentes.router)
 app.include_router(etiquetas.router)
+app.include_router(alertas.router)
 
 
 @app.get("/health")
