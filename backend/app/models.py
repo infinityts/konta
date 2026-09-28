@@ -332,3 +332,38 @@ class ItemLista(Base):
     precio_estimado: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     comprado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class MetaAhorro(Base):
+    """Meta de ahorro (se nutre de aportes)."""
+
+    __tablename__ = "metas_ahorro"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    monto_objetivo: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    fecha_limite: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class AporteMeta(Base):
+    """Aporte a una meta de ahorro."""
+
+    __tablename__ = "aportes_meta"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    meta_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("metas_ahorro.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    monto: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    fecha: Mapped[date] = mapped_column(Date, nullable=False, default=_ahora)
+    notas: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

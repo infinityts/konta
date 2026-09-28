@@ -398,3 +398,30 @@ def test_flujo_caja(client):
     for m in d["meses"]:
         acum += m["balance"]
         assert abs(m["acumulado"] - acum) < 0.01
+
+
+def test_metas_ahorro(client):
+    _, h = _registrar(client)
+
+    m = client.post("/metas", headers=h, json={"nombre": "Viaje", "monto_objetivo": "1000000"}).json()
+    assert m["monto_actual"] == 0.0
+    assert m["porcentaje"] == 0.0
+    assert m["completada"] is False
+    assert m["aporte_mensual_sugerido"] is None
+
+    client.post(f"/metas/{m['id']}/aportes", headers=h, json={"monto": "250000"})
+    metas = client.get("/metas", headers=h).json()
+    assert metas[0]["monto_actual"] == 250000.0
+    assert metas[0]["restante"] == 750000.0
+    assert metas[0]["porcentaje"] == 25.0
+
+    client.post(f"/metas/{m['id']}/aportes", headers=h, json={"monto": "750000"})
+    metas = client.get("/metas", headers=h).json()
+    assert metas[0]["completada"] is True
+    assert metas[0]["porcentaje"] == 100.0
+    assert len(client.get(f"/metas/{m['id']}/aportes", headers=h).json()) == 2
+
+    # con fecha límite -> aporte mensual sugerido
+    futuro = (date.today() + timedelta(days=60)).isoformat()
+    m2 = client.post("/metas", headers=h, json={"nombre": "Carro", "monto_objetivo": "600000", "fecha_limite": futuro}).json()
+    assert m2["aporte_mensual_sugerido"] is not None

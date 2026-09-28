@@ -490,3 +490,52 @@ class FlujoCajaOut(BaseModel):
     total_ingresos: float
     total_gastos: float
     balance_final: float
+
+
+# --- metas de ahorro ---
+
+
+class MetaIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    monto_objetivo: Decimal = Field(gt=0)
+    moneda: str = "COP"
+    fecha_limite: date | None = None
+    notas: str | None = None
+
+
+class MetaUpdate(BaseModel):
+    nombre: str | None = None
+    monto_objetivo: Decimal | None = Field(None, gt=0)
+    moneda: str | None = None
+    fecha_limite: date | None = None
+    notas: str | None = None
+
+
+class AporteIn(BaseModel):
+    monto: Decimal = Field(gt=0)
+    fecha: date | None = None
+    notas: str | None = None
+
+
+class AporteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    meta_id: uuid.UUID
+    monto: Decimal
+    fecha: date
+    notas: str | None
+
+
+class MetaOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    monto_objetivo: Decimal
+    moneda: str
+    monto_actual: float
+    restante: float
+    porcentaje: float
+    fecha_limite: date | None
+    aporte_mensual_sugerido: float | None
+    completada: bool
+    notas: str | None

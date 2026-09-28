@@ -193,6 +193,20 @@ export interface FlujoCaja {
   balance_final: number
 }
 
+export interface Meta {
+  id: string
+  nombre: string
+  monto_objetivo: number | string
+  moneda: string
+  monto_actual: number
+  restante: number
+  porcentaje: number
+  fecha_limite: string | null
+  aporte_mensual_sugerido: number | null
+  completada: boolean
+  notas: string | null
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string

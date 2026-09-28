@@ -37,6 +37,10 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - **Flujo de caja**: proyección a 3/6/12 meses combinando ingresos recurrentes,
   suscripciones activas y el gasto variable promedio; muestra balance y acumulado.
 
+### Ahorro
+- **Metas de ahorro**: objetivo, **aportes**, progreso (%) y **aporte mensual sugerido**
+  según la fecha límite.
+
 ### Documentos
 - **Facturas PDF**: subida, extracción de texto (**pypdf** + **OCR tesseract** en
   español) y detección heurística de **monto** y **fecha**; asociación a transacciones.
@@ -144,6 +148,7 @@ aislados por usuario.
 | **Monedas / tasas** | `GET /monedas`, `GET/POST /tasas`, `DELETE /tasas/{id}`, `POST /tasas/actualizar`, `GET /convertir?de=&a=&monto=` |
 | **Respaldo** | `GET /exportar/json`, `GET /exportar/transacciones.csv`, `POST /respaldar/restaurar` |
 | **Flujo de caja** | `GET /flujo-caja?meses=6` |
+| **Metas de ahorro** | `GET/POST /metas`, `PATCH/DELETE /metas/{id}`, `GET/POST /metas/{id}/aportes`, `DELETE /metas/aportes/{id}` |
 
 ---
 
@@ -159,6 +164,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0004_facturas` | `facturas` |
 | `0005_presupuestos` | `presupuestos` |
 | `0006_mercado` | `productos`, `precios_mercado`, `lista_mercado` |
+| `0007_metas_ahorro` | `metas_ahorro`, `aportes_meta` |
 
 ---
 
@@ -177,8 +183,7 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja
-- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja + metas de ahorro
+- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas
 - [x] Despliegue con Docker/Podman
-- [ ] Metas de ahorro
 - [ ] Notificaciones de alarmas por email/Telegram
