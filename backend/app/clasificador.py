@@ -124,9 +124,10 @@ def _por_diccionario(patron: str, por_nombre: dict[str, object]) -> tuple[object
             if not k:
                 continue
             # (?:S|ES)? tolera plurales: HUEVO -> HUEVOS
-            if re.search(rf"\b{re.escape(k)}(?:S|ES)?\b", patron):
-                if mejor is None or len(k) > mejor[0]:
-                    mejor = (len(k), etiqueta_id)
+            if re.search(rf"\b{re.escape(k)}(?:S|ES)?\b", patron) and (
+                mejor is None or len(k) > mejor[0]
+            ):
+                mejor = (len(k), etiqueta_id)
     if mejor is not None:
         return mejor[1], "diccionario", Decimal("0.85")
     return None
@@ -156,7 +157,8 @@ def _por_embeddings(
         pv = emb(perfil)
         if pv is None or len(pv) != len(vector):
             continue
-        prod = sum(a * b for a, b in zip(vector, pv))
+        # Ya se comprobó arriba que miden lo mismo
+        prod = sum(a * b for a, b in zip(vector, pv, strict=True))
         na = math.sqrt(sum(a * a for a in vector))
         nb = math.sqrt(sum(b * b for b in pv))
         sim = prod / (na * nb) if na and nb else 0.0
@@ -189,7 +191,7 @@ def clasificar(
     ):
         try:
             resultado = nivel()
-        except Exception:
+        except Exception:  # noqa: BLE001 — los embeddings son opcionales: si Ollama no responde se sigue con el siguiente nivel
             resultado = None
         if resultado:
             return resultado

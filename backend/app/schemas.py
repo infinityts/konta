@@ -17,7 +17,7 @@ from .models import (
     TipoTarjeta,
     TipoTransaccion,
 )
-
+from .recurrencia import hoy
 
 # --- auth ---
 
@@ -337,8 +337,10 @@ class AseguradoIn(BaseModel):
     es_titular: bool = False
 
     @model_validator(mode="after")
-    def _validar_nacimiento(self) -> "AseguradoIn":
-        if self.fecha_nacimiento and self.fecha_nacimiento > date.today():
+    def _validar_nacimiento(self) -> AseguradoIn:
+        # `hoy()` respeta FINANZAS_TIMEZONE; `date.today()` usa la del servidor y
+        # podía rechazar un nacimiento de hoy (o aceptar uno de mañana)
+        if self.fecha_nacimiento and self.fecha_nacimiento > hoy():
             raise ValueError("La fecha de nacimiento no puede estar en el futuro")
         return self
 
@@ -380,7 +382,7 @@ class PolizaIn(BaseModel):
     notas: str | None = None
 
     @model_validator(mode="after")
-    def _validar_vigencia(self) -> "PolizaIn":
+    def _validar_vigencia(self) -> PolizaIn:
         if self.fecha_inicio and self.fecha_fin and self.fecha_fin < self.fecha_inicio:
             raise ValueError("La fecha de fin no puede ser anterior a la de inicio")
         return self
@@ -459,7 +461,7 @@ class IngresoRecurrenteIn(BaseModel):
     cuenta_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def _validar_dia(self) -> "IngresoRecurrenteIn":
+    def _validar_dia(self) -> IngresoRecurrenteIn:
         if self.periodicidad == PeriodicidadIngreso.MENSUAL and not (self.dia is not None and 1 <= self.dia <= 31):
             raise ValueError("Para periodicidad mensual, 'dia' debe estar entre 1 y 31")
         if self.periodicidad == PeriodicidadIngreso.SEMANAL and not (self.dia is not None and 0 <= self.dia <= 6):

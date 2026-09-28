@@ -69,7 +69,7 @@ def actualizar_tasas(base: str = "USD", db: Session = Depends(get_db), user: Usu
     try:
         n = actualizar_desde_internet(db, base.upper())
     except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"actualizadas": n, "base": base.upper(), "fuente": "open.er-api.com"}
 
 

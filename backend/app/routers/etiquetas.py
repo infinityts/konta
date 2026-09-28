@@ -114,7 +114,7 @@ def crear(data: EtiquetaIn, db: Session = Depends(get_db), user: Usuario = Depen
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail=_msg(nombre, data.padre_id))
+        raise HTTPException(status_code=400, detail=_msg(nombre, data.padre_id)) from None
     db.refresh(obj)
     return obj
 
@@ -157,7 +157,7 @@ def actualizar(id: uuid.UUID, data: EtiquetaUpdate, db: Session = Depends(get_db
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail=_msg(nombre, padre_id))
+        raise HTTPException(status_code=400, detail=_msg(nombre, padre_id)) from None
     db.refresh(obj)
     return obj
 

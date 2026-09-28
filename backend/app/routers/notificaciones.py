@@ -62,7 +62,7 @@ def probar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
     try:
         enviados = enviar(config, alertas)
     except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"enviados": enviados, "alertas": len(alertas)}
 
 
@@ -75,10 +75,12 @@ def detectar_telegram(user: Usuario = Depends(get_current_user)):
 
     url = f"https://api.telegram.org/bot{token}/getUpdates"
     try:
-        with urllib.request.urlopen(url, timeout=15) as resp:  # noqa: S310
+        with urllib.request.urlopen(url, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"No se pudo consultar Telegram: {exc}")
+        raise HTTPException(
+            status_code=502, detail=f"No se pudo consultar Telegram: {exc}"
+        ) from exc
 
     chats: dict[str, str] = {}
     for upd in data.get("result", []):

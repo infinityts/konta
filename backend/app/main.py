@@ -49,8 +49,10 @@ async def lifespan(app: FastAPI):
         try:
             # catch-up al arrancar (ingresos vencidos mientras el app estaba apagada)
             procesar_ingresos_vencidos()
+        # Que un fallo aquí no impida arrancar, pero que quede en el log (antes se
+        # lo tragaba con un `pass`)
         except Exception:
-            pass
+            logger.exception("No se pudieron procesar los ingresos vencidos al arrancar")
     yield
     if get_settings().scheduler_enabled:
         stop_scheduler()
@@ -101,7 +103,7 @@ def health(db: Session = Depends(get_db)):
     """
     try:
         db.execute(text("SELECT 1"))
-    except Exception as exc:  # cualquier fallo aquí significa «no puedo servir»
+    except Exception as exc:  # cualquier fallo aquí significa «no puedo servir»  # noqa: BLE001 — cualquier fallo aquí significa «no puedo servir»: se responde 503
         logger.warning("health: la base de datos no responde (%s)", exc)
         return JSONResponse(
             status_code=503,

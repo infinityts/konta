@@ -12,7 +12,16 @@ from sqlalchemy.orm import Session
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
 from ..intereses import mensual_desde_ea, pago_minimo, simular_pago
-from ..models import Cuenta, DeudaTarjeta, PagoTarjeta, Tarjeta, TipoTarjeta, Transaccion, TipoTransaccion, Usuario
+from ..models import (
+    Cuenta,
+    DeudaTarjeta,
+    PagoTarjeta,
+    Tarjeta,
+    TipoTarjeta,
+    TipoTransaccion,
+    Transaccion,
+    Usuario,
+)
 from ..recurrencia import hoy
 from ..schemas import (
     DeudaIn,
@@ -26,7 +35,6 @@ from ..schemas import (
     TarjetaUpdate,
 )
 from ..tarjetas import con_deuda, deuda_por_moneda
-from ..tasas import obtener_tasa
 
 router = APIRouter(prefix="/tarjetas", tags=["tarjetas"])
 

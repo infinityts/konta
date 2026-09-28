@@ -14,7 +14,7 @@ transacción por línea**.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -103,7 +103,7 @@ def _aprender(db: Session, usuario_id: uuid.UUID, descripcion: str, etiqueta_id:
     else:
         regla.etiqueta_id = etiqueta_id
         regla.veces_usada += 1
-        regla.actualizada_en = datetime.now(timezone.utc)
+        regla.actualizada_en = datetime.now(UTC)
 
 
 # --- facturas -------------------------------------------------------------- #

@@ -43,7 +43,7 @@ def enviar_telegram(chat_id: str, texto: str) -> None:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     datos = urllib.parse.urlencode({"chat_id": chat_id, "text": texto}).encode()
     try:
-        with urllib.request.urlopen(url, data=datos, timeout=15) as resp:  # noqa: S310
+        with urllib.request.urlopen(url, data=datos, timeout=15) as resp:
             cuerpo = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
         raise RuntimeError(f"No se pudo hablar con Telegram: {exc}") from exc
@@ -93,7 +93,7 @@ def enviar_whatsapp(numero: str, texto: str) -> None:
             "text": {"body": texto},
         }
     ).encode("utf-8")
-    peticion = urllib.request.Request(  # noqa: S310
+    peticion = urllib.request.Request(
         url,
         data=cuerpo,
         headers={
@@ -102,7 +102,7 @@ def enviar_whatsapp(numero: str, texto: str) -> None:
         },
     )
     try:
-        with urllib.request.urlopen(peticion, timeout=15) as resp:  # noqa: S310
+        with urllib.request.urlopen(peticion, timeout=15) as resp:
             json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
         raise RuntimeError(f"No se pudo hablar con WhatsApp: {exc}") from exc

@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .jerarquia import mapa_etiquetas, ruta_etiqueta
-from .models import Categoria, Etiqueta, Transaccion, TipoTransaccion
+from .models import Categoria, Etiqueta, TipoTransaccion, Transaccion
 from .recurrencia import hoy
 
 

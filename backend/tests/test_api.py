@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from app.defaults import DEFAULT_CATEGORIAS
+from app.recurrencia import hoy as hoy_app
 
 # Nº de categorías que recibe un usuario nuevo. Se lee de `app/defaults.py`
 # para que añadir o quitar una categoría por defecto no deje el test en rojo.
@@ -158,7 +159,7 @@ def test_etiquetas_y_subetiquetas(client):
 
 def test_alertas_de_pagos(client):
     _, h = _registrar(client)
-    hoy = date.today()
+    hoy = hoy_app()
 
     # suscripción que vence en 3 días
     client.post(
@@ -181,7 +182,7 @@ def test_alertas_de_pagos(client):
 
 def test_reportes(client):
     _, h = _registrar(client)
-    hoy = date.today()
+    hoy = hoy_app()
     client.post("/transacciones", headers=h, json={"tipo": "ingreso", "monto": "1000", "fecha": hoy.isoformat(), "descripcion": "sueldo"})
     client.post("/transacciones", headers=h, json={"tipo": "gasto", "monto": "400", "fecha": hoy.isoformat(), "descripcion": "comida"})
 
@@ -242,7 +243,7 @@ def test_presupuestos(client):
     _, h = _registrar(client)
     cats = client.get("/categorias", headers=h).json()
     mercado = next(c for c in cats if c["nombre"] == "Mercado")
-    hoy = date.today()
+    hoy = hoy_app()
 
     # gasto de 300 en Mercado
     client.post("/transacciones", headers=h, json={"tipo": "gasto", "monto": "300", "fecha": hoy.isoformat(), "categoria_id": mercado["id"]})
@@ -482,7 +483,7 @@ def test_tarjeta_debito_asociada_a_cuenta(client):
 
     # el movimiento con la débito baja el saldo de ESA cuenta
     client.post("/transacciones", headers=h, json={
-        "tipo": "gasto", "monto": "127240", "fecha": date.today().isoformat(),
+        "tipo": "gasto", "monto": "127240", "fecha": hoy_app().isoformat(),
         "descripcion": "Internet Movistar", "tarjeta_id": debito["id"], "cuenta_id": cuenta["id"],
     })
     saldos = client.get("/saldos", headers=h).json()
@@ -571,7 +572,7 @@ def test_suscripcion_genera_transaccion(client, engine):
     etq = client.post("/etiquetas", headers=h, json={"nombre": "Streaming", "categoria_id": cat["id"]}).json()
     sub_etq = client.post("/etiquetas", headers=h, json={"nombre": "Netflix", "padre_id": etq["id"]}).json()
 
-    hoy = date.today()
+    hoy = hoy_app()
     vencido = (hoy - timedelta(days=1)).isoformat()
     r = client.post("/suscripciones", headers=h, json={
         "nombre": "Netflix", "monto": "44900", "periodicidad": "mensual",
@@ -607,7 +608,7 @@ def test_suscripcion_pausada_no_genera(client, engine):
     from app.recurrencia import procesar_suscripciones
 
     _, h = _registrar(client)
-    hoy = date.today()
+    hoy = hoy_app()
     client.post("/suscripciones", headers=h, json={
         "nombre": "Pausada", "monto": "10000", "periodicidad": "mensual",
         "proximo_pago": (hoy - timedelta(days=5)).isoformat(), "estado": "pausada",
@@ -656,7 +657,7 @@ def test_exportar_y_restaurar(client):
 
 def test_flujo_caja(client):
     _, h = _registrar(client)
-    hoy = date.today()
+    hoy = hoy_app()
 
     def mes_atras(n: int) -> date:
         y, m = hoy.year, hoy.month - n
@@ -711,7 +712,7 @@ def test_metas_ahorro(client):
     assert len(client.get(f"/metas/{m['id']}/aportes", headers=h).json()) == 2
 
     # con fecha límite -> aporte mensual sugerido
-    futuro = (date.today() + timedelta(days=60)).isoformat()
+    futuro = (hoy_app() + timedelta(days=60)).isoformat()
     m2 = client.post("/metas", headers=h, json={"nombre": "Carro", "monto_objetivo": "600000", "fecha_limite": futuro}).json()
     assert m2["aporte_mensual_sugerido"] is not None
 
@@ -741,7 +742,7 @@ def test_notificaciones(client):
     from app.notificaciones import construir_mensaje
 
     texto = construir_mensaje(
-        [{"fecha": date.today(), "dias_restantes": 0, "titulo": "Netflix", "monto": 50000, "moneda": "COP"}]
+        [{"fecha": hoy_app(), "dias_restantes": 0, "titulo": "Netflix", "monto": 50000, "moneda": "COP"}]
     )
     assert "Netflix" in texto
     assert "hoy" in texto
@@ -770,7 +771,7 @@ def test_cuentas_saldos_y_subcategorias(client):
     arbol = client.get("/categorias/arbol", headers=h).json()
     assert any(n["nombre"] == "Movilidad" and n["subcategorias"] == [] for n in arbol)
 
-    hoy = date.today()
+    hoy = hoy_app()
     client.post("/transacciones", headers=h, json={
         "tipo": "gasto", "monto": "200000", "fecha": hoy.isoformat(),
         "categoria_id": raiz["id"], "etiqueta_id": etq["id"], "cuenta_id": cta["id"],
@@ -805,7 +806,7 @@ def test_cuentas_saldos_y_subcategorias(client):
 def test_saldo_sin_cuentas_y_asignacion(client):
     """Sin cuentas el saldo es solo flujo; al crear una cuenta y adoptar movimientos, es real."""
     _, h = _registrar(client)
-    hoy = date.today()
+    hoy = hoy_app()
     comida = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
 
     # gasto sin cuenta
@@ -835,7 +836,7 @@ def test_saldo_sin_cuentas_y_asignacion(client):
 def test_diagnostico_de_sobregiro(client):
     _, h = _registrar(client)
     cta = client.post("/cuentas", headers=h, json={"nombre": "Efectivo", "saldo_inicial": "100000"}).json()
-    hoy = date.today()
+    hoy = hoy_app()
     comida = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
     client.post("/transacciones", headers=h, json={
         "tipo": "gasto", "monto": "300000", "fecha": hoy.isoformat(),
@@ -1074,7 +1075,7 @@ def test_notificaciones_whatsapp(client):
 def test_polizas_crud_y_aislamiento(client):
     """Póliza de vehículo: datos del bien, vigencia, edición y aislamiento."""
     _, h = _registrar(client)
-    hoy = date.today()
+    hoy = hoy_app()
 
     r = client.post(
         "/polizas",
@@ -1189,14 +1190,14 @@ def test_poliza_genera_su_gasto(client, engine):
     """La prima vencida genera el gasto (idempotente) y se pone al día."""
     from sqlalchemy.orm import sessionmaker
 
-    from app.models import Poliza, Transaccion
-    from app.recurrencia import hoy, procesar_polizas
+    from app.models import Poliza
+    from app.recurrencia import procesar_polizas
 
     _, h = _registrar(client)
     cats = client.get("/categorias", headers=h).json()
     cat = next(c for c in cats if c["nombre"] == "Vivienda")
     cta = client.post("/cuentas", headers=h, json={"nombre": "Efectivo", "saldo_inicial": "0"}).json()
-    hoy_ = hoy()
+    hoy_ = hoy_app()
 
     pol = client.post(
         "/polizas",
@@ -1243,7 +1244,7 @@ def test_poliza_genera_su_gasto(client, engine):
 def test_polizas_alertas_y_resumen(client):
     """Alertas de prima y de vencimiento de vigencia, y costo normalizado a COP."""
     _, h = _registrar(client)
-    hoy_ = date.today()
+    hoy_ = hoy_app()
 
     client.post("/polizas", headers=h, json={
         "tipo": "salud", "aseguradora": "Colsanitas", "asegurado_nombre": "Ana",
@@ -1341,7 +1342,7 @@ def test_respaldo_incluye_polizas_y_lo_que_faltaba(client):
 def test_flujo_caja_convierte_monedas_y_suma_polizas(client):
     """El flujo de caja no puede mezclar monedas ni ignorar las pólizas."""
     _, h = _registrar(client)
-    hoy_ = date.today()
+    hoy_ = hoy_app()
     client.post("/tasas", headers=h, json={"moneda_origen": "USD", "moneda_destino": "COP", "tasa": "4000"})
 
     # Suscripción de USD 10 al mes -> 40.000 COP, no 10
@@ -1370,7 +1371,7 @@ def test_flujo_caja_convierte_monedas_y_suma_polizas(client):
 def test_flujo_caja_avisa_de_monedas_sin_tasa(client):
     """Sin tasa de cambio no se suma: se avisa, en vez de inventar el número."""
     _, h = _registrar(client)
-    hoy_ = date.today()
+    hoy_ = hoy_app()
     client.post("/suscripciones", headers=h, json={
         "nombre": "Revista", "monto": "5", "moneda": "EUR",
         "periodicidad": "mensual", "proximo_pago": hoy_.isoformat(),
@@ -1389,10 +1390,10 @@ def test_flujo_caja_no_cuenta_dos_veces_el_gasto_de_una_poliza(client, engine):
     """El gasto que genera una póliza es fijo, no variable: no puede contarse dos veces."""
     from sqlalchemy.orm import sessionmaker
 
-    from app.recurrencia import hoy, procesar_polizas
+    from app.recurrencia import procesar_polizas
 
     _, h = _registrar(client)
-    hoy_ = hoy()
+    hoy_ = hoy_app()
     # El 10 del mes anterior: cae dentro de los meses completos del promedio
     mes_anterior = (date(hoy_.year, hoy_.month, 1) - timedelta(days=1)).replace(day=10)
     pol = client.post("/polizas", headers=h, json={
@@ -1416,7 +1417,7 @@ def test_flujo_caja_no_cuenta_dos_veces_el_gasto_de_una_poliza(client, engine):
 def test_reportes_seguros_por_tipo(client):
     """El reporte de seguros: costo anual, desglose por tipo y monedas sin tasa."""
     _, h = _registrar(client)
-    hoy_ = date.today()
+    hoy_ = hoy_app()
 
     # 600.000 al año -> 50.000/mes
     client.post("/polizas", headers=h, json={
@@ -1806,7 +1807,7 @@ TOTAL                       17.200
 def test_transferencia_mueve_dos_cuentas_sin_contaminar_reportes(client):
     """Mover dinero entre cuentas no es ingreso ni gasto: no toca reportes ni flujo."""
     _, h = _registrar(client)
-    hoy_ = date.today()
+    hoy_ = hoy_app()
     ahorros = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "1000000"}).json()
     diario = client.post("/cuentas", headers=h, json={"nombre": "Diario", "saldo_inicial": "0"}).json()
     cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
@@ -1847,7 +1848,7 @@ def test_transferencia_mueve_dos_cuentas_sin_contaminar_reportes(client):
     # El desglose por categoría tampoco la muestra
     categorias = client.get(f"/reportes/categorias?mes={hoy_.strftime('%Y-%m')}", headers=h).json()
     assert all(c["tipo"] == "gasto" for c in categorias)
-    assert not any("Sin categoría" == c["categoria"] for c in categorias)
+    assert not any(c["categoria"] == "Sin categoría" for c in categorias)
 
 
 def test_transferencia_reglas_de_validacion(client):
@@ -1857,7 +1858,7 @@ def test_transferencia_reglas_de_validacion(client):
     b = client.post("/cuentas", headers=h, json={"nombre": "B", "saldo_inicial": "0"}).json()
     usd = client.post("/cuentas", headers=h, json={"nombre": "USD", "moneda": "USD", "saldo_inicial": "0"}).json()
     cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
-    hoy_ = date.today().isoformat()
+    hoy_ = hoy_app().isoformat()
 
     def enviar(**extra):
         cuerpo = {"tipo": "transferencia", "monto": "1000", "fecha": hoy_,
@@ -1973,7 +1974,7 @@ def test_copiar_etiquetas_de_otra_categoria(client):
     assert internet_c3["padre_id"] == raiz_c3["id"]
 
     # 5) Las etiquetas copiadas sirven para clasificar de verdad
-    hoy_ = date.today().isoformat()
+    hoy_ = hoy_app().isoformat()
     tx = client.post("/transacciones", headers=h, json={
         "tipo": "gasto", "monto": "90000", "fecha": hoy_,
         "descripcion": "Internet del mes", "etiqueta_id": copiadas["Internet"]["id"],
@@ -2021,7 +2022,7 @@ def test_transaccion_recurrente_crea_el_compromiso(client):
     cuenta = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "3000000"}).json()
     cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Vivienda")
     etq = client.post("/etiquetas", headers=h, json={"nombre": "Arriendo", "categoria_id": cat["id"]}).json()
-    hoy_ = date.today()
+    hoy_ = hoy_app()
 
     r = client.post("/transacciones", headers=h, json={
         "tipo": "gasto", "monto": "1500000", "fecha": hoy_.isoformat(),
@@ -2060,7 +2061,7 @@ def test_recurrente_no_duplica_el_periodo_y_sigue_generando(client, engine):
     _, h = _registrar(client)
     cuenta = client.post("/cuentas", headers=h, json={"nombre": "Diario", "saldo_inicial": "1000000"}).json()
     cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Suscripciones")
-    hoy_ = date.today()
+    hoy_ = hoy_app()
 
     r = client.post("/transacciones", headers=h, json={
         "tipo": "gasto", "monto": "44900", "fecha": hoy_.isoformat(),
@@ -2096,7 +2097,7 @@ def test_transaccion_recurrente_ingreso(client):
     _, h = _registrar(client)
     cuenta = client.post("/cuentas", headers=h, json={"nombre": "Nómina", "saldo_inicial": "0"}).json()
     cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Salario")
-    hoy_ = date.today()
+    hoy_ = hoy_app()
 
     r = client.post("/transacciones", headers=h, json={
         "tipo": "ingreso", "monto": "5000000", "fecha": hoy_.isoformat(),
@@ -2123,7 +2124,7 @@ def test_recurrente_validaciones(client):
     _, h = _registrar(client)
     cuenta = client.post("/cuentas", headers=h, json={"nombre": "A", "saldo_inicial": "0"}).json()
     otra = client.post("/cuentas", headers=h, json={"nombre": "B", "saldo_inicial": "0"}).json()
-    hoy_ = date.today().isoformat()
+    hoy_ = hoy_app().isoformat()
 
     def enviar(**extra):
         return client.post("/transacciones", headers=h, json={
@@ -2171,7 +2172,7 @@ def test_pago_de_tarjeta_baja_la_cuenta_y_la_deuda(client):
     tarjeta = client.post("/tarjetas", headers=h, json={
         "nombre": "Visa", "tipo": "credito", "banco": "Bogotá",
     }).json()
-    hoy_ = date.today().isoformat()
+    hoy_ = hoy_app().isoformat()
 
     # Lo que dice el extracto
     client.post(f"/tarjetas/{tarjeta['id']}/deudas", headers=h, json={"moneda": "COP", "monto": "1000000"})
@@ -2295,7 +2296,7 @@ def test_pago_de_tarjeta_validaciones(client):
     }).status_code == 404
 
     # La transferencia a una tarjeta también se puede hacer a mano, pero solo a crédito
-    hoy_ = date.today().isoformat()
+    hoy_ = hoy_app().isoformat()
     r = client.post("/transacciones", headers=h, json={
         "tipo": "transferencia", "monto": "1000", "fecha": hoy_,
         "cuenta_id": cuenta["id"], "tarjeta_id": debito["id"],

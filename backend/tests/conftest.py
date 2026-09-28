@@ -26,8 +26,9 @@ if TEST_URL:
 def engine():
     if not TEST_URL:
         pytest.skip("FINANZAS_TEST_DATABASE_URL no definida")
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", TEST_URL)

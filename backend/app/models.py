@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -24,7 +24,8 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID, ENUM as PG_ENUM
+from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
+from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -37,18 +38,18 @@ def _uuid() -> uuid.UUID:
 
 
 def _ahora() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # --- Vocabulario congelado (coincide con la migración 0001) ---
 
 
-class TipoCategoria(str, enum.Enum):
+class TipoCategoria(enum.StrEnum):
     INGRESO = "ingreso"
     GASTO = "gasto"
 
 
-class Periodicidad(str, enum.Enum):
+class Periodicidad(enum.StrEnum):
     SEMANAL = "semanal"
     MENSUAL = "mensual"
     TRIMESTRAL = "trimestral"
@@ -56,18 +57,18 @@ class Periodicidad(str, enum.Enum):
     ANUAL = "anual"
 
 
-class EstadoSuscripcion(str, enum.Enum):
+class EstadoSuscripcion(enum.StrEnum):
     ACTIVA = "activa"
     PAUSADA = "pausada"
     CANCELADA = "cancelada"
 
 
-class TipoTarjeta(str, enum.Enum):
+class TipoTarjeta(enum.StrEnum):
     CREDITO = "credito"
     DEBITO = "debito"
 
 
-class TipoTransaccion(str, enum.Enum):
+class TipoTransaccion(enum.StrEnum):
     INGRESO = "ingreso"
     GASTO = "gasto"
     # Mover dinero entre dos cuentas propias: **no** es ingreso ni gasto, así que
@@ -246,7 +247,7 @@ class Transaccion(Base):
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
-class PeriodicidadIngreso(str, enum.Enum):
+class PeriodicidadIngreso(enum.StrEnum):
     DIARIO = "diario"
     SEMANAL = "semanal"
     MENSUAL = "mensual"

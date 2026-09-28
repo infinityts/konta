@@ -79,7 +79,7 @@ def crear(data: CategoriaIn, db: Session = Depends(get_db), user: Usuario = Depe
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre))
+        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre)) from None
     db.refresh(obj)
     return obj
 
@@ -153,7 +153,7 @@ def actualizar(id: uuid.UUID, data: CategoriaUpdate, db: Session = Depends(get_d
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre))
+        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre)) from None
     db.refresh(obj)
     return obj
 

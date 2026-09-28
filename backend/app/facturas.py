@@ -56,7 +56,7 @@ def extraer_texto(contenido: bytes, nombre: str = "", content_type: str | None =
             from PIL import Image
 
             return _ocr_imagen(Image.open(io.BytesIO(contenido)))
-        except Exception:
+        except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
             return ""
 
     # 1. PDF digital
@@ -66,7 +66,7 @@ def extraer_texto(contenido: bytes, nombre: str = "", content_type: str | None =
 
         reader = PdfReader(io.BytesIO(contenido))
         texto = "\n".join((pagina.extract_text() or "") for pagina in reader.pages)
-    except Exception:
+    except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
         texto = ""
 
     if texto.strip():
@@ -79,7 +79,7 @@ def extraer_texto(contenido: bytes, nombre: str = "", content_type: str | None =
 
         paginas = convert_from_bytes(contenido)
         return "\n".join(pytesseract.image_to_string(_preprocesar(p), lang="spa") for p in paginas)
-    except Exception:
+    except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
         return texto
 
 

@@ -60,7 +60,7 @@ def actualizar_desde_internet(db: Session, base: str = "USD") -> int:
     """Descarga las tasas de la API pública y las guarda (una por moneda del catálogo)."""
     url = f"https://open.er-api.com/v6/latest/{base}"
     try:
-        with urllib.request.urlopen(url, timeout=15) as resp:  # noqa: S310
+        with urllib.request.urlopen(url, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:  # pragma: no cover - depende de la red
         raise RuntimeError(f"No se pudo consultar las tasas: {exc}") from exc
@@ -109,7 +109,7 @@ def actualizar_trm(db: Session) -> Decimal:
     devuelve `open.er-api.com`. Se guarda como USD -> COP.
     """
     try:
-        with urllib.request.urlopen(URL_TRM, timeout=15) as resp:  # noqa: S310
+        with urllib.request.urlopen(URL_TRM, timeout=15) as resp:
             datos = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:  # pragma: no cover - depende de la red
         raise RuntimeError(f"No se pudo consultar la TRM: {exc}") from exc

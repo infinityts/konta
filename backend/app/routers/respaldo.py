@@ -70,8 +70,10 @@ async def restaurar_respaldo(
     contenido = await archivo.read()
     try:
         datos = json.loads(contenido.decode("utf-8"))
-    except Exception:
-        raise HTTPException(status_code=400, detail="El archivo no es un respaldo JSON válido")
+    except Exception:  # noqa: BLE001 — un JSON inválido es un 400, no un error del servidor
+        raise HTTPException(
+            status_code=400, detail="El archivo no es un respaldo JSON válido"
+        ) from None
     if not isinstance(datos, dict):
         raise HTTPException(status_code=400, detail="Formato de respaldo inválido")
 

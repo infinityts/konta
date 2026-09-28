@@ -38,13 +38,14 @@ def get_current_user(
     )
     try:
         user_id = decode_token(token)
-    except Exception:
-        raise credenciales_invalidas
+    # `from None`: el motivo real del fallo del token no se le cuenta al cliente
+    except Exception:  # noqa: BLE001 — cualquier fallo al decodificar el token es un 401; el motivo no se le cuenta al cliente
+        raise credenciales_invalidas from None
 
     try:
         usuario = db.get(Usuario, uuid.UUID(user_id))
     except ValueError:
-        raise credenciales_invalidas
+        raise credenciales_invalidas from None
 
     if usuario is None:
         raise credenciales_invalidas

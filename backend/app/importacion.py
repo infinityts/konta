@@ -46,7 +46,8 @@ def _parse_fecha(texto: str) -> date | None:
     s = (texto or "").strip()
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%Y/%m/%d", "%m/%d/%Y"):
         try:
-            return datetime.strptime(s, fmt).date()
+            # Solo se usa la parte de fecha: no hay hora ni zona que perder
+            return datetime.strptime(s, fmt).date()  # noqa: DTZ007
         except ValueError:
             continue
     return None

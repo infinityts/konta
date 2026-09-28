@@ -7,7 +7,7 @@ on:
 
 jobs:
   backend:
-    name: Backend (pytest + alembic check)
+    name: Backend (ruff + pytest + alembic check)
     runs-on: ubuntu-latest
 
     services:
@@ -51,6 +51,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+
+      # Primero el linter: es lo más rápido y lo que mejor explica un fallo.
+      # La config vive en pyproject.toml ([tool.ruff]), con B008 (Depends en los
+      # valores por defecto) y FURB157 (Decimal("0.00")) ignorados a propósito.
+      - name: Linter (ruff)
+        run: ruff check .
 
       - name: Migraciones (Alembic)
         run: alembic upgrade head

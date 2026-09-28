@@ -75,7 +75,7 @@ def url_migraciones():
         with admin.connect() as conn:
             conn.execute(text(f'DROP DATABASE IF EXISTS "{NOMBRE_BD}" WITH (FORCE)'))
             conn.execute(text(f'CREATE DATABASE "{NOMBRE_BD}"'))
-    except Exception as exc:  # sin permiso para crear bases
+    except Exception as exc:  # sin permiso para crear bases  # noqa: BLE001 — sin permiso para crear bases de datos, el test se salta
         admin.dispose()
         pytest.skip(f"No se pudo crear la base de pruebas: {exc}")
     yield destino.render_as_string(hide_password=False)
@@ -85,8 +85,9 @@ def url_migraciones():
 
 
 def _migrar(url: str, revision: str) -> None:
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", url)
@@ -302,15 +303,14 @@ def test_migraciones_de_datos_sobre_una_base_con_filas(url_migraciones):
             assert categoria == RAIZ, f"{tabla} debía quedar en la raíz"
 
     # --- la unicidad entre hermanos ya se aplica ---
-    with motor.begin() as conn:
-        with pytest.raises(IntegrityError):
-            conn.execute(
-                text(
-                    "INSERT INTO categorias (id, usuario_id, nombre, tipo) "
-                    "VALUES (:id, :u, 'vivienda', 'gasto')"
-                ),
-                {"id": _u(99), "u": USUARIO},
-            )
+    with motor.begin() as conn, pytest.raises(IntegrityError):
+        conn.execute(
+            text(
+                "INSERT INTO categorias (id, usuario_id, nombre, tipo) "
+                "VALUES (:id, :u, 'vivienda', 'gasto')"
+            ),
+            {"id": _u(99), "u": USUARIO},
+        )
     motor.dispose()
 
 

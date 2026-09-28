@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Enum as SAEnum, Numeric, delete, inspect, select
+from sqlalchemy import Date, DateTime, Numeric, delete, inspect, select
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
@@ -101,7 +102,7 @@ def _filas_del_usuario(db: Session, modelo, usuario_id) -> list:
 
 def exportar(db: Session, usuario_id) -> dict:
     """Devuelve un dict con todos los datos del usuario (para respaldo)."""
-    datos: dict = {"version": VERSION, "exportado_en": datetime.now(timezone.utc).isoformat()}
+    datos: dict = {"version": VERSION, "exportado_en": datetime.now(UTC).isoformat()}
     for modelo in MODELOS_CREACION:
         datos[NOMBRES[modelo]] = [_dump(f) for f in _filas_del_usuario(db, modelo, usuario_id)]
     return datos

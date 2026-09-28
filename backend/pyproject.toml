@@ -29,11 +29,34 @@ dependencies = [
 dev = [
     "pytest>=8.2",
     "httpx>=0.27",
+    "ruff>=0.16",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Reglas elegidas para **cazar bugs**, no para reescribir el estilo: nombres e
+# imports muertos (F), orden de imports (I), sintaxis obsoleta (UP), trampas
+# conocidas (B), fechas sin zona (DTZ), simplificaciones seguras (SIM) y `noqa`
+# que ya no hacen falta (RUF100).
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "BLE", "DTZ", "SIM", "RUF100"]
+ignore = [
+    # FastAPI declara sus dependencias en los valores por defecto (`Depends(...)`,
+    # `Query(...)`): es su forma canónica, no un bug.
+    "B008",
+    # El dinero se construye con `Decimal("0.00")`: la cadena fija la escala exacta
+    # y deja claro que no se pasa por un float.
+    "FURB157",
+    # A veces el `if`/`else` se lee mejor que el ternario, sobre todo cuando lleva
+    # un comentario explicando el formato del recibo (app/lineas.py). Es estilo.
+    "SIM108",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

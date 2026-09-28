@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..deps import get_current_user, get_db
 from ..defaults import DEFAULT_CATEGORIAS, sembrar_etiquetas_diccionario
+from ..deps import get_current_user, get_db
 from ..models import Categoria, TipoCategoria, Usuario
 from ..schemas import LoginIn, Token, UserCreate, UserOut
 from ..security import create_access_token, hash_password, verify_password
