@@ -111,7 +111,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-24 tablas de negocio (más `alembic_version`), creadas por 22 migraciones:
+24 tablas de negocio (más `alembic_version`), creadas por 23 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -137,6 +137,7 @@ relacionan las piezas.
 | `0020_poliza_asegurados` | `poliza_asegurados` (varias personas cubiertas por póliza) |
 | `0021_uq_categorias_raiz` | recupera `uq_categorias_raiz` (sin el `WHERE` que la 0014 se llevó) y fusiona duplicados |
 | `0022_transferencias` | tipo `transferencia` + `transacciones.cuenta_destino_id` |
+| `0023_recurrentes_con_cuenta` | cuenta en las suscripciones y los ingresos recurrentes, y `transacciones.ingreso_recurrente_id` |
 
 ### Relaciones principales
 

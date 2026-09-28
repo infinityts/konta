@@ -77,13 +77,6 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de Contexto
 (RAG); aquí queda el **porqué** de cada decisión, para que no se pierda.
 
-- **Transacción recurrente u ocasional**: al crear un movimiento, poder elegir «una sola vez»
-  o «se repite» (con periodicidad y día) sin salir del formulario. La maquinaria ya existe
-  —los gastos recurrentes **son** las suscripciones, con su job horario que genera el gasto
-  solo—; lo que falta es el atajo desde la transacción y el **nombre**: llamar
-  *Suscripciones* a un arriendo, un colegio o los servicios confunde. El concepto visible
-  debería ser **Recurrentes**, con gastos (hoy suscripciones) e ingresos (hoy ingresos
-  recurrentes) en el mismo sitio.
 - **Pago de la tarjeta de crédito**: falta poder registrar el pago de forma que baje el
   saldo de la cuenta **y** la deuda de la tarjeta a la vez. No es solo una transferencia: la
   deuda se guarda como **snapshots** («lo que dice el extracto», un *nivel*), así que sumarle
@@ -682,3 +675,47 @@ una variante («Internet» contra «Internet Casa 2») rompía de paso la clasif
   anidamiento copiado, la idempotencia, las hijas que se añaden bajo una raíz existente, que
   las copiadas son etiquetas **propias** (no las mismas de Casa 1) y sirven para clasificar, y
   las validaciones (misma categoría, tipos distintos y categorías de otro usuario).
+
+## v1.29 — Recurrente u ocasional (y el saldo que no se movía)
+
+Al crear un movimiento ahora se elige **«una sola vez» (ocasional)** o **«se repite»**. La
+maquinaria ya existía —los gastos recurrentes **son** las suscripciones, con su job que los
+genera—, pero obligaba a ir a otra pantalla y a teclear otra vez monto, categoría y etiqueta.
+
+- **`POST /transacciones` acepta `recurrencia: {periodicidad}`**: crea el compromiso **en la
+  misma operación** (atómica) y deja la transacción como el pago de *este* periodo, enlazada
+  (`suscripcion_id` o `ingreso_recurrente_id`).
+  - **El día sale de la fecha**: no hay que teclear día ni un segundo campo que pueda
+    contradecir a la fecha. El compromiso apunta al **siguiente** periodo, así que el job
+    **no duplica** el que acabas de registrar.
+  - Nombre, monto, moneda, categoría, etiqueta, tarjeta y cuenta se heredan del propio
+    movimiento.
+  - Un gasto admite `semanal|mensual|trimestral|semestral|anual`; un ingreso
+    `diario|semanal|mensual` (los ENUM no son iguales). Si no encaja, se avisa con las
+    válidas. Una **transferencia recurrente** todavía no: el compromiso tendría que saber de
+    qué cuenta sale y a cuál entra en cada periodo.
+- **El hueco que apareció al probarlo**: las pólizas ya guardaban de qué cuenta sale el dinero,
+  pero las **suscripciones** y los **ingresos recurrentes** no. Cada movimiento que generaba el
+  job quedaba **sin cuenta**: aparecía como «movimiento sin cuenta» y **no movía ningún
+  saldo** — justo lo contrario de «no volver a hacerlo mes a mes». Migración `0023`:
+  `suscripciones.cuenta_id`, `ingresos_recurrentes.cuenta_id` y, para simetría con
+  `suscripcion_id`, `transacciones.ingreso_recurrente_id` (que el ingreso generado también se
+  pueda marcar). Los generadores pasan a rellenar la cuenta.
+- **Hueco de aislamiento cerrado de paso**: al crear o editar un movimiento se podía apuntar a
+  la **categoría, etiqueta, suscripción o póliza de otro usuario** (el movimiento era tuyo,
+  pero el reporte mostraba su nombre). Ahora todas las referencias se validan con `get_owned`.
+- **Un solo concepto visible**: el menú estrena el grupo **Recurrentes** con *Gastos
+  recurrentes* (la ruta `/suscripciones` de siempre) e *Ingresos recurrentes*, y el formulario
+  de transacción lleva a la misma idea. Llamar «Suscripciones» a un arriendo, un colegio o los
+  servicios hacía que no se reconocieran como lo que son.
+  - **Decisión**: la **tabla sigue llamándose `suscripciones`**. Renombrarla (y
+    `transacciones.suscripcion_id`) es una migración cosmética que arrastra respaldo,
+    recurrencia, alertas y frontend, sin ganancia funcional; queda documentado aquí y el
+    nombre visible es el correcto.
+- **UI**: en *Transacciones*, «Una sola vez (ocasional)» / «Se repite…» con la periodicidad
+  según el tipo, y el listado marca con **🔁 recurrente** lo que viene de un compromiso. En
+  las dos pantallas de recurrentes se elige **de qué cuenta sale** (o a cuál entra) el dinero.
+- Tests: 62 en verde (antes 58). Cubren que el compromiso nazca con el día correcto y su
+  cuenta, que el job **no duplique** el periodo ya registrado y **sí** genere el siguiente (con
+  su cuenta, y que el saldo cuadre con los dos), el ingreso recurrente, y las validaciones
+  (transferencia recurrente, periodicidad que no encaja y referencias de otro usuario → 404).

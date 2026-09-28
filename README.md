@@ -94,6 +94,20 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - En **Cuentas** se ven los movimientos por transferencia de cada cuenta, para que el saldo no
   parezca inventado.
 
+### Recurrente u ocasional
+- Al crear un movimiento se elige **«una sola vez» (ocasional)** o **«se repite»** con su
+  periodicidad. Con «se repite», `POST /transacciones` crea **en la misma operación** el
+  compromiso que lo generará solo (una suscripción si es gasto, un ingreso recurrente si es
+  ingreso) y deja este movimiento como el pago de **este** periodo, enlazado.
+- **El día sale de la fecha** del movimiento y el compromiso apunta al **siguiente** periodo:
+  el job no duplica el que acabas de registrar. Nombre, monto, categoría, etiqueta, tarjeta y
+  cuenta se heredan, así que no se teclea nada dos veces.
+- Los compromisos **llevan cuenta**: cada movimiento que genera el job sale de (o entra en)
+  esa cuenta y mueve el saldo. Sin eso, un gasto recurrente dejaba de afectar las cuentas a
+  partir del segundo mes.
+- Gastos e ingresos recurrentes viven en el grupo **Recurrentes** del menú. (La tabla sigue
+  llamándose `suscripciones`: renombrarla es cosmético y arrastra medio proyecto.)
+
 ### Categorías y etiquetas
 - **Copiar las etiquetas de otra categoría**: al crear «Casa 2» no hay que volver a teclear
   el árbol de «Casa 1». `POST /categorias/{id}/copiar-etiquetas` trae etiquetas **y
@@ -299,6 +313,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0020_poliza_asegurados` | `poliza_asegurados` (varias personas cubiertas por póliza) |
 | `0021_uq_categorias_raiz` | recupera la unicidad de categorías por usuario (la 0014 se llevó el índice) y fusiona duplicados |
 | `0022_transferencias` | tipo `transferencia` + `transacciones.cuenta_destino_id` |
+| `0023_recurrentes_con_cuenta` | `suscripciones.cuenta_id`, `ingresos_recurrentes.cuenta_id` y `transacciones.ingreso_recurrente_id` |
 
 ---
 
@@ -319,7 +334,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**58 tests en verde.** El esquema se mantiene alineado con el ORM:
+**62 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
@@ -340,14 +355,13 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **Flujo de caja** en COP: convierte lo que esté en otra moneda, avisa si falta la tasa, e incluye las pólizas con su periodicidad real
 - [x] **Transferencias entre cuentas**: un movimiento que mueve saldo de una cuenta a otra sin pasar por ingresos ni gastos
 - [x] **Copiar las etiquetas de otra categoría**: «Casa 2» nace con el árbol de «Casa 1» (con vista previa, sin duplicar y sin volver a teclearlo)
+- [x] **Recurrente u ocasional**: al crear un movimiento se elige «una sola vez» o «se repite», y la app crea el compromiso que lo genera solo; los recurrentes (gastos e ingresos) tienen su propio grupo en el menú
 
 Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
 decisión, en el `CHANGELOG`):
 
 - [ ] **Pago de la tarjeta de crédito**: hoy la deuda se actualiza a mano («lo que dice el
   extracto») porque es un *nivel*, no un *flujo*; hay que decidir el modelo antes de tocarlo
-- [ ] **Transacción recurrente u ocasional**: marcarla como «se repite» al crearla, y llamar
-  *Recurrentes* a los gastos y ingresos recurrentes (hoy «Suscripciones»)
 - [ ] **Reglas de OCR con interfaz** (ver, corregir y borrar lo aprendido), **confirmar un
   recibo como un solo gasto**, **borrar un aporte** a una meta, **editar/borrar productos**,
   **`/health` que compruebe la base** y **linter en CI** (detalle en el `CHANGELOG`)

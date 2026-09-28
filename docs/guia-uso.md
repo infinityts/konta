@@ -234,7 +234,37 @@ A nivel de servidor también puedes hacer `pg_dump` (ver [`despliegue.md`](despl
 
 ---
 
-## 11. Casa 2 con las etiquetas de Casa 1
+## 11. Un gasto que se repite todos los meses
+
+Para el arriendo, el colegio, el streaming o los servicios: no hace falta ir a otra pantalla.
+
+👉 **Transacciones** → **Nueva transacción** → llena monto, fecha, categoría y **la cuenta** →
+en el selector elige **«se repite… cada mes»** (o cada semana, trimestre, semestre, año) →
+Guardar.
+
+Qué hace la app:
+
+| | |
+|---|---|
+| Guarda **este** movimiento | con su cuenta, así que el saldo de este periodo ya está bien |
+| Crea el **compromiso recurrente** | con el mismo monto, categoría, etiqueta, cuenta y tarjeta |
+| Lo apunta al **periodo siguiente** | **el día sale de la fecha** que pusiste: si fue el 5, el próximo es el 5 del mes que viene |
+| Y desde ahí lo genera **solo** | cada vez que toca, sin que vuelvas a registrarlo |
+
+El listado marca esos movimientos con **🔁 recurrente**, para que distingas los que vinieron
+solos de los que tecleaste.
+
+**Si te equivocaste**: en el grupo **Recurrentes** → *Gastos recurrentes* puedes editar el
+compromiso, **pausarlo** (deja de generar sin borrar el historial) o eliminarlo. Quitar el
+compromiso **no** borra los movimientos que ya generó.
+
+**Ocasional vs recurrente**: una compra de ropa es ocasional (una sola vez); el arriendo es
+recurrente. Si dudas: ¿volverás a pagarlo el mes que viene por el mismo monto? Entonces es
+recurrente.
+
+---
+
+## 12. Casa 2 con las etiquetas de Casa 1
 
 Si vas a llevar dos viviendas (o dos coches, o dos negocios), no hace falta volver a teclear
 el mismo árbol.
@@ -258,7 +288,7 @@ dejaría los reportes sin saber a cuál asignar el gasto.
 
 ---
 
-## 12. Seguros y pólizas
+## 13. Seguros y pólizas
 
 👉 **Seguros** → *Nueva póliza*
 
@@ -298,7 +328,7 @@ si te pasas.
 
 ---
 
-## 13. Subir un recibo (OCR por línea)
+## 14. Subir un recibo (OCR por línea)
 
 👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
 
