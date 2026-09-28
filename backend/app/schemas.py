@@ -250,3 +250,19 @@ class AlertaOut(BaseModel):
     dias_restantes: int  # negativo = ya vencido
     monto: Decimal | None = None
     moneda: str | None = None
+
+
+# --- reportes ---
+
+
+class ReporteMesOut(BaseModel):
+    mes: str
+    ingresos: float
+    gastos: float
+    balance: float
+
+
+class ReporteCategoriaOut(BaseModel):
+    categoria: str
+    tipo: str
+    total: float

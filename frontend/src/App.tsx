@@ -7,6 +7,7 @@ import Etiquetas from './pages/Etiquetas'
 import IngresosRecurrentes from './pages/IngresosRecurrentes'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import Reportes from './pages/Reportes'
 import Suscripciones from './pages/Suscripciones'
 import Tarjetas from './pages/Tarjetas'
 import Transacciones from './pages/Transacciones'
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/suscripciones" element={<Suscripciones />} />
         <Route path="/ingresos-recurrentes" element={<IngresosRecurrentes />} />
         <Route path="/etiquetas" element={<Etiquetas />} />
+        <Route path="/reportes" element={<Reportes />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>
     </Routes>

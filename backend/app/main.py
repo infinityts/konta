@@ -13,6 +13,7 @@ from .routers import (
     categorias,
     etiquetas,
     ingresos_recurrentes,
+    reportes,
     suscripciones,
     tarjetas,
     transacciones,
@@ -52,6 +53,7 @@ app.include_router(transacciones.router)
 app.include_router(ingresos_recurrentes.router)
 app.include_router(etiquetas.router)
 app.include_router(alertas.router)
+app.include_router(reportes.router)
 
 
 @app.get("/health")

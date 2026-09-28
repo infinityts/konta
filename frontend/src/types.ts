@@ -63,6 +63,19 @@ export interface Alerta {
   moneda: string | null
 }
 
+export interface ReporteMes {
+  mes: string
+  ingresos: number
+  gastos: number
+  balance: number
+}
+
+export interface ReporteCategoria {
+  categoria: string
+  tipo: 'ingreso' | 'gasto'
+  total: number
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string

@@ -167,3 +167,23 @@ def test_alertas_de_pagos(client):
     assert "suscripcion" in tipos
     assert "tarjeta_pago" in tipos
     assert "tarjeta_corte" in tipos
+
+
+def test_reportes(client):
+    _, h = _registrar(client)
+    hoy = date.today()
+    client.post("/transacciones", headers=h, json={"tipo": "ingreso", "monto": "1000", "fecha": hoy.isoformat(), "descripcion": "sueldo"})
+    client.post("/transacciones", headers=h, json={"tipo": "gasto", "monto": "400", "fecha": hoy.isoformat(), "descripcion": "comida"})
+
+    r = client.get("/reportes/mensual?meses=6", headers=h)
+    assert r.status_code == 200
+    datos = r.json()
+    assert len(datos) == 6
+    actual = datos[-1]
+    assert actual["ingresos"] == 1000
+    assert actual["gastos"] == 400
+    assert actual["balance"] == 600
+
+    r = client.get(f"/reportes/categorias?mes={hoy.strftime('%Y-%m')}", headers=h)
+    assert r.status_code == 200
+    assert any(c["tipo"] == "gasto" for c in r.json())
