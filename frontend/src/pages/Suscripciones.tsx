@@ -19,6 +19,7 @@ export default function Suscripciones() {
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
   const [form, setForm] = useState(empty)
+  const [editando, setEditando] = useState<string | null>(null)
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
 
@@ -37,28 +38,59 @@ export default function Suscripciones() {
     api<Tarjeta[]>('/tarjetas').then(setTarjetas)
   }, [])
 
-  async function crear() {
+  async function guardar() {
     setError('')
+    const cuerpo = {
+      nombre: form.nombre,
+      monto: form.monto,
+      moneda: form.moneda,
+      periodicidad: form.periodicidad,
+      proximo_pago: form.proximo_pago || null,
+      categoria_id: form.categoria_id || null,
+      etiqueta_id: form.etiqueta_id || null,
+      tarjeta_id: form.tarjeta_id || null,
+    }
     try {
-      await api('/suscripciones', {
-        method: 'POST',
-        body: JSON.stringify({
-          nombre: form.nombre,
-          monto: form.monto,
-          moneda: form.moneda,
-          periodicidad: form.periodicidad,
-          proximo_pago: form.proximo_pago || null,
-          categoria_id: form.categoria_id || null,
-          etiqueta_id: form.etiqueta_id || null,
-          tarjeta_id: form.tarjeta_id || null,
-        }),
-      })
-      setForm(empty)
-      setShow(false)
+      if (editando) {
+        await api(`/suscripciones/${editando}`, { method: 'PATCH', body: JSON.stringify(cuerpo) })
+      } else {
+        await api('/suscripciones', { method: 'POST', body: JSON.stringify(cuerpo) })
+      }
+      cerrarForm()
       cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar')
     }
+  }
+
+  function abrirEditar(s: Suscripcion) {
+    setEditando(s.id)
+    setForm({
+      nombre: s.nombre,
+      monto: String(s.monto),
+      moneda: s.moneda,
+      periodicidad: s.periodicidad,
+      proximo_pago: s.proximo_pago ?? '',
+      categoria_id: s.categoria_id ?? '',
+      etiqueta_id: s.etiqueta_id ?? '',
+      tarjeta_id: s.tarjeta_id ?? '',
+    })
+    setShow(true)
+    setError('')
+  }
+
+  function cerrarForm() {
+    setForm(empty)
+    setEditando(null)
+    setShow(false)
+  }
+
+  async function alternarEstado(s: Suscripcion) {
+    await api(`/suscripciones/${s.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ estado: s.estado === 'activa' ? 'pausada' : 'activa' }),
+    })
+    cargar()
   }
 
   async function eliminar(id: string) {
@@ -97,7 +129,7 @@ export default function Suscripciones() {
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Suscripciones</h2>
-        <button onClick={() => setShow((s) => !s)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+        <button onClick={() => (show ? cerrarForm() : setShow(true))} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
           {show ? 'Cancelar' : 'Nueva suscripción'}
         </button>
       </div>
@@ -145,7 +177,9 @@ export default function Suscripciones() {
               <option key={t.id} value={t.id}>{t.nombre}</option>
             ))}
           </select>
-          <button onClick={crear} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-2">Guardar</button>
+          <button onClick={guardar} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-2">
+            {editando ? 'Guardar cambios' : 'Guardar'}
+          </button>
         </div>
       )}
 
@@ -155,15 +189,24 @@ export default function Suscripciones() {
         {items.map((s) => (
           <li key={s.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
             <div>
-              <p className="font-medium">{s.nombre}</p>
+              <p className="font-medium">
+                {s.nombre}
+                {s.estado !== 'activa' && (
+                  <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{s.estado}</span>
+                )}
+              </p>
               <p className="text-sm text-slate-500">
                 {s.periodicidad} · {nombreTarjeta(s.tarjeta_id)}
                 {s.etiqueta_id ? ` · ${rutaEtiqueta(s.etiqueta_id)}` : ''}
-                {s.proximo_pago ? ` · próximo ${s.proximo_pago}` : ''}
+                {s.proximo_pago ? ` · próximo ${s.proximo_pago}` : ' · sin fecha de pago'}
               </p>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium">{fmtMoney(s.monto)}</span>
+              <button onClick={() => alternarEstado(s)} className="text-sm text-slate-600 hover:underline">
+                {s.estado === 'activa' ? 'Pausar' : 'Activar'}
+              </button>
+              <button onClick={() => abrirEditar(s)} className="text-sm text-indigo-600 hover:underline">Editar</button>
               <button onClick={() => eliminar(s.id)} className="text-sm text-red-600 hover:underline">Eliminar</button>
             </div>
           </li>
