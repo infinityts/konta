@@ -12,7 +12,18 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID, ENUM as PG_ENUM
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -252,6 +263,31 @@ class Etiqueta(Base):
 
     __tablename__ = "etiquetas"
 
+    # Unicidad entre hermanos (sin distinguir mayúsculas). Se declaran aquí para
+    # que el ORM refleje EXACTAMENTE los índices funcionales que crea la
+    # migración 0013; sin esto, `alembic check` propone borrarlos.
+    __table_args__ = (
+        Index(
+            "uq_etiquetas_raiz",
+            "usuario_id",
+            text(
+                "COALESCE(categoria_id, "
+                "'00000000-0000-0000-0000-000000000000'::uuid)"
+            ),
+            text("lower(nombre)"),
+            unique=True,
+            postgresql_where=text("padre_id IS NULL"),
+        ),
+        Index(
+            "uq_etiquetas_hija",
+            "usuario_id",
+            "padre_id",
+            text("lower(nombre)"),
+            unique=True,
+            postgresql_where=text("padre_id IS NOT NULL"),
+        ),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     usuario_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
@@ -296,7 +332,7 @@ class FacturaLinea(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     factura_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("facturas.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("facturas.id", ondelete="CASCADE"), nullable=False, index=True
     )
     descripcion: Mapped[str] = mapped_column(String(200), nullable=False)
     cantidad: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
@@ -319,6 +355,11 @@ class ReglaOcr(Base):
     """Aprendizaje: «este artículo va siempre a esta etiqueta»."""
 
     __tablename__ = "reglas_ocr"
+
+    # Una sola regla por (usuario, patrón): la migración 0016 crea esta unicidad.
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "patron", name="uq_reglas_ocr_patron"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     usuario_id: Mapped[uuid.UUID] = mapped_column(

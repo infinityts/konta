@@ -75,8 +75,10 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.add_column("categorias", sa.Column("padre_id", sa.UUID(as_uuid=True), nullable=True))
+    # El nombre debe ser el MISMO que creó la 0009 (`fk_categorias_padre`): si no,
+    # el downgrade de la 0009 falla al borrar un constraint que no existe.
     op.create_foreign_key(
-        "categorias_padre_id_fkey", "categorias", "categorias", ["padre_id"], ["id"], ondelete="CASCADE"
+        "fk_categorias_padre", "categorias", "categorias", ["padre_id"], ["id"], ondelete="CASCADE"
     )
     op.execute(
         "CREATE UNIQUE INDEX uq_categorias_hija ON categorias (usuario_id, padre_id, lower(nombre)) "
