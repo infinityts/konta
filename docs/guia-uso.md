@@ -234,7 +234,35 @@ A nivel de servidor también puedes hacer `pg_dump` (ver [`despliegue.md`](despl
 
 ---
 
-## 11. Un gasto que se repite todos los meses
+## 11. Pagar la tarjeta de crédito
+
+👉 **Tarjetas** → en tu tarjeta de crédito, botón **«Pagar tarjeta»** → elige **de qué cuenta
+sale**, el monto (viene ya puesto con lo que debes) y Pulsa **Pagar**.
+
+Qué hace la app:
+
+| | |
+|---|---|
+| Baja el saldo de la **cuenta** | el dinero salió de verdad de ahí |
+| Baja la **deuda** de la tarjeta | queda el remanente si el pago fue parcial |
+| **No** lo cuenta como gasto | el consumo ya se contó cuando compraste |
+
+**La deuda vigente** que ves es: *lo que dice el último extracto* **−** *los pagos hechos
+después de ese extracto*. Por eso:
+
+- Si registras el extracto de octubre, **reemplaza** al de septiembre (no se suman).
+- Si ya pagaste y luego registras el extracto nuevo, **no se resta dos veces**: ese extracto ya
+  incluye el pago, así que pasa a ser el punto de partida.
+
+**Si te equivocaste**: el pago aparece en la tarjeta con **«deshacer»**, que lo quita y devuelve
+el dinero a la cuenta.
+
+> **Ojo con el orden**: registra primero el extracto y luego el pago. Si intentas pagar sin deuda
+> registrada, la app te lo dice en vez de dejarte con un saldo a favor raro.
+
+---
+
+## 12. Un gasto que se repite todos los meses
 
 Para el arriendo, el colegio, el streaming o los servicios: no hace falta ir a otra pantalla.
 
@@ -264,7 +292,7 @@ recurrente.
 
 ---
 
-## 12. Casa 2 con las etiquetas de Casa 1
+## 13. Casa 2 con las etiquetas de Casa 1
 
 Si vas a llevar dos viviendas (o dos coches, o dos negocios), no hace falta volver a teclear
 el mismo árbol.
@@ -288,7 +316,7 @@ dejaría los reportes sin saber a cuál asignar el gasto.
 
 ---
 
-## 13. Seguros y pólizas
+## 14. Seguros y pólizas
 
 👉 **Seguros** → *Nueva póliza*
 
@@ -328,7 +356,7 @@ si te pasas.
 
 ---
 
-## 14. Subir un recibo (OCR por línea)
+## 15. Subir un recibo (OCR por línea)
 
 👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
 

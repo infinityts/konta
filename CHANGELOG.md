@@ -77,13 +77,6 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de Contexto
 (RAG); aquí queda el **porqué** de cada decisión, para que no se pierda.
 
-- **Pago de la tarjeta de crédito**: falta poder registrar el pago de forma que baje el
-  saldo de la cuenta **y** la deuda de la tarjeta a la vez. No es solo una transferencia: la
-  deuda se guarda como **snapshots** («lo que dice el extracto», un *nivel*), así que sumarle
-  pagos como filas negativas se rompe en cuanto registres el extracto siguiente (que ya
-  incluye esos pagos). Hay que decidir el modelo: llevar la deuda como *flujo* (deuda inicial
-  + consumos − pagos), ajustar el último snapshot, o dejar el pago como movimiento y avisar de
-  que toca actualizar la deuda a mano.
 - **Reglas de OCR sin interfaz**: el clasificador aprende (`reglas_ocr`) pero no se pueden
   ver, corregir ni borrar. Si aprende algo mal, no hay forma de deshacerlo desde la app.
 - **Confirmar un recibo como un solo gasto**: hoy cada línea confirmada crea su transacción,
@@ -719,3 +712,46 @@ genera—, pero obligaba a ir a otra pantalla y a teclear otra vez monto, catego
   cuenta, que el job **no duplique** el periodo ya registrado y **sí** genere el siguiente (con
   su cuenta, y que el saldo cuadre con los dos), el ingreso recurrente, y las validaciones
   (transferencia recurrente, periodicidad que no encaja y referencias de otro usuario → 404).
+
+## v1.30 — Pagar la tarjeta (y la deuda que se contaba dos veces)
+
+Pagar la tarjeta no tenía forma de registrarse: la deuda se actualizaba a mano («lo que dice el
+extracto») y el dinero que salía de la cuenta había que anotarlo por separado. Y al mirarlo de
+cerca apareció un **bug latente**: la deuda se calculaba **sumando** todos los extractos de la
+misma moneda, así que registrar el de octubre además del de septiembre **duplicaba la deuda**.
+
+La raíz de las dos cosas es la misma: **un nivel no se suma como un flujo**. El extracto es un
+nivel («debes esto a esta fecha»); el pago es un flujo.
+
+- **`POST /tarjetas/{id}/pagos`**: registra un pago que **baja el saldo de la cuenta y la deuda**
+  a la vez, y devuelve la tarjeta ya actualizada. `DELETE /tarjetas/{id}/pagos/{pago_id}` lo
+  deshace (quita el pago y su movimiento).
+- **Deuda vigente = último extracto de cada moneda − pagos posteriores a su fecha**:
+  - registrar un extracto nuevo **reemplaza** al anterior en vez de sumarse (el bug);
+  - el pago baja la deuda hoy, y cuando llegue el extracto siguiente —que ya lo incluye— pasa a
+    ser el nuevo nivel y el pago **deja de restarse**: no se cuenta dos veces ni al derecho ni
+    al revés. (Un test lo fija: extracto 1.000.000 → pago 300.000 → extracto nuevo 800.000 →
+    deuda 800.000.)
+  - Un pago del **mismo día** del extracto cuenta como posterior. Es la única ambigüedad real
+    del modelo y se resuelve hacia el lado útil: lo normal es pagar después de recibirlo, y a
+    menudo el mismo día que lo registras en la app.
+- **Pagar la tarjeta NO es un gasto**: se guarda como una **transferencia** de la cuenta a la
+  tarjeta (se amplió la regla que escribí en la v1.27, que prohibía tarjeta en una
+  transferencia: ahora el destino es **una** cuenta **o** una tarjeta de crédito). Queda fuera
+  de los reportes por categoría y del flujo de caja, que es lo correcto: si fuera un gasto, el
+  consumo se contaría **dos veces** (al comprar y al pagar). Un test lo comprueba: tras pagar,
+  `gastos` del mes sigue en 0 y el desglose por categoría está vacío.
+- **Límites con mensaje claro**: no se puede pagar más de lo que se debe en esa moneda (422 con
+  la cifra), ni una tarjeta de **débito** (no genera deuda: su saldo es el de su cuenta), ni
+  desde una cuenta de otra moneda, ni con datos de otro usuario (404).
+- **UI**: botón *Pagar tarjeta* en *Tarjetas*, con el monto **ya puesto** en lo que se debe, el
+  desglose a la vista (`extracto 1.000.000 − pagos 300.000 = 700.000`) y la lista de pagos con
+  *deshacer*. En *Transacciones*, un pago se lee `🔄 Ahorros → 💳 Visa`.
+- **Decisión de modelo**, y lo que **no** hice: la alternativa era llevar la deuda como
+  *flujo* completo (deuda inicial + consumos − pagos). La descarté porque **reinterpreta los
+  datos que ya tienes**: tus extractos registrados pasan a ser «saldo inicial» y los consumos
+  con tarjeta que ya anotaste se **sumarían otra vez** (probablemente ya están en el extracto).
+  Esta versión es **aditiva**: no migra ni reinterpreta nada y es reversible.
+- Tests: 65 en verde (antes 62). Cubren el pago (cuenta y deuda a la vez, y que **no** sea
+  gasto), el extracto nuevo con y sin pago previo, el extracto repetido, deshacer el pago, y
+  los límites.

@@ -66,7 +66,7 @@ relacionan las piezas.
 |---|---|
 | `config.py` | Settings con prefijo `FINANZAS_` (BD, JWT, zona horaria, Telegram, SMTP) |
 | `db.py` | Engine, `SessionLocal`, `get_db` |
-| `models.py` | 24 tablas + enums |
+| `models.py` | 25 tablas + enums |
 | `schemas.py` | Pydantic (entradas/salidas) |
 | `security.py` | Hash bcrypt + creación/validación de JWT |
 | `deps.py` | `get_db`, `get_current_user` |
@@ -92,6 +92,7 @@ relacionan las piezas.
 | `respaldo.py` | Exportar/restaurar todos los datos del usuario |
 | `flujo.py` | Proyección de flujo de caja a N meses: ingresos recurrentes + cobros fijos (suscripciones y pólizas) + gasto variable, todo normalizado a COP |
 | `metas.py` | Progreso de metas de ahorro y aporte sugerido |
+| `tarjetas.py` | Deuda vigente de una tarjeta: último extracto (nivel) − pagos posteriores (flujo) |
 | `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro (las transferencias mueven dos cuentas y no cambian el total) |
 | `polizas.py` | Costo de los seguros: prima normalizada a mes y a COP, resumen y desglose por tipo (lo comparten `/polizas` y `/reportes`) |
 | `jerarquia.py` | Helpers del árbol `Categoría › Etiqueta › Subetiqueta` (rutas para mostrar) |
@@ -111,7 +112,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-24 tablas de negocio (más `alembic_version`), creadas por 23 migraciones:
+25 tablas de negocio (más `alembic_version`), creadas por 24 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -138,6 +139,7 @@ relacionan las piezas.
 | `0021_uq_categorias_raiz` | recupera `uq_categorias_raiz` (sin el `WHERE` que la 0014 se llevó) y fusiona duplicados |
 | `0022_transferencias` | tipo `transferencia` + `transacciones.cuenta_destino_id` |
 | `0023_recurrentes_con_cuenta` | cuenta en las suscripciones y los ingresos recurrentes, y `transacciones.ingreso_recurrente_id` |
+| `0024_pagos_tarjeta` | tabla `pagos_tarjeta`: el pago de la tarjeta como flujo (el extracto es el nivel) |
 
 ### Relaciones principales
 

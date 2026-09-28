@@ -94,6 +94,23 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - En **Cuentas** se ven los movimientos por transferencia de cada cuenta, para que el saldo no
   parezca inventado.
 
+### Pagar la tarjeta
+- **`POST /tarjetas/{id}/pagos`** registra un pago: baja el saldo de la cuenta elegida **y**
+  la deuda de la tarjeta, y devuelve la tarjeta actualizada. `DELETE` lo deshace.
+- La deuda es un **nivel** (`deudas_tarjeta`: lo que dice el extracto) y los pagos un
+  **flujo**: la deuda vigente es el **último extracto de cada moneda menos los pagos
+  posteriores a su fecha**. El pago baja la deuda hoy y, cuando llegue el extracto siguiente
+  —que ya lo incluye—, pasa a ser el nuevo nivel y el pago deja de restarse.
+  - Antes se **sumaban** todos los extractos de la misma moneda: registrar el de octubre
+    además del de septiembre **contaba la misma deuda dos veces**.
+- **Pagar la tarjeta no es un gasto**: se guarda como **transferencia** de la cuenta a la
+  tarjeta, así que queda fuera de los reportes por categoría y del flujo de caja (si fuera
+  gasto, el consumo se contaría dos veces: al comprar y al pagar).
+- Límites con mensaje claro: no se puede pagar más de lo que se debe, ni una tarjeta de
+  **débito**, ni desde una cuenta de otra moneda.
+- **UI**: botón *Pagar tarjeta* con el monto ya puesto en lo que se debe, el desglose visible
+  (`extracto − pagos = vigente`) y la lista de pagos con *deshacer*.
+
 ### Recurrente u ocasional
 - Al crear un movimiento se elige **«una sola vez» (ocasional)** o **«se repite»** con su
   periodicidad. Con «se repite», `POST /transacciones` crea **en la misma operación** el
@@ -314,6 +331,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0021_uq_categorias_raiz` | recupera la unicidad de categorías por usuario (la 0014 se llevó el índice) y fusiona duplicados |
 | `0022_transferencias` | tipo `transferencia` + `transacciones.cuenta_destino_id` |
 | `0023_recurrentes_con_cuenta` | `suscripciones.cuenta_id`, `ingresos_recurrentes.cuenta_id` y `transacciones.ingreso_recurrente_id` |
+| `0024_pagos_tarjeta` | tabla `pagos_tarjeta` (cada pago enlazado a su transferencia) |
 
 ---
 
@@ -334,7 +352,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**62 tests en verde.** El esquema se mantiene alineado con el ORM:
+**65 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
@@ -356,12 +374,11 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **Transferencias entre cuentas**: un movimiento que mueve saldo de una cuenta a otra sin pasar por ingresos ni gastos
 - [x] **Copiar las etiquetas de otra categoría**: «Casa 2» nace con el árbol de «Casa 1» (con vista previa, sin duplicar y sin volver a teclearlo)
 - [x] **Recurrente u ocasional**: al crear un movimiento se elige «una sola vez» o «se repite», y la app crea el compromiso que lo genera solo; los recurrentes (gastos e ingresos) tienen su propio grupo en el menú
+- [x] **Pago de la tarjeta**: baja el saldo de la cuenta **y** la deuda, sin contarse como gasto; la deuda vigente es el último extracto menos los pagos posteriores
 
 Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
 decisión, en el `CHANGELOG`):
 
-- [ ] **Pago de la tarjeta de crédito**: hoy la deuda se actualiza a mano («lo que dice el
-  extracto») porque es un *nivel*, no un *flujo*; hay que decidir el modelo antes de tocarlo
 - [ ] **Reglas de OCR con interfaz** (ver, corregir y borrar lo aprendido), **confirmar un
   recibo como un solo gasto**, **borrar un aporte** a una meta, **editar/borrar productos**,
   **`/health` que compruebe la base** y **linter en CI** (detalle en el `CHANGELOG`)
