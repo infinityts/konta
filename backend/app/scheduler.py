@@ -6,6 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from .notificaciones import procesar_notificaciones
 from .recurrencia import procesar_ingresos_vencidos, procesar_suscripciones_vencidas
+from .tasas import actualizar_trm_diaria
 
 _scheduler: BackgroundScheduler | None = None
 
@@ -29,6 +30,15 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         hours=1,
         id="suscripciones-vencidas",
+        max_instances=1,
+        coalesce=True,
+    )
+    # La TRM oficial cambia todos los días hábiles: se trae cada 6 horas
+    _scheduler.add_job(
+        actualizar_trm_diaria,
+        "interval",
+        hours=6,
+        id="trm-oficial",
         max_instances=1,
         coalesce=True,
     )
