@@ -33,12 +33,15 @@ from ..models import (
     Cuenta,
     Etiqueta,
     Poliza,
+    PolizaAsegurado,
     Tarjeta,
     Usuario,
 )
 from ..polizas import prima_mensual_cop
 from ..polizas import resumen as resumen_polizas
 from ..schemas import (
+    AseguradoIn,
+    AseguradoOut,
     BeneficiarioIn,
     BeneficiarioOut,
     PolizaIn,
@@ -83,11 +86,46 @@ def _beneficiarios_por_poliza(db: Session, usuario_id, poliza_ids: list) -> dict
     return agrupados
 
 
-def _salida(db: Session, pol: Poliza, beneficiarios: list) -> PolizaOut:
+def _asegurados_por_poliza(db: Session, usuario_id, poliza_ids: list) -> dict:
+    if not poliza_ids:
+        return {}
+    filas = db.scalars(
+        select(PolizaAsegurado)
+        .where(
+            PolizaAsegurado.usuario_id == usuario_id,
+            PolizaAsegurado.poliza_id.in_(poliza_ids),
+        )
+        .order_by(PolizaAsegurado.es_titular.desc(), PolizaAsegurado.creada_en)
+    ).all()
+    agrupados: dict = {}
+    for a in filas:
+        agrupados.setdefault(a.poliza_id, []).append(a)
+    return agrupados
+
+
+def _salida(
+    db: Session, pol: Poliza, beneficiarios: list, asegurados: list | None = None
+) -> PolizaOut:
     out = PolizaOut.model_validate(pol)
     out.beneficiarios = [BeneficiarioOut.model_validate(b) for b in beneficiarios]
+    out.asegurados = [AseguradoOut.model_validate(a) for a in (asegurados or [])]
     out.prima_mensual_cop = prima_mensual_cop(db, pol)
     return out
+
+
+def _marcar_titular_unico(db: Session, poliza_id, asegurado_id, es_titular: bool) -> None:
+    """Solo puede haber un titular por póliza: al marcarlo, se desmarca el resto."""
+    if not es_titular:
+        return
+    otros = db.scalars(
+        select(PolizaAsegurado).where(
+            PolizaAsegurado.poliza_id == poliza_id,
+            PolizaAsegurado.id != asegurado_id,
+            PolizaAsegurado.es_titular.is_(True),
+        )
+    ).all()
+    for otro in otros:
+        otro.es_titular = False
 
 
 def _suma_porcentajes(db: Session, poliza_id, excluir: uuid.UUID | None = None) -> Decimal:
@@ -112,7 +150,11 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
         .order_by(Poliza.proximo_pago.asc().nulls_last(), Poliza.aseguradora)
     ).all()
     bens = _beneficiarios_por_poliza(db, user.id, [p.id for p in polizas])
-    return [_salida(db, p, bens.get(p.id, [])) for p in polizas]
+    asegs = _asegurados_por_poliza(db, user.id, [p.id for p in polizas])
+    return [
+        _salida(db, p, bens.get(p.id, []), asegs.get(p.id, []))
+        for p in polizas
+    ]
 
 
 @router.get("/resumen", response_model=PolizaResumenOut)
@@ -194,13 +236,60 @@ def eliminar_beneficiario(
     db.commit()
 
 
+@router.post("/{id}/asegurados", response_model=AseguradoOut, status_code=201)
+def agregar_asegurado(
+    id: uuid.UUID,
+    data: AseguradoIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Añade una persona cubierta por la póliza (una póliza familiar cubre a varias)."""
+    pol = get_owned(db, Poliza, id, user.id)
+    asegurado = PolizaAsegurado(usuario_id=user.id, poliza_id=pol.id, **data.model_dump())
+    db.add(asegurado)
+    db.flush()
+    _marcar_titular_unico(db, pol.id, asegurado.id, asegurado.es_titular)
+    db.commit()
+    db.refresh(asegurado)
+    return asegurado
+
+
+@router.patch("/asegurados/{asegurado_id}", response_model=AseguradoOut)
+def editar_asegurado(
+    asegurado_id: uuid.UUID,
+    data: AseguradoIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    asegurado = get_owned(db, PolizaAsegurado, asegurado_id, user.id)
+    for campo, valor in data.model_dump().items():
+        setattr(asegurado, campo, valor)
+    db.flush()
+    _marcar_titular_unico(db, asegurado.poliza_id, asegurado.id, asegurado.es_titular)
+    db.commit()
+    db.refresh(asegurado)
+    return asegurado
+
+
+@router.delete("/asegurados/{asegurado_id}", status_code=204)
+def eliminar_asegurado(
+    asegurado_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    asegurado = get_owned(db, PolizaAsegurado, asegurado_id, user.id)
+    db.delete(asegurado)
+    db.commit()
+
+
 @router.get("/{id}", response_model=PolizaOut)
 def obtener(
     id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)
 ):
     pol = get_owned(db, Poliza, id, user.id)
     bens = _beneficiarios_por_poliza(db, user.id, [pol.id])
-    return _salida(db, pol, bens.get(pol.id, []))
+    asegs = _asegurados_por_poliza(db, user.id, [pol.id])
+    return _salida(db, pol, bens.get(pol.id, []), asegs.get(pol.id, []))
 
 
 @router.patch("/{id}", response_model=PolizaOut)
@@ -218,7 +307,8 @@ def actualizar(
     db.commit()
     db.refresh(pol)
     bens = _beneficiarios_por_poliza(db, user.id, [pol.id])
-    return _salida(db, pol, bens.get(pol.id, []))
+    asegs = _asegurados_por_poliza(db, user.id, [pol.id])
+    return _salida(db, pol, bens.get(pol.id, []), asegs.get(pol.id, []))
 
 
 @router.delete("/{id}", status_code=204)

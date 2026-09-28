@@ -1279,12 +1279,16 @@ def test_respaldo_incluye_polizas_y_lo_que_faltaba(client):
         "categoria_id": cat["id"], "cuenta_id": cta["id"],
     }).json()
     client.post(f"/polizas/{pol['id']}/beneficiarios", headers=h, json={"nombre": "Luis", "porcentaje": "100"})
+    client.post(f"/polizas/{pol['id']}/asegurados", headers=h, json={
+        "nombre": "Ana", "parentesco": "titular", "es_titular": True,
+    })
 
     backup = client.get("/exportar/json", headers=h).json()
-    for clave in ("polizas", "beneficiarios", "cuentas", "metas_ahorro", "aportes_meta", "deudas_tarjeta"):
+    for clave in ("polizas", "beneficiarios", "poliza_asegurados", "cuentas", "metas_ahorro", "aportes_meta", "deudas_tarjeta"):
         assert backup[clave], f"el respaldo no incluye {clave}"
     assert backup["polizas"][0]["placa"] is None
     assert backup["beneficiarios"][0]["nombre"] == "Luis"
+    assert backup["poliza_asegurados"][0]["nombre"] == "Ana"
 
     # Se borra todo y se restaura. Ojo: `GET /cuentas` devuelve el resumen con
     # totales, no una lista (el listado va en la clave `cuentas`).
@@ -1440,3 +1444,55 @@ def test_reportes_seguros_por_tipo(client):
     # Otro usuario no ve nada
     _, h2 = _registrar(client)
     assert client.get("/reportes/seguros", headers=h2).json()["prima_mensual_cop"] == 0.0
+
+
+def test_poliza_con_varias_personas_aseguradas(client):
+    """Una póliza familiar cubre a varias personas, con un solo titular."""
+    _, h = _registrar(client)
+    pol = client.post("/polizas", headers=h, json={
+        "tipo": "vida", "aseguradora": "Bolívar", "asegurado_nombre": "Ana",
+        "prima": "90000",
+    }).json()
+    pid = pol["id"]
+
+    ana = client.post(f"/polizas/{pid}/asegurados", headers=h, json={
+        "nombre": "Ana", "parentesco": "titular", "es_titular": True,
+        "fecha_nacimiento": "1985-04-12",
+    })
+    assert ana.status_code == 201, ana.text
+    assert ana.json()["es_titular"] is True
+
+    luis = client.post(f"/polizas/{pid}/asegurados", headers=h, json={
+        "nombre": "Luis", "parentesco": "hijo", "fecha_nacimiento": "2015-09-01",
+    }).json()
+    marta = client.post(f"/polizas/{pid}/asegurados", headers=h, json={
+        "nombre": "Marta", "parentesco": "cónyuge",
+    }).json()
+
+    detalle = client.get(f"/polizas/{pid}", headers=h).json()
+    assert [a["nombre"] for a in detalle["asegurados"]] == ["Ana", "Luis", "Marta"]
+
+    # Al marcar otro titular, el anterior deja de serlo (solo uno por póliza)
+    assert client.patch(f"/polizas/asegurados/{marta['id']}", headers=h, json={
+        "nombre": "Marta", "parentesco": "cónyuge", "es_titular": True,
+    }).status_code == 200
+    titulares = [a["nombre"] for a in client.get(f"/polizas/{pid}", headers=h).json()["asegurados"] if a["es_titular"]]
+    assert titulares == ["Marta"]
+
+    # El asegurado principal de la póliza se conserva (compatibilidad)
+    assert detalle["asegurado_nombre"] == "Ana"
+
+    # Una fecha de nacimiento futura se rechaza
+    assert client.post(f"/polizas/{pid}/asegurados", headers=h, json={
+        "nombre": "Bebé", "fecha_nacimiento": "2099-01-01",
+    }).status_code == 422
+
+    # Aislamiento y borrado
+    _, h2 = _registrar(client)
+    assert client.patch(f"/polizas/asegurados/{luis['id']}", headers=h2, json={"nombre": "X"}).status_code == 404
+    assert client.delete(f"/polizas/asegurados/{luis['id']}", headers=h2).status_code == 404
+    assert client.delete(f"/polizas/asegurados/{luis['id']}", headers=h).status_code == 204
+
+    # Al borrar la póliza se van sus asegurados
+    assert client.delete(f"/polizas/{pid}", headers=h).status_code == 204
+    assert client.delete(f"/polizas/asegurados/{marta['id']}", headers=h).status_code == 404

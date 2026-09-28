@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import {
   fmtMoney,
+  type Asegurado,
   type Beneficiario,
   type Categoria,
   type Cuenta,
@@ -509,7 +510,7 @@ export default function Polizas() {
                   {p.estado === 'activa' ? 'Pausar' : 'Activar'}
                 </button>
                 <button onClick={() => setAbierta(abierta === p.id ? null : p.id)} className="text-sm text-slate-600 hover:underline">
-                  {abierta === p.id ? 'Ocultar' : 'Beneficiarios'}
+                  {abierta === p.id ? 'Ocultar' : 'Personas cubiertas'}
                 </button>
                 <button onClick={() => eliminar(p.id)} className="text-sm text-red-600 hover:underline">
                   Eliminar
@@ -518,7 +519,10 @@ export default function Polizas() {
             </div>
 
             {abierta === p.id && (
-              <Beneficiarios poliza={p} onCambio={cargar} />
+              <>
+                <Asegurados poliza={p} onCambio={cargar} />
+                <Beneficiarios poliza={p} onCambio={cargar} />
+              </>
             )}
           </li>
         ))}
@@ -526,6 +530,126 @@ export default function Polizas() {
           <p className="text-sm text-slate-500">Aún no has registrado pólizas.</p>
         )}
       </ul>
+    </div>
+  )
+}
+
+/** Personas cubiertas por la póliza (una póliza familiar cubre a varias). */
+function Asegurados({ poliza, onCambio }: { poliza: Poliza; onCambio: () => void }) {
+  const [nombre, setNombre] = useState('')
+  const [parentesco, setParentesco] = useState('')
+  const [nacimiento, setNacimiento] = useState('')
+  const [titular, setTitular] = useState(false)
+  const [error, setError] = useState('')
+
+  async function agregar() {
+    setError('')
+    try {
+      await api(`/polizas/${poliza.id}/asegurados`, {
+        method: 'POST',
+        body: JSON.stringify({
+          nombre,
+          parentesco: parentesco || null,
+          fecha_nacimiento: nacimiento || null,
+          es_titular: titular,
+        }),
+      })
+      setNombre('')
+      setParentesco('')
+      setNacimiento('')
+      setTitular(false)
+      onCambio()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    }
+  }
+
+  async function marcarTitular(a: Asegurado) {
+    setError('')
+    try {
+      await api(`/polizas/asegurados/${a.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          nombre: a.nombre,
+          parentesco: a.parentesco,
+          fecha_nacimiento: a.fecha_nacimiento,
+          es_titular: true,
+        }),
+      })
+      onCambio()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    }
+  }
+
+  const borrar = (a: Asegurado) =>
+    api(`/polizas/asegurados/${a.id}`, { method: 'DELETE' }).then(onCambio)
+
+  return (
+    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <p className="text-sm text-slate-600">
+        Personas aseguradas · <strong>{poliza.asegurados.length}</strong>
+      </p>
+      {poliza.asegurados.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {poliza.asegurados.map((a) => (
+            <li key={a.id} className="flex items-center justify-between text-sm">
+              <span className="text-slate-700">
+                {a.nombre}
+                {a.parentesco ? ` · ${a.parentesco}` : ''}
+                {a.fecha_nacimiento ? ` · ${a.fecha_nacimiento}` : ''}
+                {a.es_titular && (
+                  <span className="ml-2 rounded bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700">
+                    titular
+                  </span>
+                )}
+              </span>
+              <span className="flex gap-3">
+                {!a.es_titular && (
+                  <button onClick={() => marcarTitular(a)} className="text-xs text-indigo-600 hover:underline">
+                    Hacer titular
+                  </button>
+                )}
+                <button onClick={() => borrar(a)} className="text-xs text-red-600 hover:underline">
+                  Quitar
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Nombre"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <input
+          value={parentesco}
+          onChange={(e) => setParentesco(e.target.value)}
+          placeholder="Parentesco"
+          className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <input
+          type="date"
+          value={nacimiento}
+          onChange={(e) => setNacimiento(e.target.value)}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <label className="flex items-center gap-1 text-sm text-slate-600">
+          <input type="checkbox" checked={titular} onChange={(e) => setTitular(e.target.checked)} />
+          titular
+        </label>
+        <button
+          onClick={agregar}
+          disabled={!nombre}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          Añadir
+        </button>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </div>
   )
 }

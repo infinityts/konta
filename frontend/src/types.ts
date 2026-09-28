@@ -354,6 +354,17 @@ export interface Beneficiario {
   porcentaje: number | string | null
 }
 
+/** Persona cubierta por la póliza (una póliza familiar cubre a varias). */
+export interface Asegurado {
+  id: string
+  usuario_id: string
+  poliza_id: string
+  nombre: string
+  parentesco: string | null
+  fecha_nacimiento: string | null
+  es_titular: boolean
+}
+
 export type TipoPoliza = 'vida' | 'salud' | 'vehiculo' | 'hogar' | 'otro'
 
 export interface Poliza {
@@ -383,6 +394,7 @@ export interface Poliza {
   notas: string | null
   creada_en: string
   beneficiarios: Beneficiario[]
+  asegurados: Asegurado[]
   prima_mensual_cop: number | null
   titulo: string
 }

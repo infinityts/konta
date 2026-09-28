@@ -234,6 +234,29 @@ class BeneficiarioOut(BeneficiarioIn):
     poliza_id: uuid.UUID
 
 
+class AseguradoIn(BaseModel):
+    """Persona cubierta por la póliza (una póliza familiar cubre a varias)."""
+
+    nombre: str = Field(min_length=1, max_length=120)
+    parentesco: str | None = Field(default=None, max_length=60)
+    fecha_nacimiento: date | None = None
+    es_titular: bool = False
+
+    @model_validator(mode="after")
+    def _validar_nacimiento(self) -> "AseguradoIn":
+        if self.fecha_nacimiento and self.fecha_nacimiento > date.today():
+            raise ValueError("La fecha de nacimiento no puede estar en el futuro")
+        return self
+
+
+class AseguradoOut(AseguradoIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    usuario_id: uuid.UUID
+    poliza_id: uuid.UUID
+
+
 class PolizaIn(BaseModel):
     tipo: Literal["vida", "salud", "vehiculo", "hogar", "otro"] = "vida"
     aseguradora: str = Field(min_length=1, max_length=120)
@@ -301,6 +324,7 @@ class PolizaOut(PolizaIn):
     usuario_id: uuid.UUID
     creada_en: datetime
     beneficiarios: list[BeneficiarioOut] = []
+    asegurados: list[AseguradoOut] = []
     # Prima normalizada a mes y a COP (None si no hay tasa para su moneda)
     prima_mensual_cop: float | None = None
     # Etiqueta legible: «Vehículo ABC123 (Sura)»

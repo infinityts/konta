@@ -635,3 +635,29 @@ class Beneficiario(Base):
     # Porcentaje de la indemnización (0-100). NULL = sin reparto definido.
     porcentaje: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class PolizaAsegurado(Base):
+    """Persona cubierta por una póliza (una póliza familiar cubre a varias).
+
+    `Poliza.asegurado_nombre` sigue siendo la persona asegurada **principal**
+    (para vida/salud/hogar) o el tomador (vehículo), y sirve para el título. Esta
+    tabla es el detalle: quiénes están cubiertos, con qué parentesco y desde
+    cuándo, y cuál de ellos es el titular (`es_titular`).
+    """
+
+    __tablename__ = "poliza_asegurados"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    poliza_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("polizas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    parentesco: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    fecha_nacimiento: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Solo uno por póliza: el asegurado principal
+    es_titular: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

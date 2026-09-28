@@ -25,6 +25,7 @@ from .models import (
     ItemLista,
     MetaAhorro,
     Poliza,
+    PolizaAsegurado,
     PrecioMercado,
     Presupuesto,
     Producto,
@@ -38,16 +39,16 @@ from .models import (
 # `FacturaLinea` no se lista en el borrado: no tiene `usuario_id` y cae por la
 # cascada al borrar su factura.
 MODELOS_BORRADO = [
-    Factura, ReglaOcr, Transaccion, Beneficiario, Poliza, AporteMeta, MetaAhorro,
-    DeudaTarjeta, PrecioMercado, ItemLista, Presupuesto, Suscripcion,
+    Factura, ReglaOcr, Transaccion, Beneficiario, PolizaAsegurado, Poliza, AporteMeta,
+    MetaAhorro, DeudaTarjeta, PrecioMercado, ItemLista, Presupuesto, Suscripcion,
     IngresoRecurrente, Etiqueta, Tarjeta, Categoria, Cuenta, Producto,
     ConfigNotificaciones,
 ]
 MODELOS_CREACION = [
     Categoria, Cuenta, Tarjeta, Producto, Etiqueta, ConfigNotificaciones,
-    MetaAhorro, AporteMeta, Poliza, Beneficiario, Suscripcion, IngresoRecurrente,
-    Presupuesto, DeudaTarjeta, PrecioMercado, ItemLista, Transaccion, ReglaOcr,
-    Factura, FacturaLinea,
+    MetaAhorro, AporteMeta, Poliza, PolizaAsegurado, Beneficiario, Suscripcion,
+    IngresoRecurrente, Presupuesto, DeudaTarjeta, PrecioMercado, ItemLista,
+    Transaccion, ReglaOcr, Factura, FacturaLinea,
 ]
 NOMBRES = {
     Categoria: "categorias",
@@ -59,6 +60,7 @@ NOMBRES = {
     MetaAhorro: "metas_ahorro",
     AporteMeta: "aportes_meta",
     Poliza: "polizas",
+    PolizaAsegurado: "poliza_asegurados",
     Beneficiario: "beneficiarios",
     Suscripcion: "suscripciones",
     IngresoRecurrente: "ingresos_recurrentes",
