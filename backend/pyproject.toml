@@ -19,6 +19,10 @@ dependencies = [
     "pyjwt>=2.8",
     "bcrypt>=4.1",
     "apscheduler>=3.10",
+    "pypdf>=4.0",
+    "python-multipart>=0.0.9",
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.17",
 ]
 
 [project.optional-dependencies]

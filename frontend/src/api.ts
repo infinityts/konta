@@ -18,3 +18,19 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
+
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const token = localStorage.getItem('konta_token')
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail ?? `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<T>
+}

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
@@ -266,3 +266,23 @@ class ReporteCategoriaOut(BaseModel):
     categoria: str
     tipo: str
     total: float
+
+
+# --- facturas (PDF) ---
+
+
+class FacturaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    usuario_id: uuid.UUID
+    nombre_archivo: str
+    texto_extraido: str | None
+    monto_detectado: Decimal | None
+    fecha_detectada: date | None
+    transaccion_id: uuid.UUID | None
+    creada_en: datetime
+
+
+class AsociarFacturaIn(BaseModel):
+    transaccion_id: uuid.UUID

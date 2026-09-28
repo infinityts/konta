@@ -187,3 +187,42 @@ def test_reportes(client):
     r = client.get(f"/reportes/categorias?mes={hoy.strftime('%Y-%m')}", headers=h)
     assert r.status_code == 200
     assert any(c["tipo"] == "gasto" for c in r.json())
+
+
+def _pdf_minimo(texto: str) -> bytes:
+    """Construye un PDF mínimo válido con un texto (para probar la extracción)."""
+    contenido = f"BT /F1 24 Tf 72 720 Td ({texto}) Tj ET".encode()
+    objetos = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length " + str(len(contenido)).encode() + b" >>\nstream\n" + contenido + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for i, obj in enumerate(objetos, 1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n".encode() + obj + b"\nendobj\n"
+    xref_pos = len(out)
+    out += f"xref\n0 {len(objetos) + 1}\n".encode() + b"0000000000 65535 f \n"
+    for off in offsets:
+        out += f"{off:010d} 00000 n \n".encode()
+    out += f"trailer\n<< /Size {len(objetos) + 1} /Root 1 0 R >>\nstartxref\n{xref_pos}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+def test_facturas_extraccion_y_subida(client):
+    from app.facturas import detectar_fecha, detectar_monto
+
+    assert str(detectar_monto("Total a pagar: 123.45")) == "123.45"
+    assert str(detectar_fecha("Fecha: 2026-09-27")) == "2026-09-27"
+
+    _, h = _registrar(client)
+    pdf = _pdf_minimo("Factura Total: 250.00")
+    r = client.post("/facturas", headers=h, files={"archivo": ("f.pdf", pdf, "application/pdf")})
+    assert r.status_code == 201, r.text
+    f = r.json()
+    assert f["nombre_archivo"] == "f.pdf"
+    assert f["monto_detectado"] is not None
+    assert len(client.get("/facturas", headers=h).json()) == 1

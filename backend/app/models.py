@@ -244,3 +244,22 @@ class Etiqueta(Base):
         ForeignKey("etiquetas.id", ondelete="CASCADE"), nullable=True
     )
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class Factura(Base):
+    """Factura en PDF subida por el usuario, con datos extraídos (texto/monto/fecha)."""
+
+    __tablename__ = "facturas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre_archivo: Mapped[str] = mapped_column(String(255), nullable=False)
+    texto_extraido: Mapped[str | None] = mapped_column(Text, nullable=True)
+    monto_detectado: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    fecha_detectada: Mapped[date | None] = mapped_column(Date, nullable=True)
+    transaccion_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("transacciones.id", ondelete="SET NULL"), nullable=True
+    )
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

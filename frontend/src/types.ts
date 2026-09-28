@@ -76,6 +76,16 @@ export interface ReporteCategoria {
   total: number
 }
 
+export interface Factura {
+  id: string
+  nombre_archivo: string
+  texto_extraido: string | null
+  monto_detectado: number | string | null
+  fecha_detectada: string | null
+  transaccion_id: string | null
+  creada_en: string
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string

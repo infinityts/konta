@@ -8,6 +8,7 @@ const items = [
   { to: '/ingresos-recurrentes', label: 'Ingresos recurrentes', end: false },
   { to: '/transacciones', label: 'Transacciones', end: false },
   { to: '/reportes', label: 'Reportes', end: false },
+  { to: '/facturas', label: 'Facturas', end: false },
   { to: '/etiquetas', label: 'Etiquetas', end: false },
 ]
 

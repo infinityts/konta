@@ -4,6 +4,7 @@ import { useAuth } from './auth'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Etiquetas from './pages/Etiquetas'
+import Facturas from './pages/Facturas'
 import IngresosRecurrentes from './pages/IngresosRecurrentes'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/ingresos-recurrentes" element={<IngresosRecurrentes />} />
         <Route path="/etiquetas" element={<Etiquetas />} />
         <Route path="/reportes" element={<Reportes />} />
+        <Route path="/facturas" element={<Facturas />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>
     </Routes>
