@@ -86,6 +86,7 @@ class TarjetaIn(BaseModel):
     dia_pago: int | None = Field(None, ge=1, le=31)
     limite: Decimal | None = Field(None, ge=0)
     tasa_interes: Decimal | None = Field(None, ge=0)
+    tasa_interes_ea: Decimal | None = Field(None, ge=0)
     activa: bool = True
 
 
@@ -98,6 +99,7 @@ class TarjetaUpdate(BaseModel):
     dia_pago: int | None = Field(None, ge=1, le=31)
     limite: Decimal | None = Field(None, ge=0)
     tasa_interes: Decimal | None = Field(None, ge=0)
+    tasa_interes_ea: Decimal | None = Field(None, ge=0)
     activa: bool | None = None
 
 

@@ -142,6 +142,7 @@ class Tarjeta(Base):
     dia_pago: Mapped[int | None] = mapped_column(Integer, nullable=True)
     limite: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     tasa_interes: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
+    tasa_interes_ea: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
     activa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 

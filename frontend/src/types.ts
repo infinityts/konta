@@ -26,6 +26,7 @@ export interface Tarjeta {
   dia_pago: number | null
   limite: number | string | null
   tasa_interes: number | string | null
+  tasa_interes_ea: number | string | null
   activa: boolean
   deudas: Deuda[]
   deuda_por_moneda: Record<string, number>

@@ -10,7 +10,12 @@ const empty = {
   dia_corte: '',
   dia_pago: '',
   limite: '',
-  tasa_interes: '',
+  tasa: '',
+}
+
+/** (1 + EA)^(1/12) − 1  — igual que el backend */
+function mensualDesdeEa(eaPct: number): number {
+  return ((1 + eaPct / 100) ** (1 / 12) - 1) * 100
 }
 
 const MONEDAS = ['COP', 'USD', 'EUR', 'MXN', 'PEN', 'CLP', 'ARS', 'UYU']
@@ -18,6 +23,7 @@ const MONEDAS = ['COP', 'USD', 'EUR', 'MXN', 'PEN', 'CLP', 'ARS', 'UYU']
 export default function Tarjetas() {
   const [items, setItems] = useState<Tarjeta[]>([])
   const [form, setForm] = useState(empty)
+  const [tasaModo, setTasaModo] = useState<'ea' | 'mensual'>('ea')
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
 
@@ -46,6 +52,7 @@ export default function Tarjetas() {
   async function crear() {
     setError('')
     try {
+      const tasa = form.tasa ? Number(form.tasa) / 100 : null
       await api('/tarjetas', {
         method: 'POST',
         body: JSON.stringify({
@@ -56,7 +63,8 @@ export default function Tarjetas() {
           dia_corte: form.dia_corte ? Number(form.dia_corte) : null,
           dia_pago: form.dia_pago ? Number(form.dia_pago) : null,
           limite: form.limite || null,
-          tasa_interes: form.tasa_interes || null,
+          tasa_interes_ea: tasaModo === 'ea' ? tasa : null,
+          tasa_interes: tasaModo === 'mensual' ? tasa : null,
         }),
       })
       setForm(empty)
@@ -136,7 +144,20 @@ export default function Tarjetas() {
           <input type="number" min={1} max={31} placeholder="Día de corte (1-31)" value={form.dia_corte} onChange={(e) => set('dia_corte', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input type="number" min={1} max={31} placeholder="Día de pago (1-31)" value={form.dia_pago} onChange={(e) => set('dia_pago', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input placeholder="Cupo total (no el disponible)" value={form.limite} onChange={(e) => set('limite', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <input placeholder="Tasa de interés mensual (ej. 0.02)" value={form.tasa_interes} onChange={(e) => set('tasa_interes', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <div className="flex gap-2">
+            <select value={tasaModo} onChange={(e) => setTasaModo(e.target.value as 'ea' | 'mensual')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="ea">E.A. (% anual)</option>
+              <option value="mensual">Mensual (%)</option>
+            </select>
+            <input placeholder={tasaModo === 'ea' ? 'Ej. 25.93' : 'Ej. 1.94'} value={form.tasa} onChange={(e) => set('tasa', e.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <p className="text-xs text-slate-500 sm:col-span-2">
+            Está en tu extracto como <strong>“Tasa de interés efectiva anual (E.A.)”</strong>. Si te dan la
+            mensual, cámbiala en el selector. La app convierte sola:
+            {form.tasa && tasaModo === 'ea' && (
+              <> {form.tasa}% E.A. = <strong>{mensualDesdeEa(Number(form.tasa)).toFixed(2)}% mensual</strong></>
+            )}
+          </p>
           <button onClick={crear} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-2">Guardar</button>
         </div>
       )}
@@ -156,7 +177,11 @@ export default function Tarjetas() {
                     {t.tipo} · {t.moneda}
                     {t.dia_corte ? ` · corte ${t.dia_corte}` : ''}
                     {t.dia_pago ? ` · pago ${t.dia_pago}` : ''}
-                    {t.tasa_interes ? ` · tasa ${t.tasa_interes}` : ''}
+                    {t.tasa_interes_ea
+                      ? ` · ${(Number(t.tasa_interes_ea) * 100).toFixed(2)}% E.A. (${(Number(t.tasa_interes) * 100).toFixed(2)}%/mes)`
+                      : t.tasa_interes
+                        ? ` · ${(Number(t.tasa_interes) * 100).toFixed(2)}%/mes`
+                        : ''}
                     {t.limite ? ` · cupo ${fmtMoney(t.limite)}` : ''}
                   </p>
                 </div>

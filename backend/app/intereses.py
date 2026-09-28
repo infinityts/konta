@@ -12,6 +12,26 @@ MAX_MESES = 600
 PAGO_MINIMO_PCT = Decimal("0.05")
 
 
+def mensual_desde_ea(ea: Decimal) -> Decimal:
+    """Convierte una tasa **efectiva anual** a su equivalente **mensual**.
+
+    `mensual = (1 + EA)^(1/12) − 1`
+
+    No se divide entre 12: eso daría la tasa nominal, que es mayor que la real.
+    Ej.: 25,93 % E.A. -> 1,94 % mensual (dividir daría 2,16 %).
+    """
+    if ea <= Decimal("-1"):
+        return Decimal("0")
+    mensual = Decimal(str((1.0 + float(ea)) ** (1.0 / 12.0) - 1.0))
+    return mensual.quantize(Decimal("0.000001"))
+
+
+def ea_desde_mensual(mensual: Decimal) -> Decimal:
+    """Inversa: `EA = (1 + mensual)^12 − 1`."""
+    ea = Decimal(str((1.0 + float(mensual)) ** 12 - 1.0))
+    return ea.quantize(Decimal("0.000001"))
+
+
 def pago_minimo(saldo: Decimal) -> Decimal:
     """Pago mínimo sugerido: 5% del saldo."""
     return (saldo * PAGO_MINIMO_PCT).quantize(Decimal("0.01"))

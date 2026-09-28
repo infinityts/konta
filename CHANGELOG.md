@@ -105,3 +105,12 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 - **Simulador conectado**: si no indicas saldo, el simulador usa la **deuda registrada**
   de la tarjeta en vez de volver a escribirla.
 - Nuevos endpoints `GET/POST /tarjetas/{id}/deudas` y `DELETE /tarjetas/{id}/deudas/{deuda_id}`.
+
+## v1.3 — Tasa del extracto (E.A. → mensual)
+
+- Las tarjetas colombianas publican la tasa **efectiva anual (E.A.)**, pero la app pedía la
+  mensual en decimal: confuso y fácil de escribir mal.
+- Ahora el formulario acepta **E.A. (%)** o **mensual (%)** y convierte solo con la fórmula
+  correcta `(1+EA)^(1/12)−1` — **no** dividiendo entre 12 (25,93 % E.A. = 1,94 %/mes, no 2,16 %).
+- Se guardan ambas (`tasa_interes_ea` y `tasa_interes`) y el listado muestra las dos.
+- El simulador sigue usando la mensual ya convertida.

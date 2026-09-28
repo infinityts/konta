@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
-from ..intereses import pago_minimo, simular_pago
+from ..intereses import mensual_desde_ea, pago_minimo, simular_pago
 from ..models import DeudaTarjeta, Tarjeta, Usuario
 from ..recurrencia import hoy
 from ..schemas import (
@@ -26,6 +26,15 @@ from ..schemas import (
 from ..tasas import obtener_tasa
 
 router = APIRouter(prefix="/tarjetas", tags=["tarjetas"])
+
+
+def _aplicar_tasa(tarjeta: Tarjeta) -> None:
+    """Si viene la tasa efectiva anual (como en el extracto), calcula la mensual.
+
+    La mensual es la que usa el simulador de intereses.
+    """
+    if tarjeta.tasa_interes_ea is not None and tarjeta.tasa_interes_ea > 0:
+        tarjeta.tasa_interes = mensual_desde_ea(tarjeta.tasa_interes_ea)
 
 
 def _con_deuda(db: Session, tarjeta: Tarjeta) -> dict:
@@ -63,6 +72,7 @@ def _con_deuda(db: Session, tarjeta: Tarjeta) -> dict:
         "dia_pago": tarjeta.dia_pago,
         "limite": tarjeta.limite,
         "tasa_interes": tarjeta.tasa_interes,
+        "tasa_interes_ea": tarjeta.tasa_interes_ea,
         "activa": tarjeta.activa,
         "deudas": deudas,
         "deuda_por_moneda": por_moneda,
@@ -81,6 +91,7 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
 @router.post("", response_model=TarjetaOut, status_code=201)
 def crear(data: TarjetaIn, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     obj = Tarjeta(usuario_id=user.id, **data.model_dump())
+    _aplicar_tasa(obj)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -97,6 +108,7 @@ def actualizar(id: uuid.UUID, data: TarjetaUpdate, db: Session = Depends(get_db)
     obj = get_owned(db, Tarjeta, id, user.id)
     for campo, valor in data.model_dump(exclude_unset=True).items():
         setattr(obj, campo, valor)
+    _aplicar_tasa(obj)
     db.commit()
     db.refresh(obj)
     return obj

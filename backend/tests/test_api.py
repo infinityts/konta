@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import date, timedelta
+from decimal import Decimal
 
 
 def _registrar(client, email: str | None = None):
@@ -361,6 +362,32 @@ def test_deuda_tarjeta_multimoneda(client):
     deuda_id = t["deudas"][0]["id"]
     assert client.delete(f"/tarjetas/{tar['id']}/deudas/{deuda_id}", headers=h).status_code == 204
     assert len(client.get(f"/tarjetas/{tar['id']}/deudas", headers=h).json()) == 1
+
+
+def test_tasa_ea_se_convierte_a_mensual(client):
+    """El extracto da la tasa E.A.; la app la convierte a mensual para el simulador."""
+    from app.intereses import mensual_desde_ea
+
+    # 25,93 % E.A. -> 1,94 % mensual (dividir entre 12 daría 2,16 %)
+    mensual = mensual_desde_ea(Decimal("0.2593"))
+    assert abs(float(mensual) - 0.0194) < 0.0002
+
+    _, h = _registrar(client)
+    tar = client.post("/tarjetas", headers=h, json={
+        "nombre": "AMEX Platinum", "banco": "Bancolombia", "tipo": "credito",
+        "moneda": "COP", "tasa_interes_ea": "0.2593",
+    }).json()
+    assert abs(float(tar["tasa_interes"]) - 0.0194) < 0.0002
+    assert float(tar["tasa_interes_ea"]) == 0.2593
+
+    # el simulador usa la tasa mensual ya convertida
+    r = client.get(f"/tarjetas/{tar['id']}/simulador", headers=h, params={"saldo": 1000000, "pago_mensual": 200000})
+    assert r.status_code == 200, r.text
+    assert abs(float(r.json()["tasa_mensual"]) - 0.0194) < 0.0002
+
+    # si dan la mensual directa, también sirve
+    tar2 = client.post("/tarjetas", headers=h, json={"nombre": "Otra", "tipo": "credito", "tasa_interes": "0.02"}).json()
+    assert float(tar2["tasa_interes"]) == 0.02
 
 
 def test_exportar_y_restaurar(client):

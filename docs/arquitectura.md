@@ -105,7 +105,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-19 tablas de negocio (más `alembic_version`), creadas por 10 migraciones:
+19 tablas de negocio (más `alembic_version`), creadas por 11 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -119,6 +119,7 @@ relacionan las piezas.
 | `0008_notificaciones` | `config_notificaciones` |
 | `0009_cuentas_jerarquia` | `cuentas` + `transacciones.cuenta_id` + `categorias.padre_id` |
 | `0010_deudas_tarjeta` | `deudas_tarjeta` |
+| `0011_tasa_ea` | `tarjetas.tasa_interes_ea` |
 
 ### Relaciones principales
 
