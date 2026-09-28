@@ -93,6 +93,9 @@ docker compose up -d --build
 # PostgreSQL: localhost:5433
 ```
 
+➡️ Guía completa (local, servidor con Podman, administración, respaldo y variables
+de entorno) en [`docs/despliegue.md`](docs/despliegue.md).
+
 ---
 
 ## Endpoints
