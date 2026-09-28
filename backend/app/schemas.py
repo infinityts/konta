@@ -56,7 +56,6 @@ class CategoriaIn(BaseModel):
     tipo: TipoCategoria
     icono: str | None = None
     color: str | None = None
-    padre_id: uuid.UUID | None = None
 
 
 class CategoriaUpdate(BaseModel):
@@ -64,7 +63,6 @@ class CategoriaUpdate(BaseModel):
     tipo: TipoCategoria | None = None
     icono: str | None = None
     color: str | None = None
-    padre_id: uuid.UUID | None = None
 
 
 class CategoriaOut(CategoriaIn):
@@ -303,7 +301,7 @@ class ReporteMesOut(BaseModel):
 
 class ReporteCategoriaOut(BaseModel):
     categoria: str
-    subcategoria: str | None = None
+    etiqueta: str | None = None
     tipo: str
     total: float
 

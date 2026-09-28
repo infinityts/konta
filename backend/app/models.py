@@ -122,9 +122,6 @@ class Categoria(Base):
     tipo: Mapped[TipoCategoria] = mapped_column(_tipo_categoria, nullable=False)
     icono: Mapped[str | None] = mapped_column(String(40), nullable=True)
     color: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    padre_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("categorias.id", ondelete="CASCADE"), nullable=True
-    )
 
 
 class Tarjeta(Base):

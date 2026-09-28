@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import type { Categoria } from '../types'
 
 export default function Categorias() {
   const [items, setItems] = useState<Categoria[]>([])
-  const [form, setForm] = useState({ nombre: '', tipo: 'gasto', padre_id: '' })
+  const [form, setForm] = useState({ nombre: '', tipo: 'gasto' })
+  const [editando, setEditando] = useState<string | null>(null)
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
 
@@ -20,18 +22,32 @@ export default function Categorias() {
     cargar()
   }, [])
 
-  async function crear() {
+  function nueva() {
+    setEditando(null)
+    setForm({ nombre: '', tipo: 'gasto' })
+    setError('')
+    setShow(true)
+  }
+
+  function abrirEditar(c: Categoria) {
+    setEditando(c.id)
+    setForm({ nombre: c.nombre, tipo: c.tipo })
+    setError('')
+    setShow(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function guardar() {
     setError('')
     try {
-      await api('/categorias', {
-        method: 'POST',
-        body: JSON.stringify({
-          nombre: form.nombre,
-          tipo: form.tipo,
-          padre_id: form.padre_id || null,
-        }),
-      })
-      setForm({ nombre: '', tipo: form.tipo, padre_id: '' })
+      if (editando) {
+        await api(`/categorias/${editando}`, { method: 'PATCH', body: JSON.stringify(form) })
+      } else {
+        await api('/categorias', { method: 'POST', body: JSON.stringify(form) })
+      }
+      setShow(false)
+      setEditando(null)
+      setForm({ nombre: '', tipo: 'gasto' })
       cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar')
@@ -39,71 +55,81 @@ export default function Categorias() {
   }
 
   async function eliminar(id: string) {
-    await api(`/categorias/${id}`, { method: 'DELETE' })
-    cargar()
+    if (!confirm('¿Eliminar esta categoría? Sus etiquetas también se borran.')) return
+    try {
+      await api(`/categorias/${id}`, { method: 'DELETE' })
+      cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al eliminar')
+    }
   }
 
-  const raices = items.filter((c) => !c.padre_id)
-  const hijasDe = (id: string) => items.filter((c) => c.padre_id === id)
-  const padresGasto = items.filter((c) => !c.padre_id && c.tipo === form.tipo)
-
-  const seccion = (tipo: 'gasto' | 'ingreso') => {
-    const roots = raices.filter((c) => c.tipo === tipo)
-    return (
-      <div>
-        <h3 className={`font-medium ${tipo === 'gasto' ? 'text-red-600' : 'text-emerald-600'}`}>
-          {tipo === 'gasto' ? 'Gastos' : 'Ingresos'}
-        </h3>
-        <ul className="mt-2 space-y-1">
-          {roots.map((c) => (
-            <li key={c.id} className="rounded-lg border border-slate-200 bg-white p-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-800">{c.nombre}</span>
-                <button onClick={() => eliminar(c.id)} className="text-red-600 hover:underline">Eliminar</button>
-              </div>
-              {hijasDe(c.id).length > 0 && (
-                <ul className="mt-2 space-y-1 pl-4">
-                  {hijasDe(c.id).map((s) => (
-                    <li key={s.id} className="flex items-center justify-between text-sm text-slate-600">
-                      <span>↳ {s.nombre}</span>
-                      <button onClick={() => eliminar(s.id)} className="text-red-600 hover:underline">Eliminar</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
-    )
-  }
+  const seccion = (tipo: 'gasto' | 'ingreso') => (
+    <div>
+      <h3 className={`font-medium ${tipo === 'gasto' ? 'text-red-600' : 'text-emerald-600'}`}>
+        {tipo === 'gasto' ? 'Gastos' : 'Ingresos'}
+      </h3>
+      <ul className="mt-2 space-y-1">
+        {items.filter((c) => c.tipo === tipo).map((c) => (
+          <li key={c.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <span className="text-sm text-slate-800">{c.nombre}</span>
+            <div className="flex items-center gap-3">
+              <button onClick={() => abrirEditar(c)} className="text-xs text-indigo-600 hover:underline">Editar</button>
+              <button onClick={() => eliminar(c.id)} className="text-xs text-red-600 hover:underline">Eliminar</button>
+            </div>
+          </li>
+        ))}
+        {items.filter((c) => c.tipo === tipo).length === 0 && (
+          <li className="text-sm text-slate-400">Sin categorías</li>
+        )}
+      </ul>
+    </div>
+  )
 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Categorías y subcategorías</h2>
-        <button onClick={() => setShow((s) => !s)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+        <h2 className="text-xl font-semibold">Categorías</h2>
+        <button
+          onClick={() => (show ? (setShow(false), setEditando(null)) : nueva())}
+          className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        >
           {show ? 'Cancelar' : 'Nueva categoría'}
         </button>
       </div>
+
       <p className="mt-1 text-sm text-slate-500">
-        Elige una <strong>categoría padre</strong> para crearla como subcategoría. Los reportes y el
-        dashboard agrupan por categoría y su subcategoría.
+        Las <strong>categorías</strong> son el nivel superior (Vivienda, Transporte, Casa 1…).
+        El anidamiento vive en las etiquetas:
+        <code className="mx-1 rounded bg-slate-100 px-1">Categoría › Etiqueta › Subetiqueta</code>
+        — se manejan en <Link to="/etiquetas" className="text-indigo-600 underline">Etiquetas</Link>.
       </p>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {show && (
-        <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
-          <input placeholder="Nombre" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <select value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value, padre_id: '' }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3">
+          {editando && <p className="text-sm font-medium text-indigo-700 sm:col-span-3">Editando categoría</p>}
+          <input
+            placeholder="Nombre (ej. Vivienda, Casa 1…)"
+            value={form.nombre}
+            onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <select
+            value={form.tipo}
+            onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
             <option value="gasto">Gasto</option>
             <option value="ingreso">Ingreso</option>
           </select>
-          <select value={form.padre_id} onChange={(e) => setForm((f) => ({ ...f, padre_id: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="">Es categoría principal</option>
-            {padresGasto.map((c) => <option key={c.id} value={c.id}>Subcategoría de {c.nombre}</option>)}
-          </select>
-          <button onClick={crear} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700">Guardar</button>
+          <button
+            onClick={guardar}
+            disabled={!form.nombre}
+            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:bg-slate-300"
+          >
+            {editando ? 'Guardar cambios' : 'Crear'}
+          </button>
         </div>
       )}
 

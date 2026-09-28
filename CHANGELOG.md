@@ -165,3 +165,22 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 - **UI en cascada**: al registrar un movimiento se elige primero la categoría y el selector
   de etiquetas muestra solo las suyas; cambiar de categoría limpia la etiqueta.
 - **Página Etiquetas** reorganizada por categoría, y aviso para las que quedaron sin categoría.
+
+## v1.8 — Un solo árbol: Categoría → Etiqueta → Subetiqueta
+
+- **Se elimina la redundancia**: antes había **dos jerarquías** en tablas distintas
+  (`categorias.padre_id` para subcategorías y `etiquetas` para etiquetas/subetiquetas), y lo
+  mismo se podía expresar de dos formas — causando duplicados como `Vivienda › Servicios`
+  existiendo a la vez como subcategoría y como etiqueta.
+- **Ahora hay un solo árbol**: las **categorías son siempre raíces** (Vivienda, Transporte,
+  Casa 1…) y **todo el anidamiento vive en las etiquetas**.
+- **Migración 0014**:
+  - convierte cada subcategoría en una etiqueta de su categoría raíz (o la fusiona si ya existía),
+    repuntando antes los movimientos (que pasan a la raíz + esa etiqueta), suscripciones,
+    ingresos recurrentes, presupuestos y etiquetas;
+  - borra las etiquetas huérfanas (sin categoría);
+  - elimina `categorias.padre_id` y su índice.
+- **Reportes y dashboard** ahora agrupan por `Categoría › Etiqueta › Subetiqueta`
+  (el campo `subcategoria` del reporte pasa a llamarse `etiqueta`).
+- **Editar** en **Etiquetas** (cambiar nombre, categoría o padre) y en **Categorías** (renombrar),
+  sin tener que borrar y crear.

@@ -5,8 +5,8 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .jerarquia import mapa_categorias, ruta_categoria
-from .models import Categoria, Transaccion
+from .jerarquia import mapa_etiquetas, ruta_etiqueta
+from .models import Categoria, Etiqueta, Transaccion
 from .recurrencia import hoy
 
 
@@ -55,32 +55,31 @@ def reporte_mensual(db: Session, usuario_id, meses: int = 6) -> list[dict]:
 
 
 def reporte_categorias(db: Session, usuario_id, mes: str) -> list[dict]:
-    """Desglose por categoría → subcategoría para un mes (YYYY-MM)."""
-    mapa = mapa_categorias(db, usuario_id)
+    """Desglose por categoría → etiqueta → subetiqueta para un mes (YYYY-MM)."""
+    mapa_etq = mapa_etiquetas(db, usuario_id)
     filas = db.execute(
         select(
             Categoria,
+            Etiqueta,
             Transaccion.tipo,
             func.sum(Transaccion.monto).label("total"),
         )
         .select_from(Transaccion)
         .join(Categoria, Categoria.id == Transaccion.categoria_id, isouter=True)
+        .join(Etiqueta, Etiqueta.id == Transaccion.etiqueta_id, isouter=True)
         .where(
             Transaccion.usuario_id == usuario_id,
             func.to_char(Transaccion.fecha, "YYYY-MM") == mes,
         )
-        .group_by(Categoria.id, Transaccion.tipo)
+        .group_by(Categoria.id, Etiqueta.id, Transaccion.tipo)
         .order_by(func.sum(Transaccion.monto).desc())
     ).all()
-    salida = []
-    for categoria, tipo, total in filas:
-        raiz, sub = ruta_categoria(categoria, mapa)
-        salida.append(
-            {
-                "categoria": raiz,
-                "subcategoria": sub,
-                "tipo": tipo.value,
-                "total": float(total),
-            }
-        )
-    return salida
+    return [
+        {
+            "categoria": categoria.nombre if categoria else "Sin categoría",
+            "etiqueta": ruta_etiqueta(etiqueta, mapa_etq),
+            "tipo": tipo.value,
+            "total": float(total),
+        }
+        for categoria, etiqueta, tipo, total in filas
+    ]

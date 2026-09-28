@@ -164,16 +164,7 @@ export default function Transacciones() {
     setForm((f) => ({ ...f, tipo, categoria_id: '' }))
   }
 
-  const nombreCat = (id: string | null) => {
-    if (!id) return '—'
-    const c = categorias.find((x) => x.id === id)
-    if (!c) return '—'
-    if (c.padre_id) {
-      const padre = categorias.find((x) => x.id === c.padre_id)
-      if (padre) return `${padre.nombre} › ${c.nombre}`
-    }
-    return c.nombre
-  }
+  const nombreCat = (id: string | null) => categorias.find((x) => x.id === id)?.nombre ?? '—'
   const nombreEtiqueta = (id: string | null) => {
     const e = etiquetas.find((x) => x.id === id)
     if (!e) return null
@@ -187,8 +178,6 @@ export default function Transacciones() {
   const nombreTarjeta = (id: string | null) => tarjetas.find((t) => t.id === id)?.nombre ?? null
 
   const categoriasFiltradas = categorias.filter((c) => c.tipo === form.tipo)
-  const catRaices = categoriasFiltradas.filter((c) => !c.padre_id)
-  const subcatsDe = (id: string) => categoriasFiltradas.filter((c) => c.padre_id === id)
 
   // Las etiquetas viven DENTRO de la categoría elegida
   const etqDeCategoria = etiquetas.filter((e) => e.categoria_id === form.categoria_id)
@@ -234,13 +223,8 @@ export default function Transacciones() {
 
           <select value={form.categoria_id} onChange={(e) => setCategoria(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">Sin categoría</option>
-            {catRaices.map((r) => (
-              <optgroup key={r.id} label={r.nombre}>
-                <option value={r.id}>{r.nombre}</option>
-                {subcatsDe(r.id).map((h) => (
-                  <option key={h.id} value={h.id}>— {h.nombre}</option>
-                ))}
-              </optgroup>
+            {categoriasFiltradas.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
             ))}
           </select>
 

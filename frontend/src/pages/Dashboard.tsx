@@ -6,6 +6,7 @@ import {
   type Alerta,
   type Categoria,
   type Diagnostico,
+  type Etiqueta,
   type Suscripcion,
   type Tarjeta,
   type Transaccion,
@@ -31,6 +32,7 @@ export default function Dashboard() {
   const [suscripciones, setSuscripciones] = useState<Suscripcion[]>([])
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [alertas, setAlertas] = useState<Alerta[]>([])
   const [diag, setDiag] = useState<Diagnostico | null>(null)
   const [error, setError] = useState('')
@@ -41,14 +43,16 @@ export default function Dashboard() {
       api<Suscripcion[]>('/suscripciones'),
       api<Tarjeta[]>('/tarjetas'),
       api<Categoria[]>('/categorias'),
+      api<Etiqueta[]>('/etiquetas'),
       api<Alerta[]>('/alertas?dias=15'),
       api<Diagnostico>('/saldos/diagnostico'),
     ])
-      .then(([t, s, ta, c, al, d]) => {
+      .then(([t, s, ta, c, e, al, d]) => {
         setTransacciones(t)
         setSuscripciones(s)
         setTarjetas(ta)
         setCategorias(c)
+        setEtiquetas(e)
         setAlertas(al)
         setDiag(d)
       })
@@ -68,22 +72,21 @@ export default function Dashboard() {
   const activas = suscripciones.filter((s) => s.estado === 'activa')
   const costoSubs = activas.reduce((a, s) => a + Number(s.monto), 0)
 
-  // "Categoría › Subcategoría" cuando la categoría tiene padre
-  const etiquetaCategoria = (id: string | null): string => {
-    if (!id) return 'Sin categoría'
-    const c = categorias.find((x) => x.id === id)
-    if (!c) return 'Sin categoría'
-    if (c.padre_id) {
-      const padre = categorias.find((x) => x.id === c.padre_id)
-      if (padre) return `${padre.nombre} › ${c.nombre}`
+  // "Categoría › Etiqueta › Subetiqueta"
+  const etiquetaCompleta = (catId: string | null, etqId: string | null): string => {
+    const partes = [categorias.find((c) => c.id === catId)?.nombre ?? 'Sin categoría']
+    const e = etiquetas.find((x) => x.id === etqId)
+    if (e) {
+      const padre = e.padre_id ? etiquetas.find((x) => x.id === e.padre_id) : null
+      partes.push(padre ? `${padre.nombre} › ${e.nombre}` : e.nombre)
     }
-    return c.nombre
+    return partes.join(' › ')
   }
 
   const porCategoria = new Map<string, number>()
   for (const t of delMes) {
     if (t.tipo !== 'gasto') continue
-    const key = etiquetaCategoria(t.categoria_id)
+    const key = etiquetaCompleta(t.categoria_id, t.etiqueta_id)
     porCategoria.set(key, (porCategoria.get(key) ?? 0) + Number(t.monto))
   }
   const topCategorias = [...porCategoria.entries()]

@@ -9,11 +9,12 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .jerarquia import mapa_categorias, ruta_categoria
+from .jerarquia import etiqueta_completa, mapa_etiquetas
 from .models import (
     Categoria,
     Cuenta,
     EstadoSuscripcion,
+    Etiqueta,
     IngresoRecurrente,
     Suscripcion,
     TipoTransaccion,
@@ -204,35 +205,31 @@ def _totales_mes(db: Session, usuario_id, mes: str) -> tuple[Decimal, Decimal]:
 
 
 def top_categorias(db: Session, usuario_id, mes: str, limite: int = 8) -> list[dict]:
-    """Gastos del mes agrupados por categoría → subcategoría."""
-    mapa = mapa_categorias(db, usuario_id)
+    """Gastos del mes agrupados por categoría → etiqueta → subetiqueta."""
+    mapa_etq = mapa_etiquetas(db, usuario_id)
     filas = db.execute(
-        select(Categoria, func.sum(Transaccion.monto))
+        select(Categoria, Etiqueta, func.sum(Transaccion.monto))
         .select_from(Transaccion)
         .join(Categoria, Categoria.id == Transaccion.categoria_id, isouter=True)
+        .join(Etiqueta, Etiqueta.id == Transaccion.etiqueta_id, isouter=True)
         .where(
             Transaccion.usuario_id == usuario_id,
             Transaccion.tipo == TipoTransaccion.GASTO,
             func.to_char(Transaccion.fecha, "YYYY-MM") == mes,
         )
-        .group_by(Categoria.id)
+        .group_by(Categoria.id, Etiqueta.id)
         .order_by(func.sum(Transaccion.monto).desc())
+        .limit(limite)
     ).all()
 
-    agrupado: dict[tuple[str, str | None], Decimal] = {}
-    for categoria, total in filas:
-        raiz, sub = ruta_categoria(categoria, mapa)
-        agrupado[(raiz, sub)] = agrupado.get((raiz, sub), CERO) + Decimal(total)
-
-    ordenado = sorted(agrupado.items(), key=lambda kv: kv[1], reverse=True)[:limite]
     return [
         {
             "tipo": "categoria",
-            "etiqueta": f"{raiz} › {sub}" if sub else raiz,
-            "monto": float(monto),
-            "detalle": raiz if sub else None,
+            "etiqueta": etiqueta_completa(categoria, etiqueta, mapa_etq),
+            "monto": float(total),
+            "detalle": None,
         }
-        for (raiz, sub), monto in ordenado
+        for categoria, etiqueta, total in filas
     ]
 
 

@@ -4,7 +4,6 @@ export interface Categoria {
   tipo: 'ingreso' | 'gasto'
   icono: string | null
   color: string | null
-  padre_id: string | null
 }
 
 export interface Deuda {
@@ -90,7 +89,7 @@ export interface ReporteMes {
 
 export interface ReporteCategoria {
   categoria: string
-  subcategoria: string | null
+  etiqueta: string | null
   tipo: 'ingreso' | 'gasto'
   total: number
 }

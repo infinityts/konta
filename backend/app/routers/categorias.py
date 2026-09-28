@@ -1,4 +1,8 @@
-"""CRUD de categorías y subcategorías (aislado por usuario)."""
+"""CRUD de categorías (siempre raíces) — aislado por usuario.
+
+El anidamiento ya no vive aquí: el árbol es
+**Categoría → Etiqueta → Subetiqueta** (ver `routers/etiquetas.py`).
+"""
 
 from __future__ import annotations
 
@@ -17,27 +21,12 @@ from ..schemas import CategoriaIn, CategoriaOut, CategoriaUpdate
 router = APIRouter(prefix="/categorias", tags=["categorias"])
 
 
-def _validar_padre(db: Session, user: Usuario, padre_id, propia_id=None) -> None:
-    """El padre debe ser del usuario y no puede generar un ciclo."""
-    if padre_id is None:
-        return
-    if propia_id is not None and padre_id == propia_id:
-        raise HTTPException(status_code=400, detail="Una categoría no puede ser su propia categoría padre")
-    padre = get_owned(db, Categoria, padre_id, user.id)
-    if propia_id is not None and padre.padre_id == propia_id:
-        raise HTTPException(status_code=400, detail="Eso crearía un ciclo entre categorías")
+def _msg_duplicado(nombre: str) -> str:
+    return f"Ya existe una categoría «{nombre}»."
 
 
-def _msg_duplicado(nombre: str, padre_id) -> str:
-    if padre_id is None:
-        return f"Ya existe una categoría «{nombre}»."
-    return f"Ya existe una subcategoría «{nombre}» dentro de esa categoría."
-
-
-def _existe_hermana(db: Session, user: Usuario, nombre: str, padre_id, excluir=None) -> bool:
-    """Dos hermanas (mismo padre) no pueden llamarse igual, sin distinguir mayúsculas."""
+def _existe(db: Session, user: Usuario, nombre: str, excluir=None) -> bool:
     condiciones = [Categoria.usuario_id == user.id, func.lower(Categoria.nombre) == nombre.lower()]
-    condiciones.append(Categoria.padre_id.is_(None) if padre_id is None else Categoria.padre_id == padre_id)
     if excluir is not None:
         condiciones.append(Categoria.id != excluir)
     return bool(db.scalar(select(func.count()).select_from(Categoria).where(*condiciones)))
@@ -46,50 +35,43 @@ def _existe_hermana(db: Session, user: Usuario, nombre: str, padre_id, excluir=N
 @router.get("", response_model=list[CategoriaOut])
 def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     return db.scalars(
-        select(Categoria).where(Categoria.usuario_id == user.id).order_by(Categoria.nombre)
+        select(Categoria)
+        .where(Categoria.usuario_id == user.id)
+        .order_by(Categoria.tipo, Categoria.nombre)
     ).all()
 
 
 @router.get("/arbol")
 def arbol(db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
-    """Categorías como árbol: raíces con sus subcategorías."""
+    """Las categorías son planas; el anidamiento está en las etiquetas."""
     categorias = db.scalars(
         select(Categoria).where(Categoria.usuario_id == user.id).order_by(Categoria.nombre)
     ).all()
-    ids = {c.id for c in categorias}
-    hijos: dict = {}
-    for c in categorias:
-        hijos.setdefault(c.padre_id if c.padre_id in ids else None, []).append(c)
-
-    def nodo(c: Categoria) -> dict:
-        return {
+    return [
+        {
             "id": c.id,
             "nombre": c.nombre,
             "tipo": c.tipo.value,
             "icono": c.icono,
             "color": c.color,
-            "subcategorias": [
-                {"id": s.id, "nombre": s.nombre, "tipo": s.tipo.value}
-                for s in hijos.get(c.id, [])
-            ],
+            "subcategorias": [],
         }
-
-    return [nodo(c) for c in hijos.get(None, [])]
+        for c in categorias
+    ]
 
 
 @router.post("", response_model=CategoriaOut, status_code=201)
 def crear(data: CategoriaIn, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
-    _validar_padre(db, user, data.padre_id)
     nombre = data.nombre.strip()
-    if _existe_hermana(db, user, nombre, data.padre_id):
-        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre, data.padre_id))
+    if _existe(db, user, nombre):
+        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre))
     obj = Categoria(usuario_id=user.id, **{**data.model_dump(), "nombre": nombre})
     db.add(obj)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre, data.padre_id))
+        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre))
     db.refresh(obj)
     return obj
 
@@ -103,21 +85,18 @@ def obtener(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depend
 def actualizar(id: uuid.UUID, data: CategoriaUpdate, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     obj = get_owned(db, Categoria, id, user.id)
     campos = data.model_dump(exclude_unset=True)
-    if "padre_id" in campos:
-        _validar_padre(db, user, campos["padre_id"], propia_id=id)
     if "nombre" in campos:
         campos["nombre"] = (campos["nombre"] or "").strip()
     nombre = campos.get("nombre", obj.nombre)
-    padre_id = campos.get("padre_id", obj.padre_id)
-    if _existe_hermana(db, user, nombre, padre_id, excluir=id):
-        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre, padre_id))
+    if _existe(db, user, nombre, excluir=id):
+        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre))
     for campo, valor in campos.items():
         setattr(obj, campo, valor)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre, padre_id))
+        raise HTTPException(status_code=400, detail=_msg_duplicado(nombre))
     db.refresh(obj)
     return obj
 
@@ -125,5 +104,5 @@ def actualizar(id: uuid.UUID, data: CategoriaUpdate, db: Session = Depends(get_d
 @router.delete("/{id}", status_code=204)
 def eliminar(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     obj = get_owned(db, Categoria, id, user.id)
-    db.delete(obj)
+    db.delete(obj)  # sus etiquetas se eliminan en cascada
     db.commit()

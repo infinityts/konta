@@ -80,10 +80,10 @@ export default function Reportes() {
             ) : (
               <ul className="mt-2 space-y-2">
                 {gastos.map((c) => (
-                  <li key={`${c.categoria}-${c.subcategoria ?? ''}`} className="flex items-center justify-between text-sm">
+                  <li key={`${c.categoria}-${c.etiqueta ?? ''}`} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700">
                       {c.categoria}
-                      {c.subcategoria && <span className="text-slate-400"> › {c.subcategoria}</span>}
+                      {c.etiqueta && <span className="text-slate-400"> › {c.etiqueta}</span>}
                     </span>
                     <span className="font-medium text-slate-900">{fmtMoney(c.total)}</span>
                   </li>
@@ -98,10 +98,10 @@ export default function Reportes() {
             ) : (
               <ul className="mt-2 space-y-2">
                 {ingresos.map((c) => (
-                  <li key={`${c.categoria}-${c.subcategoria ?? ''}`} className="flex items-center justify-between text-sm">
+                  <li key={`${c.categoria}-${c.etiqueta ?? ''}`} className="flex items-center justify-between text-sm">
                     <span className="text-slate-700">
                       {c.categoria}
-                      {c.subcategoria && <span className="text-slate-400"> › {c.subcategoria}</span>}
+                      {c.etiqueta && <span className="text-slate-400"> › {c.etiqueta}</span>}
                     </span>
                     <span className="font-medium text-slate-900">{fmtMoney(c.total)}</span>
                   </li>
