@@ -11,6 +11,7 @@ export default function Cuentas() {
   const [form, setForm] = useState({ nombre: '', tipo: 'efectivo', saldo_inicial: '' })
   const [edicion, setEdicion] = useState<Record<string, string>>({})
   const [show, setShow] = useState(false)
+  const [mensaje, setMensaje] = useState('')
   const [error, setError] = useState('')
 
   async function cargar() {
@@ -67,6 +68,18 @@ export default function Cuentas() {
     cargar()
   }
 
+  async function adoptar(id: string) {
+    setError('')
+    setMensaje('')
+    try {
+      const r = await api<{ asignados: number }>(`/cuentas/${id}/adoptar-movimientos`, { method: 'POST' })
+      setMensaje(`✅ ${r.asignados} movimiento(s) asignados a la cuenta.`)
+      cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al asignar los movimientos')
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -76,6 +89,15 @@ export default function Cuentas() {
         </button>
       </div>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {mensaje && <p className="mt-2 text-sm text-emerald-700">{mensaje}</p>}
+
+      {resumen && resumen.sin_cuenta_movimientos > 0 && resumen.cuentas.length > 0 && (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Tienes <strong>{resumen.sin_cuenta_movimientos}</strong> movimiento(s) sin cuenta
+          ({fmtMoney(resumen.sin_cuenta)}). Usa <em>«Asignar movimientos»</em> en la cuenta correcta
+          para que el saldo cuadre.
+        </p>
+      )}
 
       {resumen && (
         <div className={`mt-4 rounded-2xl border p-6 ${resumen.sobregirado ? 'border-red-300 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
@@ -134,6 +156,11 @@ export default function Cuentas() {
               </span>
               <span className="text-emerald-700">+ {fmtMoney(c.ingresos)}</span>
               <span className="text-red-700">− {fmtMoney(c.gastos)}</span>
+              {resumen.sin_cuenta_movimientos > 0 && (
+                <button onClick={() => adoptar(c.id)} className="text-xs text-indigo-600 hover:underline">
+                  Asignar {resumen.sin_cuenta_movimientos} movimiento(s) sin cuenta
+                </button>
+              )}
             </div>
           </li>
         ))}

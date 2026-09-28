@@ -621,6 +621,7 @@ class SaldoResumenOut(BaseModel):
     ingresos_total: float
     gastos_total: float
     sin_cuenta: float
+    sin_cuenta_movimientos: int
     sobregirado: bool
     cuentas: list[CuentaOut]
 
@@ -646,9 +647,18 @@ class MotivoOut(BaseModel):
     detalle: str | None = None
 
 
+class ProximoIngresoOut(BaseModel):
+    nombre: str
+    monto: float
+    fecha: date
+
+
 class DiagnosticoOut(BaseModel):
     saldo_actual: float
     sobregirado: bool
+    tiene_cuentas: bool
+    sin_cuenta_movimientos: int
+    proximo_ingreso: ProximoIngresoOut | None = None
     ingresos_mes: float
     gastos_mes: float
     balance_mes: float
@@ -657,3 +667,9 @@ class DiagnosticoOut(BaseModel):
     gastos_fijos: float
     motivos: list[str]
     top_categorias: list[MotivoOut]
+
+
+class AdoptarMovimientosOut(BaseModel):
+    asignados: int
+    cuenta: str
+    saldo_actual: float

@@ -82,3 +82,16 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
     pero con **riesgo de ban** del número por violar los términos de WhatsApp.
 - Edición (PATCH) en la UI para tarjetas, suscripciones y transacciones.
 - Página de administración de categorías.
+
+## v1.1.1 — Correcciones tras validar con datos reales
+
+- **Diagnóstico del saldo sin cuentas**: si no hay cuentas configuradas, el dashboard
+  ahora lo dice explícitamente («el saldo que ves es solo el flujo, no tu dinero») con
+  un botón directo para crear la cuenta con el saldo inicial. El rótulo cambia a
+  *Flujo acumulado (sin saldo inicial)* para no llamar «saldo» a lo que no lo es.
+- **Próximo ingreso recurrente** visible en el dashboard (nombre, monto y fecha) para
+  que no sorprenda que un salario del día 30 aún no esté sumado.
+- **Preselección de cuenta** al registrar una transacción (si solo hay una) y aviso
+  cuando se guarda sin cuenta.
+- **`POST /cuentas/{id}/adoptar-movimientos`**: asigna en bloque todos los movimientos
+  que quedaron sin cuenta, para poner al día un saldo ya existente.

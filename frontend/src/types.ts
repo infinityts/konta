@@ -97,6 +97,7 @@ export interface SaldoResumen {
   ingresos_total: number
   gastos_total: number
   sin_cuenta: number
+  sin_cuenta_movimientos: number
   sobregirado: boolean
   cuentas: Cuenta[]
 }
@@ -122,9 +123,18 @@ export interface Motivo {
   detalle: string | null
 }
 
+export interface ProximoIngreso {
+  nombre: string
+  monto: number
+  fecha: string
+}
+
 export interface Diagnostico {
   saldo_actual: number
   sobregirado: boolean
+  tiene_cuentas: boolean
+  sin_cuenta_movimientos: number
+  proximo_ingreso: ProximoIngreso | null
   ingresos_mes: number
   gastos_mes: number
   balance_mes: number

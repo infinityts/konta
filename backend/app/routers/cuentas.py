@@ -5,13 +5,20 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
-from ..models import Cuenta, Usuario
+from ..models import Cuenta, Transaccion, Usuario
 from ..saldos import saldo_cuentas, saldo_de_cuenta
-from ..schemas import CuentaIn, CuentaOut, CuentaUpdate, SaldoResumenOut
+from ..schemas import (
+    AdoptarMovimientosOut,
+    CuentaIn,
+    CuentaOut,
+    CuentaUpdate,
+    SaldoResumenOut,
+)
 
 router = APIRouter(prefix="/cuentas", tags=["cuentas"])
 
@@ -45,3 +52,21 @@ def eliminar(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depen
     obj = get_owned(db, Cuenta, id, user.id)
     db.delete(obj)
     db.commit()
+
+
+@router.post("/{id}/adoptar-movimientos", response_model=AdoptarMovimientosOut)
+def adoptar_movimientos(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    """Asigna a esta cuenta todos los movimientos que están sin cuenta.
+
+    Útil para poner al día el saldo cuando ya tenías transacciones registradas.
+    """
+    cuenta = get_owned(db, Cuenta, id, user.id)
+    resultado = db.execute(
+        update(Transaccion)
+        .where(Transaccion.usuario_id == user.id, Transaccion.cuenta_id.is_(None))
+        .values(cuenta_id=cuenta.id)
+    )
+    db.commit()
+    db.refresh(cuenta)
+    detalle = saldo_de_cuenta(db, cuenta)
+    return {"asignados": resultado.rowcount or 0, "cuenta": cuenta.nombre, "saldo_actual": detalle["saldo_actual"]}

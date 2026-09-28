@@ -506,11 +506,42 @@ def test_cuentas_saldos_y_subcategorias(client):
     diag = client.get("/saldos/diagnostico", headers=h).json()
     assert diag["sobregirado"] is False
     assert diag["saldo_actual"] == 1300000.0
+    assert diag["tiene_cuentas"] is True
     assert any("Transporte" in m for m in diag["motivos"])
 
     cons = client.get("/saldos/consolidado?meses=3", headers=h).json()
     assert len(cons["meses"]) == 3
     assert cons["meses"][-1]["saldo_final"] == 1300000.0
+
+
+def test_saldo_sin_cuentas_y_asignacion(client):
+    """Sin cuentas el saldo es solo flujo; al crear una cuenta y adoptar movimientos, es real."""
+    _, h = _registrar(client)
+    hoy = date.today()
+    comida = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Mercado")
+
+    # gasto sin cuenta
+    client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "127240", "fecha": hoy.isoformat(), "categoria_id": comida["id"],
+    })
+
+    d = client.get("/saldos/diagnostico", headers=h).json()
+    assert d["tiene_cuentas"] is False
+    assert d["saldo_actual"] == -127240.0
+    assert d["sin_cuenta_movimientos"] == 1
+    assert any("No tienes cuentas" in m for m in d["motivos"])
+
+    # creo la cuenta con el saldo real y adopto el movimiento huérfano
+    cta = client.post("/cuentas", headers=h, json={"nombre": "Banco", "saldo_inicial": "5000000"}).json()
+    r = client.post(f"/cuentas/{cta['id']}/adoptar-movimientos", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["asignados"] == 1
+    assert r.json()["saldo_actual"] == 4872760.0  # 5.000.000 − 127.240
+
+    d = client.get("/saldos/diagnostico", headers=h).json()
+    assert d["tiene_cuentas"] is True
+    assert d["saldo_actual"] == 4872760.0
+    assert d["sin_cuenta_movimientos"] == 0
 
 
 def test_diagnostico_de_sobregiro(client):

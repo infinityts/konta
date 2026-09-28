@@ -34,7 +34,11 @@ export default function Transacciones() {
     cargar()
     api<Categoria[]>('/categorias').then(setCategorias)
     api<Etiqueta[]>('/etiquetas').then(setEtiquetas)
-    api<SaldoResumen>('/cuentas').then((r) => setCuentas(r.cuentas))
+    api<SaldoResumen>('/cuentas').then((r) => {
+      setCuentas(r.cuentas)
+      // Con una sola cuenta se preselecciona, para que el movimiento afecte el saldo real
+      if (r.cuentas.length === 1) setForm((f) => ({ ...f, cuenta_id: r.cuentas[0].id }))
+    })
   }, [])
 
   async function crear() {
@@ -53,7 +57,7 @@ export default function Transacciones() {
           cuenta_id: form.cuenta_id || null,
         }),
       })
-      setForm({ ...empty, tipo: form.tipo, fecha: form.fecha })
+      setForm({ ...empty, tipo: form.tipo, fecha: form.fecha, cuenta_id: form.cuenta_id })
       setShow(false)
       cargar()
     } catch (e) {
@@ -135,6 +139,11 @@ export default function Transacciones() {
               </optgroup>
             ))}
           </select>
+          {form.cuenta_id === '' && cuentas.length > 0 && (
+            <p className="text-xs text-amber-600 sm:col-span-2">
+              ⚠️ Sin cuenta seleccionada: este movimiento no moverá el saldo de ninguna cuenta.
+            </p>
+          )}
           <button onClick={crear} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-2">Guardar</button>
         </div>
       )}

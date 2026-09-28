@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import {
   fmtMoney,
@@ -98,28 +99,54 @@ export default function Dashboard() {
 
       {/* Saldo real y el motivo */}
       {diag && (
-        <div
-          className={`mt-4 rounded-2xl border p-6 ${
-            diag.sobregirado ? 'border-red-300 bg-red-50' : 'border-emerald-200 bg-emerald-50'
-          }`}
-        >
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-medium text-slate-600">
-              Saldo actual {diag.sobregirado && <span className="font-bold text-red-700">· SOBREGIRADO</span>}
+        <>
+          {!diag.tiene_cuentas && (
+            <div className="mt-4 rounded-2xl border-2 border-indigo-300 bg-indigo-50 p-5">
+              <p className="font-semibold text-indigo-900">👉 Falta configurar tu saldo inicial</p>
+              <p className="mt-1 text-sm text-indigo-800">
+                El número de abajo es solo el <strong>flujo</strong> de tus movimientos
+                (ingresos − gastos), <strong>no tu dinero</strong>. La app no sabe cuánto tienes
+                hasta que crees una cuenta con el saldo que tienes hoy.
+              </p>
+              <Link
+                to="/cuentas"
+                className="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Crear mi cuenta con el saldo inicial
+              </Link>
+            </div>
+          )}
+
+          <div
+            className={`mt-4 rounded-2xl border p-6 ${
+              diag.sobregirado ? 'border-red-300 bg-red-50' : 'border-emerald-200 bg-emerald-50'
+            }`}
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-sm font-medium text-slate-600">
+                {diag.tiene_cuentas ? 'Saldo actual' : 'Flujo acumulado (sin saldo inicial)'}
+                {diag.sobregirado && <span className="font-bold text-red-700"> · SOBREGIRADO</span>}
+              </p>
+              <Link to="/cuentas" className="text-xs text-slate-500 underline">ver cuentas</Link>
+            </div>
+            <p className={`mt-1 text-4xl font-bold ${diag.sobregirado ? 'text-red-700' : 'text-emerald-700'}`}>
+              {fmtMoney(diag.saldo_actual)}
             </p>
-            <a href="/cuentas" className="text-xs text-slate-500 underline">ver cuentas</a>
+            <ul className="mt-3 space-y-1 text-sm">
+              {diag.motivos.map((m, i) => (
+                <li key={i} className={diag.sobregirado ? 'text-red-700' : 'text-slate-600'}>
+                  • {m}
+                </li>
+              ))}
+            </ul>
+            {diag.proximo_ingreso && (
+              <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-sm text-slate-700">
+                💰 Próximo ingreso: <strong>{diag.proximo_ingreso.nombre}</strong> ·{' '}
+                {fmtMoney(diag.proximo_ingreso.monto)} el {diag.proximo_ingreso.fecha}
+              </p>
+            )}
           </div>
-          <p className={`mt-1 text-4xl font-bold ${diag.sobregirado ? 'text-red-700' : 'text-emerald-700'}`}>
-            {fmtMoney(diag.saldo_actual)}
-          </p>
-          <ul className="mt-3 space-y-1 text-sm">
-            {diag.motivos.map((m, i) => (
-              <li key={i} className={diag.sobregirado ? 'text-red-700' : 'text-slate-600'}>
-                • {m}
-              </li>
-            ))}
-          </ul>
-        </div>
+        </>
       )}
 
       <div

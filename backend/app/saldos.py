@@ -14,6 +14,7 @@ from .models import (
     Categoria,
     Cuenta,
     EstadoSuscripcion,
+    IngresoRecurrente,
     Suscripcion,
     TipoTransaccion,
     Transaccion,
@@ -85,6 +86,14 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
             .group_by(Transaccion.tipo)
         ).all()
     )
+    sin_cuenta_n = (
+        db.scalar(
+            select(func.count())
+            .select_from(Transaccion)
+            .where(Transaccion.usuario_id == usuario_id, Transaccion.cuenta_id.is_(None))
+        )
+        or 0
+    )
 
     total = sin_cuenta + sum(Decimal(str(c["saldo_actual"])) for c in salida)
     return {
@@ -93,6 +102,7 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
         "ingresos_total": float(sum((Decimal(str(c["ingresos"])) for c in salida), CERO)),
         "gastos_total": float(sum((Decimal(str(c["gastos"])) for c in salida), CERO)),
         "sin_cuenta": float(sin_cuenta),
+        "sin_cuenta_movimientos": int(sin_cuenta_n),
         "sobregirado": total < 0,
         "cuentas": salida,
     }
@@ -226,6 +236,22 @@ def top_categorias(db: Session, usuario_id, mes: str, limite: int = 8) -> list[d
     ]
 
 
+def proximo_ingreso(db: Session, usuario_id) -> dict | None:
+    """El ingreso recurrente activo más próximo (aún no generado)."""
+    ing = db.scalar(
+        select(IngresoRecurrente)
+        .where(
+            IngresoRecurrente.usuario_id == usuario_id,
+            IngresoRecurrente.activa.is_(True),
+        )
+        .order_by(IngresoRecurrente.proxima_ejecucion)
+        .limit(1)
+    )
+    if ing is None:
+        return None
+    return {"nombre": ing.nombre, "monto": float(ing.monto), "fecha": ing.proxima_ejecucion}
+
+
 def diagnostico(db: Session, usuario_id) -> dict:
     """Estado del saldo y, si hay sobregiro, el motivo."""
     saldos = saldo_cuentas(db, usuario_id)
@@ -247,39 +273,43 @@ def diagnostico(db: Session, usuario_id) -> dict:
         )
         or 0
     )
-
+    sin_cuenta_n = (
+        db.scalar(
+            select(func.count())
+            .select_from(Transaccion)
+            .where(Transaccion.usuario_id == usuario_id, Transaccion.cuenta_id.is_(None))
+        )
+        or 0
+    )
+    proximo = proximo_ingreso(db, usuario_id)
     tops = top_categorias(db, usuario_id, mes_actual)
 
+    tiene_cuentas = bool(saldos["cuentas"])
     motivos: list[str] = []
+
+    # 1) La causa raíz si no hay saldo inicial configurado
+    if not tiene_cuentas:
+        motivos.append(
+            "No tienes cuentas configuradas: el saldo que ves es solo el flujo de tus "
+            "movimientos, no tu dinero real."
+        )
+        motivos.append(
+            "Crea una cuenta con el saldo que tienes hoy y el saldo pasará a ser real."
+        )
+
+    # 2) El estado del saldo
     if saldo_actual < 0:
-        motivos.append(f"Tu saldo total está en {saldo_actual:,.2f}: estás sobregirado.")
+        if tiene_cuentas:
+            motivos.append(f"Tu saldo total está en {saldo_actual:,.2f}: estás sobregirado.")
         if gastos > ingresos:
             motivos.append(
-                f"Este mes gastaste {gastos:,.2f} y solo entraron {ingresos:,.2f} "
+                f"Este mes gastaste {gastos:,.2f} y entraron {ingresos:,.2f} "
                 f"(déficit de {gastos - ingresos:,.2f})."
             )
-        else:
+        elif tiene_cuentas:
             motivos.append(
-                f"Este mes el balance fue positivo ({ingresos - gastos:,.2f}), "
-                "así que el sobregiro viene de meses anteriores."
-            )
-        if tops:
-            primero = tops[0]
-            motivos.append(
-                f"Lo que más te consumió este mes fue {primero['etiqueta']} ({primero['monto']:,.2f})."
-            )
-        if gastos_ant > 0 and gastos > gastos_ant:
-            motivos.append(
-                f"Gastaste {gastos - gastos_ant:,.2f} más que el mes pasado ({gastos_ant:,.2f})."
-            )
-        if fijos > 0:
-            motivos.append(
-                f"Tienes {fijos:,.2f} en suscripciones activas: es gasto fijo que se repite cada mes."
-            )
-        if saldos["sin_cuenta"] < 0:
-            motivos.append(
-                f"Hay {abs(saldos['sin_cuenta']):,.2f} en movimientos sin cuenta asignada; "
-                "asignarlos te dará un diagnóstico más fino."
+                f"Este mes el balance fue positivo ({ingresos - gastos:,.2f}); "
+                "el sobregiro viene de meses anteriores."
             )
     else:
         motivos.append(f"Tu saldo total es {saldo_actual:,.2f}: estás al día.")
@@ -288,15 +318,40 @@ def diagnostico(db: Session, usuario_id) -> dict:
                 f"Ojo: este mes vas con déficit de {gastos - ingresos:,.2f} "
                 f"(gastos {gastos:,.2f} vs ingresos {ingresos:,.2f})."
             )
-        if tops:
-            primero = tops[0]
-            motivos.append(f"Tu mayor gasto del mes es {primero['etiqueta']} ({primero['monto']:,.2f}).")
-        if fijos > 0:
-            motivos.append(f"Tus suscripciones activas suman {fijos:,.2f} al mes.")
+
+    # 3) Qué te está consumiendo
+    if tops:
+        primero = tops[0]
+        motivos.append(
+            f"Lo que más te consumió este mes fue {primero['etiqueta']} ({primero['monto']:,.2f})."
+        )
+
+    # 4) Gasto fijo
+    if fijos > 0:
+        motivos.append(f"Tus suscripciones activas suman {fijos:,.2f} al mes (gasto fijo).")
+
+    # 5) Movimientos huérfanos
+    if sin_cuenta_n and tiene_cuentas:
+        motivos.append(
+            f"{sin_cuenta_n} movimiento(s) sin cuenta asignada por "
+            f"{abs(saldos['sin_cuenta']):,.2f}: asígnalos para que el saldo cuadre."
+        )
+
+    # 6) Ingreso recurrente que aún no llega
+    if proximo is not None:
+        dias = (proximo["fecha"] - hoy_).days
+        if 0 <= dias <= 7:
+            motivos.append(
+                f"Tu ingreso «{proximo['nombre']}» de {proximo['monto']:,.2f} llega el "
+                f"{proximo['fecha'].isoformat()} (en {dias} día(s)) y todavía no está sumado."
+            )
 
     return {
         "saldo_actual": float(saldo_actual),
         "sobregirado": saldo_actual < 0,
+        "tiene_cuentas": tiene_cuentas,
+        "sin_cuenta_movimientos": int(sin_cuenta_n),
+        "proximo_ingreso": proximo,
         "ingresos_mes": float(ingresos),
         "gastos_mes": float(gastos),
         "balance_mes": float(ingresos - gastos),
