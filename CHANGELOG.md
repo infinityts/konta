@@ -94,13 +94,13 @@ Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de 
   *Suscripciones* a un arriendo, un colegio o los servicios confunde. El concepto visible
   debería ser **Recurrentes**, con gastos (hoy suscripciones) e ingresos (hoy ingresos
   recurrentes) en el mismo sitio.
-- **Transferencias entre cuentas y pago de la tarjeta** (lo más grande que falta). No existe
-  el concepto: `TipoTransaccion` solo tiene `ingreso` y `gasto`. Mover dinero de ahorros a la
-  cuenta del día a día obliga a registrar un gasto y un ingreso del mismo monto, así que los
-  saldos quedan bien pero **los reportes y el flujo de caja se contaminan** con un gasto y un
-  ingreso que no existieron. Lo mismo al pagar la tarjeta: no hay forma de que el pago baje
-  el saldo de la cuenta **y** la deuda de la tarjeta a la vez (hoy la deuda se actualiza a
-  mano, «lo que dice el extracto»).
+- **Pago de la tarjeta de crédito**: falta poder registrar el pago de forma que baje el
+  saldo de la cuenta **y** la deuda de la tarjeta a la vez. No es solo una transferencia: la
+  deuda se guarda como **snapshots** («lo que dice el extracto», un *nivel*), así que sumarle
+  pagos como filas negativas se rompe en cuanto registres el extracto siguiente (que ya
+  incluye esos pagos). Hay que decidir el modelo: llevar la deuda como *flujo* (deuda inicial
+  + consumos − pagos), ajustar el último snapshot, o dejar el pago como movimiento y avisar de
+  que toca actualizar la deuda a mano.
 - **Reglas de OCR sin interfaz**: el clasificador aprende (`reglas_ocr`) pero no se pueden
   ver, corregir ni borrar. Si aprende algo mal, no hay forma de deshacerlo desde la app.
 - **Confirmar un recibo como un solo gasto**: hoy cada línea confirmada crea su transacción,
@@ -616,3 +616,44 @@ generaba gastos **sin categoría** (invisibles para reportes y presupuestos).
   tras la asignación en bloque, la sobrescritura explícita, el borrado de etiquetas, el aviso
   cuando el filtro no encaja con nada, la categoría de respaldo y el aislamiento entre
   usuarios.
+
+## v1.27 — Transferencias entre cuentas
+
+Era el hueco más grande: `TipoTransaccion` solo tenía `ingreso` y `gasto`, así que mover dinero
+de ahorros a la cuenta del día a día obligaba a registrar **un gasto y un ingreso del mismo
+monto**. Los saldos quedaban bien, pero los **reportes y el flujo de caja se contaminaban** con
+un gasto y un ingreso que nunca existieron.
+
+- **Migración `0022`**: valor `transferencia` en el ENUM `tipo_transaccion` y columna
+  `transacciones.cuenta_destino_id` (la cuenta que recibe; el origen va en `cuenta_id`).
+- **Una transferencia no es gasto ni ingreso**, y con el tipo nuevo queda **fuera por
+  construcción** de todo lo que ya filtraba por tipo: reportes, presupuestos, alertas, flujo de
+  caja y el gasto variable. Lo que **sí** hubo que tocar es el cálculo de saldos, que tenía dos
+  trampas:
+  - `_neto()` metía en el `else` cualquier tipo que no fuera `ingreso`, así que una
+    transferencia **restaba como un gasto**. Ahora la salta.
+  - `saldo_cuentas`/`saldo_de_cuenta` agregaban solo por `cuenta_id`, así que la transferencia
+    **no movía ninguna cuenta**. Ahora se agregan las dos direcciones (sale de `cuenta_id`,
+    entra en `cuenta_destino_id`) y el consolidado la ignora porque mover dinero entre tus
+    cuentas **no cambia el total**.
+- **Reglas en un solo sitio** (`routers/transacciones.py`): la transferencia exige origen y
+  destino distintos, ambos del usuario y en la **misma moneda**, y **prohíbe** categoría,
+  etiqueta, tarjeta y suscripción (no es un consumo que se clasifique). Al **editar** se valida
+  el estado *resultante*, no solo lo que llega: convertir un gasto en transferencia obliga a
+  quitarle la categoría y darle destino.
+- **UI**: opción *Transferencia entre cuentas* en el formulario, con «Desde» y «Hacia» en lugar
+  de categoría/tarjeta; en el listado se lee `🔄 Ahorros → Diario` sin signo ni color de gasto, y
+  hay filtro propio. En **Cuentas** se ven los movimientos por transferencia de cada cuenta para
+  que el saldo no parezca inventado.
+- Nota: entre monedas distintas la transferencia se **rechaza** con un mensaje claro — eso
+  necesita su propia tasa y un segundo importe (`monto_destino`), que es otra tarea.
+- Tests: 56 en verde (antes 54). Cubren que el saldo se mueva en las dos cuentas y **no** en los
+  reportes, el flujo ni el diagnóstico; y las validaciones (sin destino, mismo origen y destino,
+  con categoría, entre monedas, con cuentas ajenas y la conversión de un gasto en transferencia).
+
+### Lo que queda de la tarjeta
+
+El **pago de la tarjeta** se separa a su propia tarea, porque no es solo una transferencia: la
+deuda se guarda como snapshots («lo que dice el extracto», un *nivel*) y sumarle pagos como
+filas negativas se rompe en cuanto registres el extracto siguiente. El `CHANGELOG` deja las
+tres opciones de modelo sobre la mesa.

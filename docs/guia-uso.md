@@ -218,7 +218,23 @@ A nivel de servidor también puedes hacer `pg_dump` (ver [`despliegue.md`](despl
 
 ---
 
-## 10. Seguros y pólizas
+## 10. Mover dinero entre tus cuentas
+
+👉 **Transacciones** → tipo **Transferencia entre cuentas** → *Desde* una cuenta y *Hacia* otra.
+
+- **No es un gasto ni un ingreso**: no aparece en reportes, presupuestos ni flujo de caja. Es
+  dinero que cambia de sitio, no dinero que se va.
+- Las dos cuentas tienen que ser tuyas y estar en la **misma moneda**; si no, la app lo dice en
+  vez de inventarse la conversión.
+- En **Cuentas** verás `− transferencia` y `+ transferencia` en cada cuenta, para que el saldo
+  cuadre a la vista.
+
+> Regla práctica: si el dinero **sigue siendo tuyo** (pasarlo a ahorros, recargar la cuenta del
+> día a día), es una **transferencia**. Si **se va** (mercado, arriendo), es un **gasto**.
+
+---
+
+## 11. Seguros y pólizas
 
 👉 **Seguros** → *Nueva póliza*
 
@@ -258,7 +274,7 @@ si te pasas.
 
 ---
 
-## 11. Subir un recibo (OCR por línea)
+## 12. Subir un recibo (OCR por línea)
 
 👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
 

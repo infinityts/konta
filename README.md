@@ -84,6 +84,16 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   balance y acumulado. **Todo en COP**: lo que esté en otra moneda se convierte con la tasa
   registrada, y si falta la tasa se avisa en vez de sumar el número en crudo.
 
+### Transferencias
+- **Mover dinero entre tus cuentas** con un movimiento de tipo **transferencia**: sale de una
+  cuenta y entra en la otra, y **no es gasto ni ingreso**, así que **no aparece** en reportes,
+  presupuestos, alertas ni flujo de caja (antes había que registrar un gasto y un ingreso del
+  mismo monto, y eso ensuciaba los informes).
+- Las dos cuentas deben ser tuyas y estar en la **misma moneda** (la app lo comprueba y lo
+  explica). Una transferencia no lleva categoría, etiqueta ni tarjeta: no es un consumo.
+- En **Cuentas** se ven los movimientos por transferencia de cada cuenta, para que el saldo no
+  parezca inventado.
+
 ### Saldo y consolidado
 - **Cuentas** (efectivo, banco, ahorros…) cada una con su **saldo inicial**; el
   **saldo actual** = `saldo inicial + ingresos − gastos`, por cuenta y total.
@@ -228,7 +238,7 @@ aislados por usuario.
 | **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}`, `GET/POST /tarjetas/{id}/deudas`, `DELETE /tarjetas/{id}/deudas/{deuda_id}`, `GET /tarjetas/{id}/simulador` |
 | **Suscripciones** | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
 | **Pólizas** | `GET/POST /polizas`, `GET/PATCH/DELETE /polizas/{id}`, `GET /polizas/resumen`, `POST /polizas/{id}/asegurados`, `PATCH/DELETE /polizas/asegurados/{asegurado_id}`, `POST /polizas/{id}/beneficiarios`, `PATCH/DELETE /polizas/beneficiarios/{beneficiario_id}` |
-| **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
+| **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` (incluye el tipo `transferencia`) |
 | **Ingresos recurrentes** | `GET/POST /ingresos-recurrentes`, `GET/PATCH/DELETE /ingresos-recurrentes/{id}` |
 | **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}`, `POST /etiquetas/diccionario` |
 | **Alertas** | `GET /alertas?dias=15` |
@@ -276,6 +286,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0019_polizas` | `polizas`, `beneficiarios` + `transacciones.poliza_id` + periodicidad `semestral` |
 | `0020_poliza_asegurados` | `poliza_asegurados` (varias personas cubiertas por póliza) |
 | `0021_uq_categorias_raiz` | recupera la unicidad de categorías por usuario (la 0014 se llevó el índice) y fusiona duplicados |
+| `0022_transferencias` | tipo `transferencia` + `transacciones.cuenta_destino_id` |
 
 ---
 
@@ -296,7 +307,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**54 tests en verde.** El esquema se mantiene alineado con el ORM:
+**56 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
@@ -315,12 +326,13 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima que genera su gasto, vigencia y vencimiento, **varias personas cubiertas**, beneficiarios con porcentaje y bien asegurado (placa)
 - [x] **Costo anual de los seguros** en *Reportes* (con desglose por tipo) y en el gasto fijo del dashboard
 - [x] **Flujo de caja** en COP: convierte lo que esté en otra moneda, avisa si falta la tasa, e incluye las pólizas con su periodicidad real
+- [x] **Transferencias entre cuentas**: un movimiento que mueve saldo de una cuenta a otra sin pasar por ingresos ni gastos
 
 Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
 decisión, en el `CHANGELOG`):
 
-- [ ] **Transferencias entre cuentas y pago de la tarjeta**: hoy mover dinero entre tus
-  cuentas se registra como gasto + ingreso, lo que ensucia reportes y flujo de caja
+- [ ] **Pago de la tarjeta de crédito**: hoy la deuda se actualiza a mano («lo que dice el
+  extracto») porque es un *nivel*, no un *flujo*; hay que decidir el modelo antes de tocarlo
 - [ ] **Reutilizar las etiquetas entre categorías**: copiar el árbol de etiquetas de una
   categoría a otra (crear «Casa 2» con lo que ya tiene «Casa 1»), con vista previa
 - [ ] **Transacción recurrente u ocasional**: marcarla como «se repite» al crearla, y llamar

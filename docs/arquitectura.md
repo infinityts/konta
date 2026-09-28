@@ -92,7 +92,7 @@ relacionan las piezas.
 | `respaldo.py` | Exportar/restaurar todos los datos del usuario |
 | `flujo.py` | Proyección de flujo de caja a N meses: ingresos recurrentes + cobros fijos (suscripciones y pólizas) + gasto variable, todo normalizado a COP |
 | `metas.py` | Progreso de metas de ahorro y aporte sugerido |
-| `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro |
+| `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro (las transferencias mueven dos cuentas y no cambian el total) |
 | `polizas.py` | Costo de los seguros: prima normalizada a mes y a COP, resumen y desglose por tipo (lo comparten `/polizas` y `/reportes`) |
 | `jerarquia.py` | Helpers del árbol `Categoría › Etiqueta › Subetiqueta` (rutas para mostrar) |
 | `notificaciones.py` | Envío por Telegram / SMTP / WhatsApp + job diario con dedup |
@@ -111,7 +111,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-24 tablas de negocio (más `alembic_version`), creadas por 21 migraciones:
+24 tablas de negocio (más `alembic_version`), creadas por 22 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -136,6 +136,7 @@ relacionan las piezas.
 | `0019_polizas` | `polizas`, `beneficiarios` + `transacciones.poliza_id` + `periodicidad.semestral` |
 | `0020_poliza_asegurados` | `poliza_asegurados` (varias personas cubiertas por póliza) |
 | `0021_uq_categorias_raiz` | recupera `uq_categorias_raiz` (sin el `WHERE` que la 0014 se llevó) y fusiona duplicados |
+| `0022_transferencias` | tipo `transferencia` + `transacciones.cuenta_destino_id` |
 
 ### Relaciones principales
 
