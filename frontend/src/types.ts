@@ -69,6 +69,16 @@ export interface Transaccion {
   notas: string | null
 }
 
+export interface CopiarEtiquetas {
+  previsualizar: boolean
+  creadas: Etiqueta[]
+  /** Rutas que ya existían en el destino: no se duplican */
+  omitidas: string[]
+  /** Rutas que se crearían (solo en la previsualización) */
+  plan: string[]
+  total_creadas: number
+}
+
 export interface Etiqueta {
   id: string
   nombre: string

@@ -1900,3 +1900,113 @@ def test_transferencia_reglas_de_validacion(client):
     saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
     assert saldos["A"]["saldo_actual"] == -5000.0
     assert saldos["B"]["saldo_actual"] == 5000.0
+
+
+# --- copiar las etiquetas de otra categoría (Casa 2 con lo de Casa 1) ------- #
+
+
+def _casa(client, h, nombre, tipo="gasto"):
+    return client.post("/categorias", headers=h, json={"nombre": nombre, "tipo": tipo}).json()
+
+
+def test_copiar_etiquetas_de_otra_categoria(client):
+    """Crear «Casa 2» con las etiquetas de «Casa 1» sin volver a teclearlas."""
+    _, h = _registrar(client)
+    c1, c2 = _casa(client, h, "Casa 1"), _casa(client, h, "Casa 2")
+
+    def etq(nombre, cat_id, padre_id=None):
+        return client.post("/etiquetas", headers=h, json={
+            "nombre": nombre, "categoria_id": cat_id, "padre_id": padre_id,
+        }).json()
+
+    servicios = etq("Servicios", c1["id"])
+    etq("Internet", c1["id"], servicios["id"])
+    etq("Agua", c1["id"], servicios["id"])
+    aseo = etq("Aseo", c1["id"])
+    etq("Señora del aseo", c1["id"], aseo["id"])
+    etq("Arriendo", c1["id"])
+
+    def en(cat_id):
+        return [e for e in client.get("/etiquetas", headers=h).json() if e["categoria_id"] == cat_id]
+
+    # 1) Previsualización: enseña el plan y NO toca el árbol
+    r = client.post(f"/categorias/{c2['id']}/copiar-etiquetas", headers=h,
+                    json={"origen_id": c1["id"], "previsualizar": True})
+    assert r.status_code == 200, r.text
+    plan = r.json()
+    assert plan["previsualizar"] is True and plan["total_creadas"] == 6
+    assert "Servicios › Internet" in plan["plan"] and "Arriendo" in plan["plan"]
+    assert plan["creadas"] == []
+    assert en(c2["id"]) == [], "la previsualización no debe crear nada"
+
+    # 2) Copiar de verdad, conservando el anidamiento
+    r = client.post(f"/categorias/{c2['id']}/copiar-etiquetas", headers=h, json={"origen_id": c1["id"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["total_creadas"] == 6 and r.json()["omitidas"] == []
+    copiadas = {e["nombre"]: e for e in en(c2["id"])}
+    assert set(copiadas) == {"Servicios", "Internet", "Agua", "Aseo", "Señora del aseo", "Arriendo"}
+    assert copiadas["Internet"]["padre_id"] == copiadas["Servicios"]["id"]
+    assert copiadas["Señora del aseo"]["padre_id"] == copiadas["Aseo"]["id"]
+    assert all(e["categoria_id"] == c2["id"] for e in en(c2["id"]))
+    assert copiadas["Servicios"]["id"] != servicios["id"], "es una copia, no la misma etiqueta"
+
+    # 3) Idempotente: repetirlo no duplica nada
+    r = client.post(f"/categorias/{c2['id']}/copiar-etiquetas", headers=h, json={"origen_id": c1["id"]})
+    assert r.json()["total_creadas"] == 0
+    assert sorted(r.json()["omitidas"]) == sorted([
+        "Servicios", "Servicios › Internet", "Servicios › Agua",
+        "Aseo", "Aseo › Señora del aseo", "Arriendo",
+    ])
+    assert len(en(c2["id"])) == 6
+
+    # 4) Lo nuevo de Casa 1 se añade; y bajo una raíz que ya existe, sus hijas que falten
+    etq("Luz", c1["id"])
+    c3 = _casa(client, h, "Casa 3")
+    etq("Servicios", c3["id"])  # la raíz ya está, pero sin hijas
+    r = client.post(f"/categorias/{c3['id']}/copiar-etiquetas", headers=h, json={"origen_id": c1["id"]})
+    assert {e["nombre"] for e in r.json()["creadas"]} == {
+        "Internet", "Agua", "Aseo", "Señora del aseo", "Arriendo", "Luz",
+    }
+    assert r.json()["omitidas"] == ["Servicios"]
+    internet_c3 = next(e for e in en(c3["id"]) if e["nombre"] == "Internet")
+    raiz_c3 = next(e for e in en(c3["id"]) if e["nombre"] == "Servicios")
+    assert internet_c3["padre_id"] == raiz_c3["id"]
+
+    # 5) Las etiquetas copiadas sirven para clasificar de verdad
+    hoy_ = date.today().isoformat()
+    tx = client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "90000", "fecha": hoy_,
+        "descripcion": "Internet del mes", "etiqueta_id": copiadas["Internet"]["id"],
+        "categoria_id": c2["id"],
+    }).json()
+    assert tx["etiqueta_id"] == copiadas["Internet"]["id"]
+    assert tx["categoria_id"] == c2["id"]
+
+
+def test_copiar_etiquetas_validaciones(client):
+    """Misma categoría, tipos distintos y categorías de otro usuario."""
+    _, h = _registrar(client)
+    c1 = _casa(client, h, "Casa 1")
+    c2 = _casa(client, h, "Casa 2")
+    ingreso = _casa(client, h, "Ingresos extra", tipo="ingreso")
+
+    # Misma categoría como origen y destino
+    assert client.post(f"/categorias/{c2['id']}/copiar-etiquetas", headers=h, json={
+        "origen_id": c2["id"],
+    }).status_code == 422
+    # Mezclar gastos con ingresos
+    assert client.post(f"/categorias/{c2['id']}/copiar-etiquetas", headers=h, json={
+        "origen_id": ingreso["id"],
+    }).status_code == 422
+    # Una categoría de otro usuario no existe para mí
+    _, h2 = _registrar(client)
+    assert client.post(f"/categorias/{c2['id']}/copiar-etiquetas", headers=h2, json={
+        "origen_id": c1["id"],
+    }).status_code == 404
+    assert client.post(f"/categorias/{c1['id']}/copiar-etiquetas", headers=h2, json={
+        "origen_id": c2["id"],
+    }).status_code == 404
+    # Y una categoría de origen inventada
+    assert client.post(f"/categorias/{c2['id']}/copiar-etiquetas", headers=h, json={
+        "origen_id": str(uuid.uuid4()),
+    }).status_code == 404

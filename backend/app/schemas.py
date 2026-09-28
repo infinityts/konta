@@ -72,6 +72,28 @@ class CategoriaOut(CategoriaIn):
     usuario_id: uuid.UUID
 
 
+class CopiarEtiquetasIn(BaseModel):
+    """Copiar las etiquetas de **otra** categoría a esta (Casa 2 con lo de Casa 1).
+
+    `previsualizar` calcula el plan y **no guarda nada**, para poder enseñarlo antes
+    de tocar el árbol del usuario.
+    """
+
+    origen_id: uuid.UUID
+    previsualizar: bool = False
+
+
+class CopiarEtiquetasOut(BaseModel):
+    previsualizar: bool = False
+    # Las que se crearon (vacío si era una previsualización)
+    creadas: list[EtiquetaOut] = []
+    # Rutas que ya existían en el destino: no se duplican
+    omitidas: list[str] = []
+    # Rutas que se crearían: solo en la previsualización
+    plan: list[str] = []
+    total_creadas: int = 0
+
+
 # --- tarjetas ---
 
 

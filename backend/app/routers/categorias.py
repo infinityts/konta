@@ -15,8 +15,16 @@ from sqlalchemy.orm import Session
 
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
+from ..jerarquia import copiar_etiquetas
 from ..models import Categoria, Usuario
-from ..schemas import CategoriaIn, CategoriaOut, CategoriaUpdate
+from ..schemas import (
+    CategoriaIn,
+    CategoriaOut,
+    CategoriaUpdate,
+    CopiarEtiquetasIn,
+    CopiarEtiquetasOut,
+    EtiquetaOut,
+)
 
 router = APIRouter(prefix="/categorias", tags=["categorias"])
 
@@ -74,6 +82,55 @@ def crear(data: CategoriaIn, db: Session = Depends(get_db), user: Usuario = Depe
         raise HTTPException(status_code=400, detail=_msg_duplicado(nombre))
     db.refresh(obj)
     return obj
+
+
+@router.post("/{id}/copiar-etiquetas", response_model=CopiarEtiquetasOut)
+def copiar_etiquetas_endpoint(
+    id: uuid.UUID,
+    data: CopiarEtiquetasIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Copia el árbol de etiquetas de otra categoría dentro de esta.
+
+    Pensado para no volver a teclear lo mismo: «Casa 2» nace con las etiquetas y
+    subetiquetas de «Casa 1». Las que ya existan **no se duplican** (se informan en
+    `omitidas`), y es idempotente: repetirlo no añade nada. Con
+    `previsualizar: true` devuelve el plan **sin guardar nada**.
+    """
+    destino = get_owned(db, Categoria, id, user.id)
+    origen = get_owned(db, Categoria, data.origen_id, user.id)
+    if origen.id == destino.id:
+        raise HTTPException(
+            status_code=422, detail="El origen y el destino son la misma categoría"
+        )
+    if origen.tipo != destino.tipo:
+        # Una etiqueta de ingresos dentro de una categoría de gastos rompería los
+        # reportes por tipo y los presupuestos, que dan por hecho esa coherencia.
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"«{origen.nombre}» es de {origen.tipo.value} y «{destino.nombre}» de "
+                f"{destino.tipo.value}: no se pueden mezclar"
+            ),
+        )
+
+    creadas, omitidas, rutas = copiar_etiquetas(db, origen, destino)
+
+    if data.previsualizar:
+        db.rollback()  # la previsualización no toca el árbol del usuario
+        return CopiarEtiquetasOut(
+            previsualizar=True, plan=rutas, omitidas=omitidas, total_creadas=len(rutas)
+        )
+
+    db.commit()
+    for etiqueta in creadas:
+        db.refresh(etiqueta)
+    return CopiarEtiquetasOut(
+        creadas=[EtiquetaOut.model_validate(e) for e in creadas],
+        omitidas=omitidas,
+        total_creadas=len(creadas),
+    )
 
 
 @router.get("/{id}", response_model=CategoriaOut)

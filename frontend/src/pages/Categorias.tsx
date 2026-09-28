@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
-import type { Categoria } from '../types'
+import type { Categoria, CopiarEtiquetas } from '../types'
 
 export default function Categorias() {
   const [items, setItems] = useState<Categoria[]>([])
@@ -9,6 +9,9 @@ export default function Categorias() {
   const [editando, setEditando] = useState<string | null>(null)
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
+  const [aviso, setAviso] = useState('')
+  // Copiar las etiquetas de otra categoría (Casa 2 con lo de Casa 1)
+  const [copiar, setCopiar] = useState<{ destino: string; origen: string; plan: CopiarEtiquetas | null } | null>(null)
 
   async function cargar() {
     try {
@@ -64,6 +67,44 @@ export default function Categorias() {
     }
   }
 
+  /** Enseña qué se crearía, sin tocar nada (la previsualización no guarda). */
+  async function previsualizar(destino: string, origen: string) {
+    setError('')
+    setAviso('')
+    if (!origen) {
+      setCopiar({ destino, origen: '', plan: null })
+      return
+    }
+    try {
+      const plan = await api<CopiarEtiquetas>(`/categorias/${destino}/copiar-etiquetas`, {
+        method: 'POST',
+        body: JSON.stringify({ origen_id: origen, previsualizar: true }),
+      })
+      setCopiar({ destino, origen, plan })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al previsualizar')
+    }
+  }
+
+  async function copiarEtiquetas() {
+    if (!copiar?.origen) return
+    setError('')
+    try {
+      const r = await api<CopiarEtiquetas>(`/categorias/${copiar.destino}/copiar-etiquetas`, {
+        method: 'POST',
+        body: JSON.stringify({ origen_id: copiar.origen }),
+      })
+      setAviso(
+        r.total_creadas > 0
+          ? `✅ ${r.total_creadas} etiqueta(s) copiadas. Ve a Etiquetas para verlas.`
+          : 'No había nada que copiar: ya estaban todas.',
+      )
+      setCopiar(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al copiar')
+    }
+  }
+
   const seccion = (tipo: 'gasto' | 'ingreso') => (
     <div>
       <h3 className={`font-medium ${tipo === 'gasto' ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -71,12 +112,74 @@ export default function Categorias() {
       </h3>
       <ul className="mt-2 space-y-1">
         {items.filter((c) => c.tipo === tipo).map((c) => (
-          <li key={c.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
-            <span className="text-sm text-slate-800">{c.nombre}</span>
-            <div className="flex items-center gap-3">
-              <button onClick={() => abrirEditar(c)} className="text-xs text-indigo-600 hover:underline">Editar</button>
-              <button onClick={() => eliminar(c.id)} className="text-xs text-red-600 hover:underline">Eliminar</button>
+          <li key={c.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-800">{c.nombre}</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() =>
+                    copiar?.destino === c.id
+                      ? setCopiar(null)
+                      : setCopiar({ destino: c.id, origen: '', plan: null })
+                  }
+                  className="text-xs text-slate-600 hover:underline"
+                  title="Traer aquí las etiquetas de otra categoría, sin volver a crearlas"
+                >
+                  {copiar?.destino === c.id ? 'Cancelar' : 'Copiar etiquetas de…'}
+                </button>
+                <button onClick={() => abrirEditar(c)} className="text-xs text-indigo-600 hover:underline">Editar</button>
+                <button onClick={() => eliminar(c.id)} className="text-xs text-red-600 hover:underline">Eliminar</button>
+              </div>
             </div>
+
+            {copiar?.destino === c.id && (
+              <div className="mt-2 border-t border-slate-100 pt-2">
+                <select
+                  value={copiar.origen}
+                  onChange={(e) => previsualizar(c.id, e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="">Traer las etiquetas de…</option>
+                  {items
+                    .filter((o) => o.id !== c.id && o.tipo === c.tipo)
+                    .map((o) => (
+                      <option key={o.id} value={o.id}>{o.nombre}</option>
+                    ))}
+                </select>
+
+                {copiar.plan && (
+                  <div className="mt-2 text-xs">
+                    {copiar.plan.total_creadas === 0 ? (
+                      <p className="text-slate-500">
+                        No hay nada que copiar: esta categoría ya tiene todo lo de la otra.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-slate-600">
+                          Se crearán <strong>{copiar.plan.total_creadas}</strong> etiqueta(s):
+                        </p>
+                        <ul className="mt-1 space-y-0.5 text-slate-500">
+                          {copiar.plan.plan.map((ruta) => (
+                            <li key={ruta}>＋ {ruta}</li>
+                          ))}
+                        </ul>
+                        {copiar.plan.omitidas.length > 0 && (
+                          <p className="mt-1 text-slate-400">
+                            Ya existen (no se duplican): {copiar.plan.omitidas.join(', ')}
+                          </p>
+                        )}
+                        <button
+                          onClick={copiarEtiquetas}
+                          className="mt-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700"
+                        >
+                          Copiar {copiar.plan.total_creadas} etiqueta(s)
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </li>
         ))}
         {items.filter((c) => c.tipo === tipo).length === 0 && (
@@ -105,6 +208,7 @@ export default function Categorias() {
         — se manejan en <Link to="/etiquetas" className="text-indigo-600 underline">Etiquetas</Link>.
       </p>
       {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {aviso && <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{aviso}</p>}
 
       {show && (
         <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3">
