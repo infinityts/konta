@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Opción B — Dashboard analítico</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8fafc;color:#0f172a}
+  .banner{background:#0f766e;color:#fff;padding:11px 22px;font-size:13px;font-weight:600}
+  .banner small{font-weight:400;opacity:.85}
+  .wrap{max-width:1240px;margin:0 auto;padding:20px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .seg{display:inline-flex;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:3px}
+  .seg b{font-size:13px;padding:6px 15px;border-radius:8px;color:#64748b;font-weight:600;cursor:pointer}
+  .seg b.on{background:#0f766e;color:#fff}
+  .top .r{margin-left:auto;font-size:13px;color:#64748b}
+  /* KPIs */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+  .kpi{padding:15px 17px}
+  .kpi .l{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;font-weight:700}
+  .kpi .v{font-size:25px;font-weight:750;letter-spacing:-.02em;margin-top:5px;font-variant-numeric:tabular-nums}
+  .kpi .d{font-size:12px;color:#94a3b8;margin-top:3px}
+  /* LAYOUT */
+  .grid{display:grid;grid-template-columns:1.55fr 1fr;gap:13px;margin-top:13px}
+  .head{padding:14px 17px;border-bottom:1px solid #e2e8f0;font-size:13.5px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+  .head span{font-size:12px;font-weight:500;color:#94a3b8}
+  .body{padding:16px 17px}
+  /* CHART */
+  .chart{display:flex;align-items:flex-end;gap:18px;height:158px;padding:6px 4px 0}
+  .mes{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%}
+  .mes .bar{width:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;height:100%}
+  .mes .bar i{display:block;border-radius:5px 5px 0 0}
+  .mes .bar i.g{background:#f87171}
+  .mes .bar i.ng{background:#34d399}
+  .mes .lab{font-size:11.5px;color:#94a3b8;font-weight:600}
+  .leyenda{display:flex;gap:16px;font-size:12px;color:#64748b;margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9}
+  .leyenda b{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
+  /* FILAS */
+  .fila{display:flex;align-items:center;gap:11px;margin-bottom:12px;font-size:13.5px}
+  .fila .n{width:150px;flex:0 0 150px;color:#334155}
+  .fila .bar{flex:1;height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden}
+  .fila .bar i{display:block;height:100%;background:#0d9488;border-radius:999px}
+  .fila .v{width:92px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  .alerta{display:flex;gap:11px;padding:12px 0;border-bottom:1px solid #f1f5f9;font-size:13.5px;align-items:flex-start}
+  .alerta:last-child{border-bottom:0}
+  .alerta .ic{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 28px}
+  .alerta .ic.r{background:#fee2e2}.alerta .ic.a{background:#fef3c7}.alerta .ic.g{background:#dcfce7}
+  .alerta .v{margin-left:auto;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .alerta small{color:#94a3b8;font-weight:400;display:block;font-size:11.5px;margin-top:2px}
+  .nota{margin-top:14px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:14px 16px;font-size:13px;color:#115e59}
+</style>
+</head>
+<body>
+<div class="banner">OPCIÓN B · Dashboard analítico <small>— responde «¿cómo voy?». Periodo, tendencia y comparación.</small></div>
+<div class="wrap">
+
+  <div class="top">
+    <div class="seg"><b>Hoy</b><b>Semana</b><b class="on">Septiembre</b><b>Año</b></div>
+    <div class="r">Al 28 de septiembre de 2026</div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="card kpi"><div class="l">Saldo</div><div class="v" style="color:#b91c1c">-$51.240</div><div class="d">2 cuentas</div></div>
+    <div class="card kpi"><div class="l">Ingresos</div><div class="v">$0</div><div class="d">+$11,8M el 30 sep</div></div>
+    <div class="card kpi"><div class="l">Gastos</div><div class="v" style="color:#b91c1c">$127.240</div><div class="d">1 movimiento</div></div>
+    <div class="card kpi"><div class="l">Gasto fijo / mes</div><div class="v">$259.606</div><div class="d">59% de tus ingresos</div></div>
+  </div>
+
+  <div class="grid">
+    <!-- IZQUIERDA -->
+    <div>
+      <div class="card">
+        <div class="head">Ingresos vs gastos <span>últimos 6 meses</span></div>
+        <div class="body">
+          <div class="chart">
+            <div class="mes"><div class="bar"><i class="g" style="height:2%"></i><i class="ng" style="height:2%"></i></div><span class="lab">abr</span></div>
+            <div class="mes"><div class="bar"><i class="g" style="height:2%"></i><i class="ng" style="height:2%"></i></div><span class="lab">may</span></div>
+            <div class="mes"><div class="bar"><i class="g" style="height:2%"></i><i class="ng" style="height:2%"></i></div><span class="lab">jun</span></div>
+            <div class="mes"><div class="bar"><i class="g" style="height:2%"></i><i class="ng" style="height:2%"></i></div><span class="lab">jul</span></div>
+            <div class="mes"><div class="bar"><i class="g" style="height:2%"></i><i class="ng" style="height:2%"></i></div><span class="lab">ago</span></div>
+            <div class="mes"><div class="bar"><i class="g" style="height:14%"></i><i class="ng" style="height:0"></i></div><span class="lab">sep</span></div>
+          </div>
+          <div class="leyenda">
+            <span><b style="background:#f87171"></b>Gastos</span>
+            <span><b style="background:#34d399"></b>Ingresos</span>
+            <span style="margin-left:auto;color:#b45309;font-weight:600">Sin historial: solo hay 1 movimiento registrado</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:13px">
+        <div class="head">Top categorías <span>septiembre</span></div>
+        <div class="body">
+          <div class="fila"><span class="n">Vivienda › Internet</span><span class="bar"><i style="width:100%"></i></span><span class="v">$127.240</span></div>
+          <div class="fila" style="opacity:.4"><span class="n">—</span><span class="bar"><i style="width:0"></i></span><span class="v">$0</span></div>
+          <div class="fila" style="opacity:.4"><span class="n">—</span><span class="bar"><i style="width:0"></i></span><span class="v">$0</span></div>
+          <div style="margin-top:12px;font-size:12.5px;color:#94a3b8">El ranking necesita al menos 3 categorías para ser útil.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DERECHA -->
+    <div>
+      <div class="card">
+        <div class="head">Alertas <span>3</span></div>
+        <div class="body">
+          <div class="alerta"><span class="ic r">⚠️</span><div>Saldo sobregirado<small>Faltan para cerrar septiembre</small></div><span class="v" style="color:#b91c1c">-$51.240</span></div>
+          <div class="alerta"><span class="ic a">📅</span><div>Corte AMEX<small>30 sep · en 2 días</small></div><span class="v">—</span></div>
+          <div class="alerta"><span class="ic g">💰</span><div>Ingreso Intraway<small>30 sep · aún no sumado</small></div><span class="v" style="color:#15803d">+$11,8M</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:13px">
+        <div class="head">Compromisos <span>al mes</span></div>
+        <div class="body">
+          <div class="alerta"><span class="ic">🤖</span><div>Suscripciones<small>9 activas · anuales prorrateadas</small></div><span class="v">$132.366</span></div>
+          <div class="alerta"><span class="ic">💳</span><div>Pago AMEX<small>5 oct · en 7 días</small></div><span class="v">—</span></div>
+          <div class="alerta"><span class="ic">🏠</span><div>Vivienda › Internet<small>mensual</small></div><span class="v">$127.240</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nota"><b>Qué cambia frente a hoy:</b> los KPIs suben arriba (y se cambian los inútiles «Tarjetas: 2» / «Movimientos: 1» por <b>Ingresos</b>, <b>Gastos</b> y <b>gasto fijo/mes</b>) · aparece un <b>gráfico de tendencia</b> que hoy no existe · el card rojo de 5 bullets se convierte en una <b>lista de alertas con monto</b> · selector de periodo (Hoy / Semana / Mes / Año) · el prorrateo de suscripciones anuales queda explícito · mismo arreglo de formatos: <b>-$51.240</b>, fechas «30 sep», sin «día(s)».</div>
+</div>
+</body>
+</html>
