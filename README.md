@@ -1,55 +1,126 @@
-# Konta — finanzas personales
+# Konta — Finanzas personales
 
-App de finanzas personales: suscripciones, tarjetas de crédito, gastos/ingresos,
-reportes y más. **Multi-usuario y multi-moneda**, con datos 100% locales.
+App de finanzas personales **multi-usuario** y **multi-moneda**: suscripciones,
+tarjetas de crédito, ingresos (fijos y recurrentes), gastos, etiquetas, reportes,
+alarmas de pagos y OCR de facturas. **Datos 100% locales.**
+
+---
+
+## Funcionalidades
+
+### Cuentas y accesos
+- Registro y login con **JWT** (contraseñas con **bcrypt**).
+- **Aislamiento total por usuario**: cada persona ve solo sus datos.
+- Al registrarse se crean **categorías por defecto** (gastos e ingresos).
+
+### Ingresos
+- **Transacciones de ingreso** con descripción (salario, freelance, extras).
+- **Ingresos recurrentes** con periodicidad **diaria, semanal o mensual**:
+  marcas el día y un **scheduler** registra el ingreso **automáticamente** cuando
+  corresponde (y hace *catch-up* si la app estaba apagada).
+
+### Gastos, tarjetas y suscripciones
+- **Tarjetas** de crédito/débito (banco, día de corte, día de pago, límite, tasa).
+- **Suscripciones** (monto, moneda, periodicidad, próximo pago, tarjeta y categoría).
+- **Transacciones** de gasto/ingreso con categoría, tarjeta y suscripción.
+
+### Organización
+- **Etiquetas y subetiquetas** jerárquicas (autojerárquicas) asociadas a transacciones.
+
+### Análisis
+- **Dashboard**: balance del mes (ingresos vs gastos), top categorías, próximos pagos.
+- **Reportes**: evolución mensual (últimos 6 meses) y desglose por categoría.
+- **Alertas de pagos**: próximos vencimientos de suscripciones y de tarjetas (pago/corte).
+
+### Documentos
+- **Facturas PDF**: subida, extracción de texto (**pypdf** + **OCR tesseract** en
+  español) y detección heurística de **monto** y **fecha**; asociación a transacciones.
+
+---
 
 ## Stack
 
-- **Backend**: FastAPI + SQLAlchemy + Alembic + PostgreSQL
-- **Frontend** (próximamente): React + Vite + TypeScript + Tailwind + shadcn/ui
-- **Futuro**: OCR de facturas PDF, tasas de interés de tarjetas, comparativo de
-  mercado, alarmas de pagos.
+| Capa | Tecnología |
+|---|---|
+| Backend | FastAPI + SQLAlchemy + Alembic |
+| Base de datos | PostgreSQL 16 |
+| Frontend | React + Vite + TypeScript + Tailwind CSS |
+| Scheduler | APScheduler (ingresos recurrentes) |
+| OCR | pypdf + tesseract-ocr |
+| Despliegue | Docker / Podman (compose) |
 
-## Requisitos
+```
+[ Navegador ]  React (Vite) ──/api/*──►  nginx
+                                            │ proxy
+                                            ▼
+                                  FastAPI (+ scheduler) ──► PostgreSQL
+```
 
-- Docker + Docker Compose
-- Python ≥ 3.11
+---
 
-## Inicio rápido
+## Inicio rápido (local)
 
 ```bash
-# 1. Base de datos (PostgreSQL 16, puerto 5433)
+# 1. Base de datos (PostgreSQL 16 en el puerto 5433)
 docker compose up -d db
 
 # 2. Backend
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-
-# 3. Migraciones
-cp .env.example .env   # ajusta si hace falta
+cp .env.example .env
 alembic upgrade head
+uvicorn app.main:app --reload --port 8000      # API + docs en /docs
 
-# 4. Arrancar la API
-uvicorn app.main:app --reload --port 8000
+# 3. Frontend (otra terminal)
+cd frontend
+pnpm install
+pnpm dev                                        # http://localhost:5173
 ```
 
-API en `http://localhost:8000` (docs en `/docs`).
+## Despliegue con Docker / Podman
 
-## Endpoints (todos protegidos con Bearer token, aislados por usuario)
+```bash
+docker compose up -d --build
+# Frontend:  http://localhost:8080
+# Backend:   http://localhost:8000  (docs en /docs)
+# PostgreSQL: localhost:5433
+```
+
+---
+
+## Endpoints
+
+Todos (salvo `register`/`login`) requieren `Authorization: Bearer <token>` y están
+aislados por usuario.
 
 | Recurso | Endpoints |
 |---|---|
-| Auth | `POST /auth/register`, `POST /auth/login` |
-| Categorías | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}` |
-| Tarjetas | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}` |
-| Suscripciones | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
-| Transacciones | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
+| **Auth** | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
+| **Categorías** | `GET/POST /categorias`, `GET/PATCH/DELETE /categorias/{id}` |
+| **Tarjetas** | `GET/POST /tarjetas`, `GET/PATCH/DELETE /tarjetas/{id}` |
+| **Suscripciones** | `GET/POST /suscripciones`, `GET/PATCH/DELETE /suscripciones/{id}` |
+| **Transacciones** | `GET/POST /transacciones`, `GET/PATCH/DELETE /transacciones/{id}` |
+| **Ingresos recurrentes** | `GET/POST /ingresos-recurrentes`, `GET/PATCH/DELETE /ingresos-recurrentes/{id}` |
+| **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}` |
+| **Alertas** | `GET /alertas?dias=15` |
+| **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM` |
+| **Facturas** | `GET/POST /facturas`, `POST /facturas/{id}/asociar`, `DELETE /facturas/{id}` |
 
-## Modelo de datos (núcleo)
+---
 
-`usuarios`, `monedas`, `tasas_cambio`, `categorias`, `tarjetas`,
-`suscripciones`, `transacciones` — migrado con Alembic (`alembic/versions/`).
+## Modelo de datos
+
+Migrado con **Alembic** (`backend/alembic/versions/`):
+
+| Migración | Contenido |
+|---|---|
+| `0001_nucleo` | `usuarios`, `monedas`, `tasas_cambio`, `categorias`, `tarjetas`, `suscripciones`, `transacciones` |
+| `0002_ingresos_recurrentes` | `ingresos_recurrentes` |
+| `0003_etiquetas` | `etiquetas` (autojerárquica) + `transacciones.etiqueta_id` |
+| `0004_facturas` | `facturas` |
+
+---
 
 ## Tests
 
@@ -59,8 +130,15 @@ cd backend
 FINANZAS_TEST_DATABASE_URL=postgresql+psycopg://finanzas:finanzas@localhost:5433/finanzas pytest
 ```
 
+Cobertura: auth, CRUD core, aislamiento multi-usuario, ingresos recurrentes,
+etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR).
+
+---
+
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD core (verificado contra PostgreSQL)
-- [ ] Frontend React
-- [ ] Reportes/dashboard, alarmas, OCR, mercado, tasas
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR
+- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas
+- [x] Despliegue con Docker/Podman
+- [ ] Presupuestos, importar CSV, mercado, multi-moneda (tasas), tasas de tarjetas, export/backup, flujo de caja, metas
+- [ ] Notificaciones de alarmas por email/Telegram
