@@ -271,6 +271,15 @@ si te pasas.
 | 5. Dices de dónde sale el dinero | **Tarjeta** (💳) y/o **cuenta**, y la **fecha** si el recibo es de otro día |
 | 6. **Confirmar N línea(s)** | Se crea **una transacción por artículo**, con su categoría y etiqueta |
 
+**Si son muchas y no quieres ir una por una**: en el bloque *«Asignar a las N sin
+clasificar»* elige categoría y etiqueta y pulsa **Aplicar**. Se aplica a todas las que están
+sin clasificar (lo que el diccionario ya acertó no se toca) y **cada una queda aprendida**,
+así que la próxima compra de lo mismo ya sale clasificada.
+
+**Si al confirmar queda alguna sin clasificar**: elige una **categoría de respaldo** antes de
+confirmar. Si no, esas transacciones se crean **sin categoría** y no aparecerán en los
+reportes por categoría ni contarán en los presupuestos.
+
 **Si sale todo «sin clasificar»**: pulsa **«Preparar etiquetas del diccionario y volver a
 clasificar»**. Crea las etiquetas que el OCR sabe reconocer (Carnes, Despensa, Ropa…) dentro
 de *Mercado*, *Transporte* y *Otros gastos*. Vienen de fábrica al registrarte, así que solo

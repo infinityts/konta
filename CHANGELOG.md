@@ -553,3 +553,25 @@ Tests: 52 en verde (antes 48). Los nuevos cubren la clasificación automática d
 mercado y de una compra de ropa, la tarjeta (crédito y débito con herencia de cuenta), la
 fecha, el sembrado idempotente de las etiquetas, el aislamiento entre usuarios al usar una
 tarjeta ajena y la coherencia entre el diccionario y las etiquetas por defecto.
+
+## v1.26 — Clasificar una tira larga de golpe
+
+Con 30 líneas, corregir una por una no es viable, y una compra que el diccionario no conoce
+generaba gastos **sin categoría** (invisibles para reportes y presupuestos).
+
+- **`PATCH /facturas/{id}/lineas`** (en bloque): asigna una etiqueta a **muchas líneas de una
+  vez**. Por defecto solo toca las que están **sin clasificar** —lo que el diccionario acertó
+  no se pisa— y con `solo_sin_clasificar: false` se puede sobrescribir todo, o quitar la
+  etiqueta (`etiqueta_id: null`). **Cada asignación se aprende** en `reglas_ocr`, así que la
+  próxima compra de lo mismo ya sale clasificada.
+- **Categoría de respaldo al confirmar**: `POST /facturas/{id}/confirmar` acepta
+  `etiqueta_id` o `categoria_id` para las líneas que sigan sin clasificar. Si se indica la
+  etiqueta, su categoría manda; si solo la categoría, el gasto cae ahí. Se acabó el gasto
+  huérfano de categoría.
+- **Frontend**: en *Facturas*, bloque *«Asignar a las N sin clasificar»* (categoría → etiqueta
+  en cascada + **Aplicar**, con el aviso de que se aprende) y, al confirmar, un selector de
+  **categoría de respaldo** con la explicación de por qué conviene elegirla.
+- Tests: 54 en verde (antes 52). Cubren el filtrado (solo las sin clasificar), el aprendizaje
+  tras la asignación en bloque, la sobrescritura explícita, el borrado de etiquetas, el aviso
+  cuando el filtro no encaja con nada, la categoría de respaldo y el aislamiento entre
+  usuarios.

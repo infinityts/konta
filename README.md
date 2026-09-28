@@ -120,6 +120,11 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   **fecha** de la compra (útil si el recibo es de otro día o no trae fecha legible). Si la
   tarjeta es de **débito**, la transacción hereda su cuenta; si es de **crédito**, el gasto
   no toca la cuenta. **Cada línea crea su propia transacción** con su categoría y etiqueta.
+- **Tiras largas sin corregir línea por línea**: se elige una etiqueta y se **aplica a todas
+  las que están sin clasificar** de una vez (y se aprende cada una para la próxima). Lo que
+  el diccionario ya acertó no se pisa salvo que se pida. Y si al confirmar queda alguna sin
+  clasificar, se puede indicar una **categoría de respaldo** para que ese gasto no quede sin
+  categoría (un gasto sin categoría no sale en reportes ni cuenta en presupuestos).
 
 ### Datos
 - **Importar estado de cuenta (CSV)**: sube el CSV del banco; detecta las columnas de
@@ -228,7 +233,7 @@ aislados por usuario.
 | **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}`, `POST /etiquetas/diccionario` |
 | **Alertas** | `GET /alertas?dias=15` |
 | **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM`, `GET /reportes/seguros` |
-| **Facturas** | `GET/POST /facturas`, `GET/DELETE /facturas/{id}`, `POST /facturas/{id}/asociar`, `POST /facturas/{id}/lineas`, `PATCH/DELETE /facturas/{id}/lineas/{linea_id}`, `POST /facturas/{id}/confirmar` |
+| **Facturas** | `GET/POST /facturas`, `GET/DELETE /facturas/{id}`, `POST /facturas/{id}/asociar`, `POST /facturas/{id}/lineas`, `PATCH /facturas/{id}/lineas` (en bloque), `PATCH/DELETE /facturas/{id}/lineas/{linea_id}`, `POST /facturas/{id}/confirmar` |
 | **Presupuestos** | `GET/POST /presupuestos`, `PATCH/DELETE /presupuestos/{id}` |
 | **Importar** | `POST /importar/csv` (previsualizar), `POST /importar/confirmar` |
 | **Mercado** | `GET/POST /productos`, `GET/PATCH/DELETE /productos/{id}`, `GET /productos/{id}/comparativo`, `GET/POST /productos/{id}/precios` |
@@ -291,7 +296,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**52 tests en verde.** El esquema se mantiene alineado con el ORM:
+**54 tests en verde.** El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 ---
