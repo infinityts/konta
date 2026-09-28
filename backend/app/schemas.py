@@ -150,11 +150,43 @@ class DeudaOut(BaseModel):
     notas: str | None
 
 
+class PagoTarjetaIn(BaseModel):
+    """Pagar la deuda de una tarjeta de crédito desde una cuenta.
+
+    El pago es un **flujo**: baja el saldo de la cuenta y la deuda vigente. No puede
+    superar la deuda de esa moneda (si no, sería un saldo a favor).
+    """
+
+    cuenta_id: uuid.UUID
+    monto: Decimal = Field(gt=0)
+    moneda: str = "COP"
+    fecha: date | None = None
+    notas: str | None = None
+
+
+class PagoTarjetaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tarjeta_id: uuid.UUID
+    cuenta_id: uuid.UUID | None
+    transaccion_id: uuid.UUID | None
+    monto: Decimal
+    moneda: str
+    fecha: date
+    notas: str | None
+
+
 class TarjetaConDeudaOut(TarjetaOut):
-    """Tarjeta con su deuda (por moneda y total convertido a COP si hay tasa)."""
+    """Tarjeta con su deuda vigente (extracto − pagos) y total en COP."""
 
     deudas: list[DeudaOut] = []
+    pagos: list[PagoTarjetaOut] = []
+    # Vigente = extracto − pagos posteriores (lo que se debe hoy)
     deuda_por_moneda: dict[str, float] = {}
+    # El desglose, para que el número no parezca inventado
+    extracto_por_moneda: dict[str, float] = {}
+    pagos_por_moneda: dict[str, float] = {}
     deuda_total_cop: float | None = None
     cuenta_nombre: str | None = None
 

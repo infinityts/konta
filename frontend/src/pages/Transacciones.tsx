@@ -437,7 +437,9 @@ export default function Transacciones() {
                   <>
                     {' · '}🔄 {nombreCuenta(t.cuenta_id)}
                     {' → '}
-                    {nombreCuenta(t.cuenta_destino_id ?? null)}
+                    {t.tarjeta_id
+                      ? `💳 ${nombreTarjeta(t.tarjeta_id)}`
+                      : nombreCuenta(t.cuenta_destino_id ?? null)}
                   </>
                 ) : (
                   <>

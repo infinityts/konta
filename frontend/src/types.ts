@@ -6,6 +6,17 @@ export interface Categoria {
   color: string | null
 }
 
+export interface PagoTarjeta {
+  id: string
+  tarjeta_id: string
+  cuenta_id: string | null
+  transaccion_id: string | null
+  monto: number | string
+  moneda: string
+  fecha: string
+  notas: string | null
+}
+
 export interface Deuda {
   id: string
   tarjeta_id: string
@@ -30,7 +41,11 @@ export interface Tarjeta {
   cuenta_nombre: string | null
   activa: boolean
   deudas: Deuda[]
+  pagos: PagoTarjeta[]
+  /** Vigente = extracto − pagos posteriores: lo que se debe hoy */
   deuda_por_moneda: Record<string, number>
+  extracto_por_moneda: Record<string, number>
+  pagos_por_moneda: Record<string, number>
   deuda_total_cop: number | null
 }
 

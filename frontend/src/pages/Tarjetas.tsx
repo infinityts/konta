@@ -33,6 +33,9 @@ export default function Tarjetas() {
   // Deuda
   const [deudaEn, setDeudaEn] = useState<string | null>(null)
   const [deudaForm, setDeudaForm] = useState({ moneda: 'COP', monto: '', notas: '' })
+  // Pago de la tarjeta (baja la cuenta y la deuda)
+  const [pagoEn, setPagoEn] = useState<string | null>(null)
+  const [pagoForm, setPagoForm] = useState({ cuenta_id: '', monto: '', moneda: 'COP', notas: '' })
 
   // Simulador
   const [simTarjeta, setSimTarjeta] = useState('')
@@ -136,6 +139,50 @@ export default function Tarjetas() {
       cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar la deuda')
+    }
+  }
+
+  /** Abre el pago con el monto ya puesto: lo que se debe hoy en esa moneda. */
+  function abrirPago(t: Tarjeta) {
+    const moneda = t.moneda
+    const deuda = t.deuda_por_moneda?.[moneda] ?? 0
+    setPagoEn(pagoEn === t.id ? null : t.id)
+    setPagoForm({
+      cuenta_id: t.cuenta_id ?? (cuentas.length === 1 ? cuentas[0].id : ''),
+      monto: deuda > 0 ? String(deuda) : '',
+      moneda,
+      notas: '',
+    })
+    setError('')
+  }
+
+  async function pagarTarjeta(tarjetaId: string) {
+    setError('')
+    try {
+      const actualizada = await api<Tarjeta>(`/tarjetas/${tarjetaId}/pagos`, {
+        method: 'POST',
+        body: JSON.stringify({
+          cuenta_id: pagoForm.cuenta_id,
+          monto: pagoForm.monto,
+          moneda: pagoForm.moneda,
+          notas: pagoForm.notas || null,
+        }),
+      })
+      setItems((prev) => prev.map((x) => (x.id === tarjetaId ? actualizada : x)))
+      setPagoEn(null)
+      setPagoForm({ cuenta_id: '', monto: '', moneda: 'COP', notas: '' })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al registrar el pago')
+    }
+  }
+
+  async function eliminarPago(tarjetaId: string, pagoId: string) {
+    setError('')
+    try {
+      await api(`/tarjetas/${tarjetaId}/pagos/${pagoId}`, { method: 'DELETE' })
+      await cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al deshacer el pago')
     }
   }
 
@@ -264,9 +311,14 @@ export default function Tarjetas() {
                     Editar
                   </button>
                   {t.tipo === 'credito' && (
-                    <button onClick={() => setDeudaEn(deudaEn === t.id ? null : t.id)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-                      {deudaEn === t.id ? 'Cerrar' : 'Registrar deuda'}
-                    </button>
+                    <>
+                      <button onClick={() => setDeudaEn(deudaEn === t.id ? null : t.id)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+                        {deudaEn === t.id ? 'Cerrar' : 'Registrar deuda'}
+                      </button>
+                      <button onClick={() => abrirPago(t)} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">
+                        {pagoEn === t.id ? 'Cerrar' : 'Pagar tarjeta'}
+                      </button>
+                    </>
                   )}
                   <button onClick={() => eliminar(t.id)} className="text-sm text-red-600 hover:underline">Eliminar</button>
                 </div>
@@ -280,11 +332,26 @@ export default function Tarjetas() {
                 ) : (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                     <span className="font-semibold text-red-700">
-                      Deuda: {t.deuda_total_cop != null ? fmtMoney(t.deuda_total_cop) : '— (falta tasa)'}
+                      Deuda vigente: {t.deuda_total_cop != null ? fmtMoney(t.deuda_total_cop) : '— (falta tasa)'}
                     </span>
                     {Object.entries(t.deuda_por_moneda).map(([m, v]) => (
                       <span key={m} className="text-slate-600">{m} {Number(v).toLocaleString('es-CO')}</span>
                     ))}
+                    {Object.keys(t.pagos_por_moneda ?? {}).length > 0 && (
+                      <span className="text-xs text-slate-500">
+                        {Object.entries(t.extracto_por_moneda).map(([m, v]) => (
+                          <span key={m}>
+                            extracto {m} {Number(v).toLocaleString('es-CO')}
+                          </span>
+                        ))}
+                        {' − '}
+                        {Object.entries(t.pagos_por_moneda).map(([m, v]) => (
+                          <span key={m}>
+                            pagos {m} {Number(v).toLocaleString('es-CO')}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                     {sinTasa && (
                       <span className="text-xs text-amber-700">
                         Registra la tasa {monedasDeuda.find((m) => m !== 'COP')}→COP en Monedas para ver el total.
@@ -302,7 +369,54 @@ export default function Tarjetas() {
                     ))}
                   </ul>
                 )}
+                {(t.pagos ?? []).length > 0 && (
+                  <ul className="mt-1 space-y-0.5 border-t border-red-100 pt-1">
+                    {(t.pagos ?? []).slice(0, 4).map((p) => (
+                      <li key={p.id} className="flex items-center gap-3 text-xs text-emerald-700">
+                        <span>
+                          💸 {p.fecha} · pagaste {p.moneda} {Number(p.monto).toLocaleString('es-CO')}
+                          {p.notas ? ` · ${p.notas}` : ''}
+                        </span>
+                        <button onClick={() => eliminarPago(t.id, p.id)} className="text-red-500 hover:underline">deshacer</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
+              )}
+
+              {pagoEn === t.id && (
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={pagoForm.cuenta_id}
+                      onChange={(e) => setPagoForm((f) => ({ ...f, cuenta_id: e.target.value }))}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">¿De qué cuenta sale?</option>
+                      {cuentas.map((c) => (
+                        <option key={c.id} value={c.id}>{c.nombre} · {fmtMoney(c.saldo_actual)}</option>
+                      ))}
+                    </select>
+                    <select value={pagoForm.moneda} onChange={(e) => setPagoForm((f) => ({ ...f, moneda: e.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                      {MONEDAS.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <input placeholder="Monto a pagar" value={pagoForm.monto} onChange={(e) => setPagoForm((f) => ({ ...f, monto: e.target.value }))} className="w-36 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                    <input placeholder="Notas (ej. pago mínimo)" value={pagoForm.notas} onChange={(e) => setPagoForm((f) => ({ ...f, notas: e.target.value }))} className="w-44 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                    <button
+                      onClick={() => pagarTarjeta(t.id)}
+                      disabled={!pagoForm.cuenta_id || !pagoForm.monto}
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-slate-300"
+                    >
+                      Pagar
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-600">
+                    El pago <strong>baja el saldo de la cuenta y la deuda</strong> de la tarjeta. No
+                    cuenta como gasto: el consumo ya se contó cuando compraste. Si pagas más de lo
+                    que debes, la app te avisa.
+                  </p>
+                </div>
               )}
 
               {deudaEn === t.id && (

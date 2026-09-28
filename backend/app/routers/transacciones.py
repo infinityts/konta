@@ -30,6 +30,7 @@ from ..models import (
     Poliza,
     Suscripcion,
     Tarjeta,
+    TipoTarjeta,
     Transaccion,
     TipoTransaccion,
     Usuario,
@@ -44,8 +45,8 @@ PERIODICIDAD_GASTO = {p.value: p for p in Periodicidad}
 PERIODICIDAD_INGRESO = {p.value: p for p in PeriodicidadIngreso}
 
 # Lo que una transferencia **no** puede llevar: no tiene categoría (no es un gasto
-# que se clasifique), ni tarjeta (no es un consumo), ni suscripción ni etiqueta.
-CAMPOS_PROHIBIDOS = ("categoria_id", "tarjeta_id", "suscripcion_id", "etiqueta_id")
+# que se clasifique), ni suscripción ni etiqueta.
+CAMPOS_PROHIBIDOS = ("categoria_id", "suscripcion_id", "etiqueta_id")
 
 
 def _validar(datos: dict) -> None:
@@ -60,12 +61,24 @@ def _validar(datos: dict) -> None:
             )
         return
 
-    if not datos.get("cuenta_id") or not datos.get("cuenta_destino_id"):
+    if not datos.get("cuenta_id"):
+        raise HTTPException(
+            status_code=422, detail="Una transferencia necesita la cuenta de origen"
+        )
+    # El destino es otra cuenta (mover dinero) **o** una tarjeta de crédito (pagar su
+    # deuda): exactamente uno de los dos, nunca los dos ni ninguno.
+    destinos = [
+        d for d in (datos.get("cuenta_destino_id"), datos.get("tarjeta_id")) if d is not None
+    ]
+    if len(destinos) != 1:
         raise HTTPException(
             status_code=422,
-            detail="Una transferencia necesita la cuenta de origen y la de destino",
+            detail=(
+                "Una transferencia necesita **un** destino: otra cuenta o una tarjeta "
+                "de crédito (pago de la deuda)"
+            ),
         )
-    if datos["cuenta_id"] == datos["cuenta_destino_id"]:
+    if datos.get("cuenta_destino_id") is not None and datos["cuenta_id"] == datos["cuenta_destino_id"]:
         raise HTTPException(
             status_code=422, detail="El origen y el destino no pueden ser la misma cuenta"
         )
@@ -103,6 +116,30 @@ def _validar_cuentas(db: Session, user: Usuario, datos: dict) -> None:
         origen = get_owned(db, Cuenta, datos["cuenta_id"], user.id)
     if datos.get("cuenta_destino_id") is not None:
         destino = get_owned(db, Cuenta, datos["cuenta_destino_id"], user.id)
+
+    # El destino también puede ser una tarjeta de crédito (pagar su deuda)
+    tarjeta = None
+    if datos.get("tarjeta_id") is not None:
+        tarjeta = get_owned(db, Tarjeta, datos["tarjeta_id"], user.id)
+        if (
+            datos.get("tipo") == TipoTransaccion.TRANSFERENCIA
+            and tarjeta.tipo != TipoTarjeta.CREDITO
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"«{tarjeta.nombre}» es de débito: su saldo es el de la cuenta "
+                    "asociada, no una deuda que se pague con una transferencia"
+                ),
+            )
+    if origen is not None and tarjeta is not None and origen.moneda != tarjeta.moneda:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"La cuenta está en {origen.moneda} y la tarjeta en {tarjeta.moneda}: "
+                "un pago entre monedas necesita su propia tasa y todavía no existe"
+            ),
+        )
     if origen is not None and destino is not None and origen.moneda != destino.moneda:
         raise HTTPException(
             status_code=422,

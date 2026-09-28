@@ -12,20 +12,25 @@ from sqlalchemy.orm import Session
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
 from ..intereses import mensual_desde_ea, pago_minimo, simular_pago
-from ..models import Cuenta, DeudaTarjeta, Tarjeta, TipoTarjeta, Usuario
+from ..models import Cuenta, DeudaTarjeta, PagoTarjeta, Tarjeta, TipoTarjeta, Transaccion, TipoTransaccion, Usuario
 from ..recurrencia import hoy
 from ..schemas import (
     DeudaIn,
     DeudaOut,
+    PagoTarjetaIn,
+    PagoTarjetaOut,
     SimulacionOut,
     TarjetaConDeudaOut,
     TarjetaIn,
     TarjetaOut,
     TarjetaUpdate,
 )
+from ..tarjetas import con_deuda, deuda_por_moneda
 from ..tasas import obtener_tasa
 
 router = APIRouter(prefix="/tarjetas", tags=["tarjetas"])
+
+CERO = Decimal("0")
 
 # Topes de cordura: ninguna tarjeta colombiana se acerca a esto
 TASA_MENSUAL_MAX = Decimal("0.20")  # 20 % mensual
@@ -76,62 +81,12 @@ def _aplicar_tasa(tarjeta: Tarjeta) -> None:
         tarjeta.tasa_interes = mensual_desde_ea(tarjeta.tasa_interes_ea)
 
 
-def _con_deuda(db: Session, tarjeta: Tarjeta) -> dict:
-    """Tarjeta + deuda por moneda + total en COP (si hay tasas para convertir)."""
-    deudas = db.scalars(
-        select(DeudaTarjeta)
-        .where(DeudaTarjeta.tarjeta_id == tarjeta.id, DeudaTarjeta.usuario_id == tarjeta.usuario_id)
-        .order_by(DeudaTarjeta.fecha.desc())
-    ).all()
-
-    por_moneda: dict[str, float] = {}
-    for d in deudas:
-        por_moneda[d.moneda] = por_moneda.get(d.moneda, 0.0) + float(d.monto)
-
-    total_cop = 0.0
-    completo = True
-    for moneda, monto in por_moneda.items():
-        if moneda == "COP":
-            total_cop += monto
-            continue
-        tasa = obtener_tasa(db, moneda, "COP")
-        if tasa is None:
-            completo = False
-            break
-        total_cop += monto * float(tasa)
-
-    nombre_cuenta = None
-    if tarjeta.cuenta_id:
-        cuenta = db.get(Cuenta, tarjeta.cuenta_id)
-        nombre_cuenta = cuenta.nombre if cuenta else None
-
-    return {
-        "id": tarjeta.id,
-        "usuario_id": tarjeta.usuario_id,
-        "nombre": tarjeta.nombre,
-        "banco": tarjeta.banco,
-        "tipo": tarjeta.tipo,
-        "moneda": tarjeta.moneda,
-        "dia_corte": tarjeta.dia_corte,
-        "dia_pago": tarjeta.dia_pago,
-        "limite": tarjeta.limite,
-        "tasa_interes": tarjeta.tasa_interes,
-        "tasa_interes_ea": tarjeta.tasa_interes_ea,
-        "cuenta_id": tarjeta.cuenta_id,
-        "cuenta_nombre": nombre_cuenta,
-        "activa": tarjeta.activa,
-        "deudas": deudas,
-        "deuda_por_moneda": por_moneda,
-        "deuda_total_cop": round(total_cop, 2) if completo else None,
-    }
-
-
 @router.get("", response_model=list[TarjetaConDeudaOut])
 def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     tarjetas = db.scalars(
         select(Tarjeta).where(Tarjeta.usuario_id == user.id).order_by(Tarjeta.nombre)
     ).all()
-    return [_con_deuda(db, t) for t in tarjetas]
+    return [con_deuda(db, t) for t in tarjetas]
 
 
 @router.post("", response_model=TarjetaOut, status_code=201)
@@ -148,7 +103,7 @@ def crear(data: TarjetaIn, db: Session = Depends(get_db), user: Usuario = Depend
 
 @router.get("/{id}", response_model=TarjetaConDeudaOut)
 def obtener(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
-    return _con_deuda(db, get_owned(db, Tarjeta, id, user.id))
+    return con_deuda(db, get_owned(db, Tarjeta, id, user.id))
 
 
 @router.patch("/{id}", response_model=TarjetaOut)
@@ -209,6 +164,117 @@ def eliminar_deuda(id: uuid.UUID, deuda_id: uuid.UUID, db: Session = Depends(get
     db.commit()
 
 
+@router.get("/{id}/pagos", response_model=list[PagoTarjetaOut])
+def listar_pagos(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    get_owned(db, Tarjeta, id, user.id)
+    return db.scalars(
+        select(PagoTarjeta)
+        .where(PagoTarjeta.tarjeta_id == id, PagoTarjeta.usuario_id == user.id)
+        .order_by(PagoTarjeta.fecha.desc())
+    ).all()
+
+
+@router.post("/{id}/pagos", response_model=TarjetaConDeudaOut, status_code=201)
+def pagar(
+    id: uuid.UUID,
+    data: PagoTarjetaIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Registra un pago de la tarjeta: baja la cuenta **y** la deuda.
+
+    Devuelve la tarjeta ya actualizada, para que la UI muestre la deuda vigente.
+    El pago se guarda además como una **transferencia** de la cuenta a la tarjeta:
+    pagar una deuda propia no es un gasto, así que no entra en los reportes por
+    categoría ni en el flujo de caja (el consumo ya se contó al comprar).
+    """
+    tarjeta = get_owned(db, Tarjeta, id, user.id)
+    if tarjeta.tipo != TipoTarjeta.CREDITO:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"«{tarjeta.nombre}» es de débito: no genera deuda que pagar, su saldo "
+                "es el de la cuenta asociada"
+            ),
+        )
+
+    cuenta = get_owned(db, Cuenta, data.cuenta_id, user.id)
+    if cuenta.moneda != data.moneda:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"La cuenta está en {cuenta.moneda} y el pago en {data.moneda}: "
+                "elige la cuenta de esa moneda"
+            ),
+        )
+
+    # No se puede pagar más de lo que se debe en esa moneda
+    _, _, vigente = deuda_por_moneda(db, tarjeta)
+    deuda = Decimal(str(vigente.get(data.moneda, 0.0)))
+    if deuda <= CERO:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"«{tarjeta.nombre}» no tiene deuda registrada en {data.moneda}. "
+                "Registra primero lo que dice el extracto y luego el pago."
+            ),
+        )
+    if data.monto > deuda:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"El pago ({data.monto}) supera la deuda en {data.moneda} ({deuda}). "
+                "Si de verdad pagaste de más, registra el extracto nuevo con el saldo real."
+            ),
+        )
+
+    fecha = data.fecha or hoy()
+    transaccion = Transaccion(
+        usuario_id=user.id,
+        tipo=TipoTransaccion.TRANSFERENCIA,
+        monto=data.monto,
+        moneda=data.moneda,
+        fecha=fecha,
+        descripcion=f"Pago tarjeta {tarjeta.nombre}",
+        cuenta_id=cuenta.id,
+        tarjeta_id=tarjeta.id,
+        notas=data.notas,
+    )
+    db.add(transaccion)
+    db.flush()
+
+    pago = PagoTarjeta(
+        usuario_id=user.id,
+        tarjeta_id=tarjeta.id,
+        cuenta_id=cuenta.id,
+        transaccion_id=transaccion.id,
+        monto=data.monto,
+        moneda=data.moneda,
+        fecha=fecha,
+        notas=data.notas,
+    )
+    db.add(pago)
+    db.commit()
+    db.refresh(tarjeta)
+    return con_deuda(db, tarjeta)
+
+
+@router.delete("/{id}/pagos/{pago_id}", status_code=204)
+def eliminar_pago(
+    id: uuid.UUID, pago_id: uuid.UUID, db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Deshace un pago: quita el movimiento y devuelve la deuda a como estaba."""
+    get_owned(db, Tarjeta, id, user.id)
+    pago = get_owned(db, PagoTarjeta, pago_id, user.id)
+    if pago.transaccion_id is not None:
+        transaccion = db.get(Transaccion, pago.transaccion_id)
+        if transaccion is not None and transaccion.usuario_id == user.id:
+            db.delete(transaccion)
+    db.delete(pago)
+    db.commit()
+
+
 @router.get("/{id}/simulador", response_model=SimulacionOut)
 def simular(
     id: uuid.UUID,
@@ -226,7 +292,7 @@ def simular(
         raise HTTPException(status_code=400, detail="La tarjeta no tiene tasa de interés configurada")
 
     if saldo is None:
-        saldo = _con_deuda(db, tarjeta)["deuda_total_cop"]
+        saldo = con_deuda(db, tarjeta)["deuda_total_cop"]
         if saldo is None:
             raise HTTPException(
                 status_code=400,

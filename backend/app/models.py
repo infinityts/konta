@@ -575,6 +575,44 @@ class DeudaTarjeta(Base):
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 
+class PagoTarjeta(Base):
+    """Pago de la deuda de una tarjeta de crédito: baja la cuenta **y** la deuda.
+
+    Es un **flujo**, al contrario que `DeudaTarjeta` (que es un nivel: lo que dice el
+    extracto). La deuda vigente es el último extracto de cada moneda menos los pagos
+    posteriores a su fecha; cuando llegue el extracto siguiente, que ya incluye el
+    pago, este deja de restarse y no se cuenta dos veces.
+
+    Cada pago tiene su transacción de tipo **transferencia** (de la cuenta a la
+    tarjeta): mover dinero a pagar una deuda propia **no es un gasto**, así que no
+    aparece en los reportes por categoría ni en el flujo de caja — si fuera un gasto,
+    el consumo se contaría dos veces (al comprar y al pagar).
+    """
+
+    __tablename__ = "pagos_tarjeta"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tarjeta_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tarjetas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # De qué cuenta salió el dinero
+    cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # El movimiento que lo refleja (transferencia de la cuenta a la tarjeta)
+    transaccion_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("transacciones.id", ondelete="SET NULL"), nullable=True
+    )
+    monto: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    fecha: Mapped[date] = mapped_column(Date, nullable=False, default=_ahora, index=True)
+    notas: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
 class Poliza(Base):
     """Seguro: de vida, salud, vehículo, hogar… (personas y/o bienes).
 

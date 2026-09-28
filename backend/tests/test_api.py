@@ -2159,3 +2159,150 @@ def test_recurrente_validaciones(client):
         "nombre": "Mío", "monto": "1000", "periodicidad": "mensual", "dia": 5,
         "cuenta_id": "00000000-0000-0000-0000-000000000000",
     }).status_code == 404
+
+
+# --- pagar la tarjeta de crédito (baja la cuenta y la deuda) ---------------- #
+
+
+def test_pago_de_tarjeta_baja_la_cuenta_y_la_deuda(client):
+    """El pago mueve la cuenta, baja la deuda y **no** cuenta como gasto."""
+    _, h = _registrar(client)
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "5000000"}).json()
+    tarjeta = client.post("/tarjetas", headers=h, json={
+        "nombre": "Visa", "tipo": "credito", "banco": "Bogotá",
+    }).json()
+    hoy_ = date.today().isoformat()
+
+    # Lo que dice el extracto
+    client.post(f"/tarjetas/{tarjeta['id']}/deudas", headers=h, json={"moneda": "COP", "monto": "1000000"})
+    antes = client.get(f"/tarjetas/{tarjeta['id']}", headers=h).json()
+    assert antes["deuda_por_moneda"]["COP"] == 1000000.0
+
+    # Pago parcial: la deuda queda en el remanente
+    r = client.post(f"/tarjetas/{tarjeta['id']}/pagos", headers=h, json={
+        "cuenta_id": cuenta["id"], "monto": "400000", "moneda": "COP", "fecha": hoy_,
+        "notas": "Pago mínimo",
+    })
+    assert r.status_code == 201, r.text
+    tras = r.json()
+    assert tras["deuda_por_moneda"]["COP"] == 600000.0
+    assert tras["extracto_por_moneda"]["COP"] == 1000000.0
+    assert tras["pagos_por_moneda"]["COP"] == 400000.0
+    assert tras["deuda_total_cop"] == 600000.0
+    assert len(tras["pagos"]) == 1
+    pago = tras["pagos"][0]
+    assert pago["cuenta_id"] == cuenta["id"] and pago["transaccion_id"] is not None
+
+    # La cuenta ya descontó el pago
+    saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
+    assert saldos["Ahorros"]["saldo_actual"] == 4600000.0
+
+    # El movimiento es una transferencia, NO un gasto: si fuera gasto, el consumo se
+    # contaría dos veces (al comprar y al pagar)
+    tx = next(t for t in client.get("/transacciones", headers=h).json() if t["tarjeta_id"] == tarjeta["id"])
+    assert tx["tipo"] == "transferencia"
+    assert tx["cuenta_id"] == cuenta["id"] and tx["cuenta_destino_id"] is None
+    mes = hoy_[:7]
+    mensual = client.get("/reportes/mensual?meses=6", headers=h).json()
+    assert mensual[-1]["gastos"] == 0.0, "pagar la tarjeta no es un gasto"
+    categorias = client.get(f"/reportes/categorias?mes={mes}", headers=h).json()
+    assert categorias == []
+
+    # Y deshacer el pago devuelve todo
+    assert client.delete(f"/tarjetas/{tarjeta['id']}/pagos/{pago['id']}", headers=h).status_code == 204
+    devuelta = client.get(f"/tarjetas/{tarjeta['id']}", headers=h).json()
+    assert devuelta["deuda_por_moneda"]["COP"] == 1000000.0
+    assert devuelta["pagos"] == []
+    saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
+    assert saldos["Ahorros"]["saldo_actual"] == 5000000.0
+    assert client.get("/transacciones", headers=h).json() == []
+
+
+def test_extracto_nuevo_no_suma_el_anterior_ni_el_pago(client):
+    """La deuda es un **nivel**: manda el último extracto, no la suma de todos."""
+    _, h = _registrar(client)
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "5000000"}).json()
+    tarjeta = client.post("/tarjetas", headers=h, json={"nombre": "Visa", "tipo": "credito"}).json()
+
+    # Extracto de septiembre
+    client.post(f"/tarjetas/{tarjeta['id']}/deudas", headers=h, json={
+        "moneda": "COP", "monto": "1000000", "fecha": "2026-09-05",
+    })
+    antes = client.get(f"/tarjetas/{tarjeta['id']}", headers=h).json()
+    assert antes["deuda_por_moneda"]["COP"] == 1000000.0
+
+    # Pago del 20 de septiembre: baja la deuda vigente
+    client.post(f"/tarjetas/{tarjeta['id']}/pagos", headers=h, json={
+        "cuenta_id": cuenta["id"], "monto": "300000", "moneda": "COP", "fecha": "2026-09-20",
+    })
+    assert client.get(f"/tarjetas/{tarjeta['id']}", headers=h).json()["deuda_por_moneda"]["COP"] == 700000.0
+
+    # Extracto de octubre (ya incluye el pago): pasa a ser el nivel y el pago NO se resta otra vez
+    client.post(f"/tarjetas/{tarjeta['id']}/deudas", headers=h, json={
+        "moneda": "COP", "monto": "800000", "fecha": "2026-10-05",
+    })
+    tras = client.get(f"/tarjetas/{tarjeta['id']}", headers=h).json()
+    assert tras["deuda_por_moneda"]["COP"] == 800000.0, "no se suma el extracto anterior ni se resta dos veces el pago"
+    assert tras["pagos_por_moneda"] == {}, "el pago es anterior al extracto vigente"
+    assert tras["extracto_por_moneda"]["COP"] == 800000.0
+
+    # Registrar dos veces el mismo extracto tampoco duplica (era el bug: se sumaban)
+    client.post(f"/tarjetas/{tarjeta['id']}/deudas", headers=h, json={
+        "moneda": "COP", "monto": "800000", "fecha": "2026-10-05",
+    })
+    assert client.get(f"/tarjetas/{tarjeta['id']}", headers=h).json()["deuda_por_moneda"]["COP"] == 800000.0
+
+
+def test_pago_de_tarjeta_validaciones(client):
+    """No se puede pagar más de lo debido, ni una de débito, ni con datos ajenos."""
+    _, h = _registrar(client)
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "5000000"}).json()
+    usd = client.post("/cuentas", headers=h, json={"nombre": "USD", "moneda": "USD", "saldo_inicial": "0"}).json()
+    visa = client.post("/tarjetas", headers=h, json={"nombre": "Visa", "tipo": "credito"}).json()
+    debito = client.post("/tarjetas", headers=h, json={
+        "nombre": "Débito", "tipo": "debito", "cuenta_id": cuenta["id"],
+    }).json()
+
+    def pagar(monto="100000", tarjeta=None, **extra):
+        return client.post(f"/tarjetas/{(tarjeta or visa)['id']}/pagos", headers=h, json={
+            "cuenta_id": cuenta["id"], "monto": monto, "moneda": "COP", **extra,
+        })
+
+    # Sin deuda registrada no hay nada que pagar (y el mensaje dice qué hacer)
+    r = pagar()
+    assert r.status_code == 422 and "no tiene deuda registrada" in r.json()["detail"]
+
+    client.post(f"/tarjetas/{visa['id']}/deudas", headers=h, json={"moneda": "COP", "monto": "100000"})
+    # Pagar más de lo que se debe
+    r = pagar(monto="100001")
+    assert r.status_code == 422 and "supera la deuda" in r.json()["detail"]
+    # Otra moneda que no tiene deuda
+    assert pagar(monto="1000", moneda="USD").status_code == 422
+    # La cuenta y el pago deben ser de la misma moneda
+    r = pagar(monto="1000", moneda="COP", cuenta_id=usd["id"])
+    assert r.status_code == 422 and "monedas" in r.json()["detail"] or r.status_code == 422
+    # Una tarjeta de débito no genera deuda
+    r = pagar(tarjeta=debito)
+    assert r.status_code == 422 and "débito" in r.json()["detail"]
+
+    # Cuentas y tarjetas de otro usuario
+    _, h2 = _registrar(client)
+    assert client.post(f"/tarjetas/{visa['id']}/pagos", headers=h2, json={
+        "cuenta_id": cuenta["id"], "monto": "1000", "moneda": "COP",
+    }).status_code == 404
+    assert client.post(f"/tarjetas/{visa['id']}/pagos", headers=h, json={
+        "cuenta_id": "00000000-0000-0000-0000-000000000000", "monto": "1000", "moneda": "COP",
+    }).status_code == 404
+
+    # La transferencia a una tarjeta también se puede hacer a mano, pero solo a crédito
+    hoy_ = date.today().isoformat()
+    r = client.post("/transacciones", headers=h, json={
+        "tipo": "transferencia", "monto": "1000", "fecha": hoy_,
+        "cuenta_id": cuenta["id"], "tarjeta_id": debito["id"],
+    })
+    assert r.status_code == 422 and "débito" in r.json()["detail"]
+    # Y una transferencia no puede tener dos destinos a la vez
+    assert client.post("/transacciones", headers=h, json={
+        "tipo": "transferencia", "monto": "1000", "fecha": hoy_,
+        "cuenta_id": cuenta["id"], "tarjeta_id": visa["id"], "cuenta_destino_id": usd["id"],
+    }).status_code == 422
