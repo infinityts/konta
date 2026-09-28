@@ -387,11 +387,19 @@ export interface Poliza {
   titulo: string
 }
 
+export interface PolizaPorTipo {
+  tipo: string
+  polizas: number
+  prima_mensual_cop: number
+  prima_anual_cop: number
+}
+
 export interface PolizaResumen {
   polizas_activas: number
   prima_mensual_cop: number
   prima_anual_cop: number
   sin_tasa: string[]
+  por_tipo: PolizaPorTipo[]
 }
 
 export function fmtMoney(v: number | string | null | undefined): string {

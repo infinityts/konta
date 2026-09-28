@@ -1390,3 +1390,53 @@ def test_flujo_caja_no_cuenta_dos_veces_el_gasto_de_una_poliza(client, engine):
     d = client.get("/flujo-caja?meses=6", headers=h).json()
     # El único gasto es el de la póliza: el promedio variable debe ser cero
     assert d["gasto_variable_promedio"] == 0.0
+
+
+def test_reportes_seguros_por_tipo(client):
+    """El reporte de seguros: costo anual, desglose por tipo y monedas sin tasa."""
+    _, h = _registrar(client)
+    hoy_ = date.today()
+
+    # 600.000 al año -> 50.000/mes
+    client.post("/polizas", headers=h, json={
+        "tipo": "vida", "aseguradora": "Bolívar", "asegurado_nombre": "Ana",
+        "prima": "600000", "periodicidad": "anual",
+        "proximo_pago": hoy_.isoformat(),
+    })
+    # 300.000 cada 6 meses -> 50.000/mes
+    client.post("/polizas", headers=h, json={
+        "tipo": "vehiculo", "aseguradora": "Sura", "placa": "ABC123",
+        "prima": "300000", "periodicidad": "semestral",
+        "proximo_pago": hoy_.isoformat(),
+    })
+    # En otra moneda y sin tasa: no se suma, se informa
+    client.post("/polizas", headers=h, json={
+        "tipo": "salud", "aseguradora": "Colsanitas", "prima": "100",
+        "moneda": "USD", "periodicidad": "mensual",
+        "proximo_pago": hoy_.isoformat(),
+    })
+    # Pausada: fuera del reporte
+    pausada = client.post("/polizas", headers=h, json={
+        "tipo": "hogar", "aseguradora": "Sura", "prima": "500000",
+        "periodicidad": "mensual", "proximo_pago": hoy_.isoformat(),
+    }).json()
+    client.patch(f"/polizas/{pausada['id']}", headers=h, json={"estado": "pausada"})
+
+    r = client.get("/reportes/seguros", headers=h)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["polizas_activas"] == 3  # las activas, tenga o no tasa
+    assert d["prima_mensual_cop"] == 100000.0
+    assert d["prima_anual_cop"] == 1200000.0
+    assert d["sin_tasa"] == ["USD"]
+    assert {t["tipo"]: t["prima_mensual_cop"] for t in d["por_tipo"]} == {
+        "vida": 50000.0,
+        "vehiculo": 50000.0,
+    }
+
+    # `/polizas/resumen` comparte la lógica: mismo resultado
+    assert client.get("/polizas/resumen", headers=h).json() == d
+
+    # Otro usuario no ve nada
+    _, h2 = _registrar(client)
+    assert client.get("/reportes/seguros", headers=h2).json()["prima_mensual_cop"] == 0.0

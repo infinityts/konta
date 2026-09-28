@@ -307,6 +307,15 @@ class PolizaOut(PolizaIn):
     titulo: str
 
 
+class PolizaPorTipoOut(BaseModel):
+    """Costo de los seguros de un tipo (lo que se ve en Reportes)."""
+
+    tipo: str
+    polizas: int
+    prima_mensual_cop: float
+    prima_anual_cop: float
+
+
 class PolizaResumenOut(BaseModel):
     """Cuánto cuestan los seguros: prima mensual y anual, normalizada a COP."""
 
@@ -314,6 +323,7 @@ class PolizaResumenOut(BaseModel):
     prima_mensual_cop: float
     prima_anual_cop: float
     sin_tasa: list[str]  # monedas sin tasa de cambio registrada
+    por_tipo: list[PolizaPorTipoOut] = []
 
 
 # --- ingresos recurrentes ---

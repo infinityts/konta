@@ -31,13 +31,13 @@ from ..models import (
     Beneficiario,
     Categoria,
     Cuenta,
-    EstadoSuscripcion,
     Etiqueta,
     Poliza,
     Tarjeta,
     Usuario,
 )
-from ..recurrencia import factor_mensual
+from ..polizas import prima_mensual_cop
+from ..polizas import resumen as resumen_polizas
 from ..schemas import (
     BeneficiarioIn,
     BeneficiarioOut,
@@ -46,7 +46,6 @@ from ..schemas import (
     PolizaResumenOut,
     PolizaUpdate,
 )
-from ..tasas import convertir
 
 router = APIRouter(prefix="/polizas", tags=["polizas"])
 
@@ -65,17 +64,6 @@ def _validar_refs(db: Session, user: Usuario, campos: dict) -> None:
         valor = campos.get(campo)
         if valor is not None:
             get_owned(db, modelo, valor, user.id)
-
-
-def _prima_mensual_cop(db: Session, pol: Poliza) -> float | None:
-    """Prima llevada a mes y a COP. `None` si no hay tasa para su moneda."""
-    monto = Decimal(str(pol.prima)) * factor_mensual(pol.periodicidad)
-    if pol.moneda != "COP":
-        convertido = convertir(db, pol.moneda, "COP", monto)
-        if convertido is None:
-            return None  # sin tasa no se puede sumar con honestidad
-        monto = convertido
-    return float(monto.quantize(Decimal("0.01")))
 
 
 def _beneficiarios_por_poliza(db: Session, usuario_id, poliza_ids: list) -> dict:
@@ -98,7 +86,7 @@ def _beneficiarios_por_poliza(db: Session, usuario_id, poliza_ids: list) -> dict
 def _salida(db: Session, pol: Poliza, beneficiarios: list) -> PolizaOut:
     out = PolizaOut.model_validate(pol)
     out.beneficiarios = [BeneficiarioOut.model_validate(b) for b in beneficiarios]
-    out.prima_mensual_cop = _prima_mensual_cop(db, pol)
+    out.prima_mensual_cop = prima_mensual_cop(db, pol)
     return out
 
 
@@ -130,27 +118,7 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
 @router.get("/resumen", response_model=PolizaResumenOut)
 def resumen(db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     """Cuánto cuestan los seguros activos, normalizado a COP."""
-    activas = db.scalars(
-        select(Poliza).where(
-            Poliza.usuario_id == user.id, Poliza.estado == EstadoSuscripcion.ACTIVA
-        )
-    ).all()
-    mensual = Decimal("0")
-    sin_tasa: list[str] = []
-    for pol in activas:
-        valor = _prima_mensual_cop(db, pol)
-        if valor is None:
-            if pol.moneda not in sin_tasa:
-                sin_tasa.append(pol.moneda)
-            continue
-        mensual += Decimal(str(valor))
-    mensual = mensual.quantize(Decimal("0.01"))
-    return PolizaResumenOut(
-        polizas_activas=len(activas),
-        prima_mensual_cop=float(mensual),
-        prima_anual_cop=float((mensual * 12).quantize(Decimal("0.01"))),
-        sin_tasa=sin_tasa,
-    )
+    return resumen_polizas(db, user.id)
 
 
 @router.post("", response_model=PolizaOut, status_code=201)
