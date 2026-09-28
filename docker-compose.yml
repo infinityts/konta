@@ -1,6 +1,8 @@
 services:
   db:
-    image: pgvector/pgvector:pg16
+    # PostgreSQL 16 oficial: Konta no usa pgvector (solo pgcrypto, incluido en la
+    # imagen oficial). Coincide con docs/despliegue.md.
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: finanzas
       POSTGRES_PASSWORD: finanzas

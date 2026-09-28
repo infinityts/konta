@@ -74,7 +74,10 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 
 ### Documentos
 - **Facturas PDF**: subida, extracción de texto (**pypdf** + **OCR tesseract** en
-  español) y detección heurística de **monto** y **fecha**; asociación a transacciones.
+  español, con preprocesado para fotos de recibos) y detección heurística de **monto** y
+  **fecha**; asociación a transacciones.
+  *(El backend ya sabe partir el recibo en líneas y clasificarlas — `lineas.py` y
+  `clasificador.py` — pero todavía no se expone en la API ni en la UI.)*
 
 ### Datos
 - **Importar estado de cuenta (CSV)**: sube el CSV del banco; detecta las columnas de
@@ -186,10 +189,11 @@ aislados por usuario.
 | **Monedas / tasas** | `GET /monedas`, `GET/POST /tasas`, `DELETE /tasas/{id}`, `POST /tasas/actualizar`, `GET /convertir?de=&a=&monto=` |
 | **Respaldo** | `GET /exportar/json`, `GET /exportar/transacciones.csv`, `POST /respaldar/restaurar` |
 | **Flujo de caja** | `GET /flujo-caja?meses=6` |
-| **Metas de ahorro** | `GET/POST /metas`, `PATCH/DELETE /metas/{id}`, `GET/POST /metas/{id}/aportes`, `DELETE /metas/aportes/{id}` |
+| **Metas de ahorro** | `GET/POST /metas`, `PATCH/DELETE /metas/{id}`, `GET/POST /metas/{id}/aportes`, `DELETE /metas/aportes/{aporte_id}` |
 | **Notificaciones** | `GET/PUT /notificaciones`, `POST /notificaciones/probar`, `POST /notificaciones/telegram/detectar` |
-| **Cuentas** | `GET/POST /cuentas`, `PATCH/DELETE /cuentas/{id}` |
+| **Cuentas** | `GET/POST /cuentas`, `PATCH/DELETE /cuentas/{id}`, `POST /cuentas/{id}/adoptar-movimientos` |
 | **Saldos** | `GET /saldos`, `GET /saldos/consolidado?meses=6`, `GET /saldos/diagnostico` |
+| **Salud** | `GET /health` (sin token) |
 
 ---
 
@@ -209,6 +213,13 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0008_notificaciones` | `config_notificaciones` |
 | `0009_cuentas_jerarquia` | `cuentas` + `transacciones.cuenta_id` + `categorias.padre_id` |
 | `0010_deudas_tarjeta` | `deudas_tarjeta` |
+| `0011_tasa_ea` | `tarjetas.tasa_interes_ea` (E.A. del extracto) |
+| `0012_tarjeta_cuenta` | `tarjetas.cuenta_id` (débito → su cuenta) |
+| `0013_etiquetas_en_categorias` | `etiquetas.categoria_id` + unicidad entre hermanos |
+| `0014_arbol_unico` | migra subcategorías a etiquetas y elimina `categorias.padre_id` |
+| `0015_suscripcion_etiqueta` | `suscripciones.etiqueta_id` |
+| `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea, backend listo, sin exponer) |
+| `0017_nombres_indices_orm` | renombra los índices al nombre que espera el ORM (`alembic check` limpio) |
 
 ---
 
@@ -221,15 +232,25 @@ FINANZAS_TEST_DATABASE_URL=postgresql+psycopg://finanzas:finanzas@localhost:5433
 ```
 
 Cobertura: auth, CRUD core, aislamiento multi-usuario, ingresos recurrentes,
-etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR).
+suscripciones que generan su gasto, etiquetas/subetiquetas (con cascada y unicidad
+entre hermanos), alertas de pagos, reportes, facturas (OCR), presupuestos, importar
+CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caja,
+metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
+
+**32 tests en verde.** El esquema se mantiene alineado con el ORM:
+`alembic check` no reporta operaciones pendientes.
 
 ---
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja + metas de ahorro + notificaciones + cuentas/saldos + subcategorías
-- [x] Frontend: login/registro, dashboard con saldo y motivo, cuentas y consolidado, categorías y subcategorías, transacciones con **edición** y etiquetas, tarjetas con deuda y simulador, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + suscripciones que generan su gasto + árbol Categoría › Etiqueta › Subetiqueta + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda (TRM oficial) + simulador y deuda de tarjeta + respaldo + flujo de caja + metas de ahorro + notificaciones + cuentas/saldos
+- [x] Frontend: login/registro, dashboard con KPIs y motivo del sobregiro, cuentas y consolidado, categorías y etiquetas, transacciones con **edición** y etiquetas, tarjetas con deuda, edición y simulador, suscripciones con edición y pausa, ingresos recurrentes, reportes, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
 - [x] Navegación agrupada: `Resumen` + 5 grupos en barra superior (hover en escritorio, hamburguesa en móvil), definidos en `frontend/src/nav.ts`
 - [x] Loader `AccordionLoader` (alias `@` → `src`) y **carga diferida por página** (bundle inicial 271 kB → 183 kB)
 - [x] Despliegue con Docker/Podman
+- [x] Esquema sin deriva: `alembic check` limpio y `downgrade base` → `upgrade head` sin errores
+- [ ] **OCR por línea (2/2)**: exponer en API y UI lo que ya existe en el backend (`factura_lineas`, `reglas_ocr`, `lineas.py`, `clasificador.py`)
+- [ ] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima, vigencia, beneficiarios, bien asegurado y alertas de vencimiento
 - [ ] WhatsApp como canal de notificaciones (requiere Cloud API de Meta o gateway)
+- [ ] CI (`pytest` + `pnpm build`) en `.github/workflows`

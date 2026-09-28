@@ -167,7 +167,7 @@ Si aparece **SOBREGIRADO** en rojo, debajo vienen los **motivos**:
 
 **Balance de <mes>** — solo el mes en curso (ingresos − gastos).
 
-**Top categorías** — los gastos del mes por `Categoría › Subcategoría`.
+**Top categorías** — los gastos del mes por `Categoría › Etiqueta › Subetiqueta`.
 
 ---
 
@@ -176,7 +176,7 @@ Si aparece **SOBREGIRADO** en rojo, debajo vienen los **motivos**:
 | Página | Para qué |
 |---|---|
 | **Cuentas** → *Consolidado mes a mes* | Saldo inicial, ingresos, gastos, balance y **saldo final corrido** |
-| **Reportes** | Evolución de 6 meses y desglose por categoría → subcategoría |
+| **Reportes** | Evolución de 6 meses y desglose por `Categoría › Etiqueta › Subetiqueta` |
 | **Presupuestos** | Límite mensual por categoría, % consumido y aviso de exceso |
 | **Flujo** | Proyección a 3/6/12 meses con recurrentes y suscripciones |
 | **Metas** | Objetivos de ahorro con aportes y aporte mensual sugerido |

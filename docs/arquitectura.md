@@ -66,7 +66,7 @@ relacionan las piezas.
 |---|---|
 | `config.py` | Settings con prefijo `FINANZAS_` (BD, JWT, zona horaria, Telegram, SMTP) |
 | `db.py` | Engine, `SessionLocal`, `get_db` |
-| `models.py` | 18 tablas + enums |
+| `models.py` | 21 tablas + enums |
 | `schemas.py` | Pydantic (entradas/salidas) |
 | `security.py` | Hash bcrypt + creación/validación de JWT |
 | `deps.py` | `get_db`, `get_current_user` |
@@ -80,7 +80,9 @@ relacionan las piezas.
 | `recurrencia.py` | Ocurrencias de ingresos recurrentes + `hoy()` (zona horaria) |
 | `alertas.py` | Pagos próximos (suscripciones + corte/pago de tarjetas) |
 | `reportes.py` | Agregación mensual y por categoría |
-| `facturas.py` | Extracción de texto (pypdf + OCR tesseract) y heurísticas monto/fecha |
+| `facturas.py` | Extracción de texto (pypdf + OCR tesseract con preprocesado) y heurísticas monto/fecha |
+| `lineas.py` | Parser de recibos: parte un texto OCR en líneas de artículo (descripción, cantidad, valor). **Sin exponer aún** (ver *OCR por línea, 2/2*) |
+| `clasificador.py` | Clasifica un artículo en cascada: historial → diccionario → embeddings |
 | `presupuestos.py` | Límite mensual por categoría vs gasto real |
 | `importacion.py` | Parser CSV flexible (delimitador, columnas, signos, formatos de monto) |
 | `mercado.py` | Comparativo de precios por tienda |
@@ -90,9 +92,9 @@ relacionan las piezas.
 | `flujo.py` | Proyección de flujo de caja a N meses |
 | `metas.py` | Progreso de metas de ahorro y aporte sugerido |
 | `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro |
-| `jerarquia.py` | Helpers de categoría → subcategoría |
+| `jerarquia.py` | Helpers del árbol `Categoría › Etiqueta › Subetiqueta` (rutas para mostrar) |
 | `notificaciones.py` | Envío por Telegram/SMTP + job diario con dedup |
-| `scheduler.py` | Jobs: ingresos recurrentes y notificaciones (cada hora) |
+| `scheduler.py` | Los 4 jobs: ingresos recurrentes, suscripciones vencidas, TRM oficial y notificaciones |
 
 ### Routers (21)
 `auth`, `categorias` (incluye `/arbol`), `cuentas`, `saldos`, `tarjetas`
@@ -105,7 +107,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-19 tablas de negocio (más `alembic_version`), creadas por 12 migraciones:
+21 tablas de negocio (más `alembic_version`), creadas por 17 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -121,6 +123,11 @@ relacionan las piezas.
 | `0010_deudas_tarjeta` | `deudas_tarjeta` |
 | `0011_tasa_ea` | `tarjetas.tasa_interes_ea` |
 | `0012_tarjeta_cuenta` | `tarjetas.cuenta_id` (débito → su cuenta) |
+| `0013_etiquetas_en_categorias` | `etiquetas.categoria_id` + unicidad entre hermanos (índices funcionales) |
+| `0014_arbol_unico` | migra subcategorías a etiquetas y **elimina `categorias.padre_id`** |
+| `0015_suscripcion_etiqueta` | `suscripciones.etiqueta_id` |
+| `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea, aún sin exponer) |
+| `0017_nombres_indices_orm` | renombra 22 índices al nombre que espera el ORM (`ix_tabla_columna`) |
 
 ### Relaciones principales
 
@@ -130,18 +137,24 @@ usuarios ─┬─ cuentas ────────── transacciones   (saldo
           │              ├───── transacciones
           │              ├───── suscripciones
           │              ├───── ingresos_recurrentes
-          │              └───── categorias     (autojerárquica: categoría → subcategoría)
+          │              └───── etiquetas       (el anidamiento vive AQUÍ:
+          │                                      Categoría → Etiqueta → Subetiqueta;
+          │                                      la categoría es siempre raíz)
           ├─ tarjetas ───┬───── transacciones
           │              ├───── suscripciones
           │              ├───── deudas_tarjeta  (deuda por moneda)
           │              └───── cuentas         (solo débito: instrumento de la cuenta)
-          ├─ transacciones ──┬─ etiquetas       (autojerárquica)
-          │                  └─ facturas
+          ├─ transacciones ──┬─ etiquetas       (etiqueta_id, dentro del árbol)
+          │                  └─ facturas ─── factura_lineas ─── reglas_ocr
           ├─ productos ──┬───── precios_mercado
           │              └───── lista_mercado
           ├─ metas_ahorro ───── aportes_meta
           └─ config_notificaciones
 ```
+
+`etiquetas` es **autojerárquica dentro de una categoría** (`etiquetas.padre_id`): sin padre
+es una etiqueta y con padre es una subetiqueta. Los nombres son únicos entre hermanos, sin
+distinguir mayúsculas (índices `uq_etiquetas_raiz` / `uq_etiquetas_hija`).
 
 `monedas` es referenciada por `cuentas`, `tarjetas`, `suscripciones`,
 `transacciones`, `ingresos_recurrentes`, `presupuestos`, `precios_mercado`,
@@ -151,11 +164,13 @@ usuarios ─┬─ cuentas ────────── transacciones   (saldo
 
 ## Scheduler
 
-Dos jobs en `APScheduler` (en el proceso de la API):
+Cuatro jobs en `APScheduler` (en el proceso de la API):
 
 | Job | Frecuencia | Qué hace |
 |---|---|---|
 | `ingresos-recurrentes` | cada 1 h | Genera la transacción de ingreso cuando `proxima_ejecucion <= hoy` y avanza la fecha (idempotente) |
+| `suscripciones-vencidas` | cada 1 h | Genera el gasto de la suscripción al vencer y avanza un periodo (idempotente, tope de 24 periodos) |
+| `trm-oficial` | cada 6 h | Trae la TRM oficial de la SFC (`datos.gov.co`) y la guarda como USD → COP |
 | `notificaciones-pagos` | cada 1 h | Envía el resumen de pagos próximos; **máximo 1 al día** por usuario (dedup con `ultima_notificacion`) |
 
 Se puede desactivar con `FINANZAS_SCHEDULER_ENABLED=false` (los tests lo hacen).

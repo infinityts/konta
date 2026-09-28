@@ -80,8 +80,16 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
     aprobada y método de pago.
   - **Gateway de terceros** (CallMeBot) o librerías no oficiales (Baileys): gratis,
     pero con **riesgo de ban** del número por violar los términos de WhatsApp.
-- Edición (PATCH) en la UI para tarjetas, suscripciones y transacciones.
-- Página de administración de categorías.
+- **OCR por línea (2/2)**: falta exponer lo que ya existe en el backend (ver v1.12).
+  `factura_lineas` y `reglas_ocr` se crean, y `lineas.py` / `clasificador.py` saben
+  partir un recibo y clasificar cada artículo, pero **ningún router ni pantalla los usa
+  todavía**: hoy son código muerto. Hay que añadir los endpoints (parsear → previsualizar
+  → confirmar líneas como transacciones) y la UI en *Facturas*.
+- **Seguros y pólizas** (personas y vehículos): ver la tarea al final del backlog en el
+  Sistema de Contexto. Cubre vida/salud/vehículo/hogar, prima y periodicidad, vigencia y
+  renovación, beneficiarios y bien asegurado (placa), alertas de vencimiento y reporte
+  del costo anual. *No está implementado.*
+- **CI**: no hay `.github/workflows`; conviene un pipeline mínimo (`pytest` + `pnpm build`).
 
 ## v1.1.1 — Correcciones tras validar con datos reales
 
@@ -217,3 +225,77 @@ Antes eran solo un recordatorio: **no aparecían** en el dashboard, presupuestos
   (antes un id ajeno daba error 500).
 - **Frontend**: selector de etiqueta en cascada con la categoría, y la ruta (`Streaming › Netflix`)
   se muestra en el listado.
+
+## v1.11 — Suscripciones editables y pausables
+
+- **Editar** una suscripción (antes solo crear y borrar), con botón que rellena el formulario.
+- **Pausar / activar**: una suscripción pausada o cancelada **no genera** su transacción
+  (el job la ignora) y el listado muestra el estado.
+- El listado muestra el **día de cobro mensual** («día 15 de cada mes») en lugar de la fecha
+  completa, que confundía al leer un vencimiento puntual.
+
+## v1.12 — OCR por línea (1/2: backend)
+
+Primera mitad de la lectura de recibos **artículo por artículo** (hoy sin exponer; ver
+*Pendiente / ideas*).
+
+- **Migración `0016`**: tablas `factura_lineas` (un renglón detectado: descripción, cantidad,
+  valor unitario, total, etiqueta, origen y confianza) y `reglas_ocr` (aprendizaje: «este
+  artículo va siempre a esta etiqueta», único por `usuario_id` + `patron`).
+- **OCR de fotos** (`facturas.py`): preprocesado antes de Tesseract (escala de grises,
+  autocontraste, reescalado a ≥1000 px y binarizado) porque las fotos de recibos arrugados
+  hacían fallar al OCR; soporte de JPG/PNG/WEBP además de PDF.
+- **Parser de recibos colombianos** (`lineas.py`): separa descripción, cantidad y valor,
+  entiende formatos de dos líneas y montos con separadores locales.
+- **Clasificador** (`clasificador.py`) en cascada: **historial → diccionario → embeddings**,
+  devolviendo el origen y la confianza de cada asignación.
+- Los embeddings se calculan en Python (similitud coseno), **sin depender de pgvector**.
+
+## v1.13 — TRM oficial y gasto fijo correcto
+
+- **TRM oficial diaria** desde Datos Abiertos Colombia (`datos.gov.co`, Superintendencia
+  Financiera) mediante el job `trm-oficial` cada 6 h, además del tipo de cambio de mercado
+  (`open.er-api.com`) que ya existía.
+- **Fix del «gasto fijo»**: sumaba las suscripciones en crudo, así que una suscripción
+  **anual contaba como mensual** y una en **USD contaba como COP**. Ahora se normaliza la
+  periodicidad a mensual y se convierte a COP con la tasa registrada.
+
+## v1.14 — Dashboard con KPIs útiles
+
+- **KPIs arriba**: ingresos del mes, gastos del mes y **gasto fijo** calculado por el backend
+  (ya normalizado). Se elimina el KPI de suscripciones, que sumaba distinto que el resto.
+- **Alertas en vez de prosa**: los avisos pasan a ser elementos accionables.
+- **Un solo formato** de fecha (corto) en todo el dashboard.
+- **Maquetas** de dashboard (accionable y analítico) en `frontend/public/dash-*.html` para
+  revisar el diseño en la paleta real de la app.
+
+## v1.15 — Categoría Telefonía por defecto
+
+- Los usuarios nuevos reciben **11 categorías** por defecto: se añade **Telefonía** (gasto)
+  al juego inicial.
+
+## v1.16 — Correcciones tras la auditoría del sistema
+
+- **Tests en verde**: los tests de categorías por defecto quedaron esperando 10 cuando se
+  añadió Telefonía (11). Ahora leen **`N_DEFAULT = len(DEFAULT_CATEGORIAS)`** de
+  `app/defaults.py`, así que añadir o quitar una categoría por defecto no vuelve a dejar la
+  suite en rojo. Pasó de *2 failed, 30 passed* a **32 passed**.
+- **Migración `0017` — nombres de índice alineados con el ORM**: las migraciones habían
+  creado los índices con nombres cortos a mano (`ix_transacciones_usuario`) mientras
+  SQLAlchemy espera `ix_transacciones_usuario_id`. `alembic check` reportaba ~40 operaciones
+  falsas (borrar+crear el mismo índice), lo que hacía peligroso cualquier `--autogenerate`.
+  Ahora se **renombran** los 22 índices (metadato, instantáneo) y queda creado el índice que
+  faltaba de verdad: `metas_ahorro.usuario_id`.
+- **Índices funcionales declarados en el ORM** (`__table_args__`): `uq_etiquetas_raiz`,
+  `uq_etiquetas_hija` (unicidad entre hermanos, sin distinguir mayúsculas) y
+  `uq_reglas_ocr_patron`. Estaban solo en SQL crudo, así que el autogenerate proponía
+  borrarlos.
+- **`factura_lineas.factura_id`** se declara `index=True` para que el modelo refleje su índice.
+- **Downgrade arreglado**: la `0014` recreaba el FK de `categorias.padre_id` con otro nombre
+  (`categorias_padre_id_fkey`) y el downgrade de la `0009` fallaba al borrar
+  `fk_categorias_padre`. Ahora la `0014` conserva el nombre original, así que
+  `alembic downgrade base` + `alembic upgrade head` corren completos.
+- **Documentación al día**: este changelog (faltaban 9 commits), `docs/arquitectura.md`
+  (21 tablas, 17 migraciones, 4 jobs del scheduler, `lineas.py` / `clasificador.py`, el árbol
+  único) y el `README` (endpoints y estado). El `docker-compose.yml` usa `postgres:16`:
+  pgvector no se usa (solo `pgcrypto`).
