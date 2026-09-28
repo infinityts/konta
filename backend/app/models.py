@@ -367,3 +367,21 @@ class AporteMeta(Base):
     fecha: Mapped[date] = mapped_column(Date, nullable=False, default=_ahora)
     notas: Mapped[str | None] = mapped_column(String(255), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class ConfigNotificaciones(Base):
+    """Preferencias de notificación de alarmas de pago por usuario."""
+
+    __tablename__ = "config_notificaciones"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    canal: Mapped[str] = mapped_column(String(20), nullable=False, default="telegram")  # telegram|email|ambos
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dias_anticipacion: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    ultima_notificacion: Mapped[date | None] = mapped_column(Date, nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

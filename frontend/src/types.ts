@@ -207,6 +207,21 @@ export interface Meta {
   notas: string | null
 }
 
+export interface Notificaciones {
+  id: string
+  canal: 'telegram' | 'email' | 'ambos'
+  telegram_chat_id: string | null
+  email: string | null
+  dias_anticipacion: number
+  activo: boolean
+  ultima_notificacion: string | null
+}
+
+export interface ChatTelegram {
+  chat_id: string
+  nombre: string
+}
+
 export interface IngresoRecurrente {
   id: string
   nombre: string

@@ -124,7 +124,34 @@ cat respaldo-2026-09-27.sql | podman exec -i konta-db psql -U finanzas -d finanz
 | `FINANZAS_SECRET_KEY` | *(placeholder)* | Clave para firmar los JWT (**cámbiala**) |
 | `FINANZAS_ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | Duración del token |
 | `FINANZAS_TIMEZONE` | `America/Bogota` | Zona horaria para "hoy" (ingresos recurrentes / alertas) |
-| `FINANZAS_SCHEDULER_ENABLED` | `true` | Activa el scheduler de ingresos recurrentes |
+| `FINANZAS_SCHEDULER_ENABLED` | `true` | Activa el scheduler de ingresos recurrentes y notificaciones |
+
+### Notificaciones (opcionales)
+
+Sin estas variables la app funciona igual; solo el envío de notificaciones avisa
+que falta configurarlas.
+
+| Variable | Descripción |
+|---|---|
+| `FINANZAS_TELEGRAM_BOT_TOKEN` | Token del bot de Telegram (te lo da **@BotFather**). Luego escríbele algo a tu bot y usa el botón **Detectar** en la página de Notificaciones |
+| `FINANZAS_SMTP_HOST` | Servidor SMTP (ej. `smtp.gmail.com`) |
+| `FINANZAS_SMTP_PORT` | Puerto SMTP (por defecto `587`) |
+| `FINANZAS_SMTP_USER` | Usuario SMTP |
+| `FINANZAS_SMTP_PASSWORD` | Contraseña o *app password* |
+| `FINANZAS_SMTP_FROM` | Remitente (por defecto, el usuario SMTP) |
+| `FINANZAS_SMTP_TLS` | `true` para STARTTLS (por defecto) |
+
+Ejemplo para agregarlas al contenedor:
+
+```bash
+podman run -d --name konta-backend ... \
+  -e FINANZAS_TELEGRAM_BOT_TOKEN='123456:ABC...' \
+  -e FINANZAS_SMTP_HOST='smtp.gmail.com' \
+  -e FINANZAS_SMTP_USER='tu@gmail.com' \
+  -e FINANZAS_SMTP_PASSWORD='app-password' \
+  -e FINANZAS_SMTP_FROM='tu@gmail.com' \
+  konta-backend
+```
 
 ---
 

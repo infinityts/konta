@@ -22,6 +22,17 @@ class Settings(BaseSettings):
     # Scheduler de ingresos recurrentes (deshabilitar en tests)
     scheduler_enabled: bool = True
 
+    # Notificaciones — Telegram (token del bot, global)
+    telegram_bot_token: str | None = None
+
+    # Notificaciones — Email (SMTP, global)
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_tls: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

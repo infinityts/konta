@@ -12,6 +12,7 @@ import Login from './pages/Login'
 import Mercado from './pages/Mercado'
 import Metas from './pages/Metas'
 import Monedas from './pages/Monedas'
+import Notificaciones from './pages/Notificaciones'
 import Presupuestos from './pages/Presupuestos'
 import Register from './pages/Register'
 import Reportes from './pages/Reportes'
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/mercado" element={<Mercado />} />
         <Route path="/monedas" element={<Monedas />} />
         <Route path="/respaldo" element={<Respaldo />} />
+        <Route path="/notificaciones" element={<Notificaciones />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>
     </Routes>

@@ -425,3 +425,42 @@ def test_metas_ahorro(client):
     futuro = (date.today() + timedelta(days=60)).isoformat()
     m2 = client.post("/metas", headers=h, json={"nombre": "Carro", "monto_objetivo": "600000", "fecha_limite": futuro}).json()
     assert m2["aporte_mensual_sugerido"] is not None
+
+
+def test_notificaciones(client):
+    _, h = _registrar(client)
+
+    r = client.get("/notificaciones", headers=h)
+    assert r.status_code == 200
+    cfg = r.json()
+    assert cfg["activo"] is False
+    assert cfg["dias_anticipacion"] == 5
+
+    r = client.put(
+        "/notificaciones", headers=h,
+        json={"canal": "ambos", "telegram_chat_id": "999", "email": "yo@example.com", "dias_anticipacion": 3, "activo": True},
+    )
+    assert r.status_code == 200, r.text
+    cfg = r.json()
+    assert cfg["canal"] == "ambos"
+    assert cfg["telegram_chat_id"] == "999"
+    assert cfg["email"] == "yo@example.com"
+    assert cfg["dias_anticipacion"] == 3
+    assert cfg["activo"] is True
+
+    # el mensaje incluye el título y el "hoy"
+    from app.notificaciones import construir_mensaje
+
+    texto = construir_mensaje(
+        [{"fecha": date.today(), "dias_restantes": 0, "titulo": "Netflix", "monto": 50000, "moneda": "COP"}]
+    )
+    assert "Netflix" in texto
+    assert "hoy" in texto
+
+    # sin token/SMTP configurado -> 502 con detalle
+    r = client.post("/notificaciones/probar", headers=h)
+    assert r.status_code == 502
+
+    # detectar sin token -> 400
+    r = client.post("/notificaciones/telegram/detectar", headers=h)
+    assert r.status_code == 400

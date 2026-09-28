@@ -16,6 +16,7 @@ const items = [
   { to: '/mercado', label: 'Mercado', end: false },
   { to: '/monedas', label: 'Monedas', end: false },
   { to: '/respaldo', label: 'Respaldo', end: false },
+  { to: '/notificaciones', label: 'Notificaciones', end: false },
   { to: '/etiquetas', label: 'Etiquetas', end: false },
 ]
 

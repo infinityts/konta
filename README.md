@@ -68,6 +68,13 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
 - A nivel de servidor también se puede respaldar la base con `pg_dump`
   (ver [`docs/despliegue.md`](docs/despliegue.md)).
 
+### Notificaciones
+- **Resumen diario de pagos** por **Telegram** y/o **correo** (SMTP), con días de
+  anticipación configurables. Se envía **como máximo una vez al día**.
+- La config del servidor (token del bot y SMTP) es global; cada usuario elige canal,
+  destino y días. Incluye botón de **prueba** y **detección del chat ID**.
+- *(Próximamente)* WhatsApp, que requeriría la Cloud API de Meta o un gateway externo.
+
 ---
 
 ## Stack
@@ -149,6 +156,7 @@ aislados por usuario.
 | **Respaldo** | `GET /exportar/json`, `GET /exportar/transacciones.csv`, `POST /respaldar/restaurar` |
 | **Flujo de caja** | `GET /flujo-caja?meses=6` |
 | **Metas de ahorro** | `GET/POST /metas`, `PATCH/DELETE /metas/{id}`, `GET/POST /metas/{id}/aportes`, `DELETE /metas/aportes/{id}` |
+| **Notificaciones** | `GET/PUT /notificaciones`, `POST /notificaciones/probar`, `POST /notificaciones/telegram/detectar` |
 
 ---
 
@@ -165,6 +173,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0005_presupuestos` | `presupuestos` |
 | `0006_mercado` | `productos`, `precios_mercado`, `lista_mercado` |
 | `0007_metas_ahorro` | `metas_ahorro`, `aportes_meta` |
+| `0008_notificaciones` | `config_notificaciones` |
 
 ---
 
@@ -183,7 +192,7 @@ etiquetas/subetiquetas (con cascada), alertas de pagos, reportes y facturas (OCR
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja + metas de ahorro
-- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + etiquetas + alertas + reportes + facturas OCR + presupuestos + importar CSV + mercado + multi-moneda + simulador de intereses + respaldo + flujo de caja + metas de ahorro + notificaciones
+- [x] Frontend: login/registro, dashboard, CRUD, ingresos recurrentes, reportes, etiquetas, facturas, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
 - [x] Despliegue con Docker/Podman
-- [ ] Notificaciones de alarmas por email/Telegram
+- [ ] WhatsApp como canal de notificaciones (requiere Cloud API de Meta o gateway)
