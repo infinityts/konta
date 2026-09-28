@@ -27,6 +27,32 @@ from ..tasas import obtener_tasa
 
 router = APIRouter(prefix="/tarjetas", tags=["tarjetas"])
 
+# Topes de cordura: ninguna tarjeta colombiana se acerca a esto
+TASA_MENSUAL_MAX = Decimal("0.20")  # 20 % mensual
+TASA_EA_MAX = Decimal("3")  # 300 % E.A.
+
+
+def _validar_tasa(tarjeta: Tarjeta) -> None:
+    """Evita guardar la tasa en la escala equivocada (2,1593 en vez de 0,021593)."""
+    if tarjeta.tasa_interes_ea is not None and tarjeta.tasa_interes_ea > TASA_EA_MAX:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"La tasa E.A. quedó en {tarjeta.tasa_interes_ea * 100:,.2f} % y eso no es razonable. "
+                "Escríbela como el porcentaje del extracto (ej. 29.2215)."
+            ),
+        )
+    if tarjeta.tasa_interes is not None and tarjeta.tasa_interes > TASA_MENSUAL_MAX:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"La tasa mensual quedó en {tarjeta.tasa_interes * 100:,.2f} % "
+                f"(el máximo razonable es {TASA_MENSUAL_MAX * 100:.0f} %). "
+                "Parece que escribiste el porcentaje como número. Usa el selector: "
+                "«Mensual (%)» con 2.1593, o «E.A. (% anual)» con 29.2215."
+            ),
+        )
+
 
 def _aplicar_tasa(tarjeta: Tarjeta) -> None:
     """Si viene la tasa efectiva anual (como en el extracto), calcula la mensual.
@@ -92,6 +118,7 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
 def crear(data: TarjetaIn, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     obj = Tarjeta(usuario_id=user.id, **data.model_dump())
     _aplicar_tasa(obj)
+    _validar_tasa(obj)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -109,6 +136,7 @@ def actualizar(id: uuid.UUID, data: TarjetaUpdate, db: Session = Depends(get_db)
     for campo, valor in data.model_dump(exclude_unset=True).items():
         setattr(obj, campo, valor)
     _aplicar_tasa(obj)
+    _validar_tasa(obj)
     db.commit()
     db.refresh(obj)
     return obj

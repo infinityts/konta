@@ -24,6 +24,7 @@ export default function Tarjetas() {
   const [items, setItems] = useState<Tarjeta[]>([])
   const [form, setForm] = useState(empty)
   const [tasaModo, setTasaModo] = useState<'ea' | 'mensual'>('ea')
+  const [editando, setEditando] = useState<string | null>(null)
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
 
@@ -49,25 +50,59 @@ export default function Tarjetas() {
     cargar()
   }, [])
 
-  async function crear() {
+  function nueva() {
+    setEditando(null)
+    setForm(empty)
+    setTasaModo('ea')
+    setError('')
+    setShow(true)
+  }
+
+  function abrirEditar(t: Tarjeta) {
+    setError('')
+    setEditando(t.id)
+    setTasaModo(t.tasa_interes_ea != null ? 'ea' : 'mensual')
+    setForm({
+      nombre: t.nombre,
+      banco: t.banco ?? '',
+      tipo: t.tipo,
+      moneda: t.moneda,
+      dia_corte: t.dia_corte != null ? String(t.dia_corte) : '',
+      dia_pago: t.dia_pago != null ? String(t.dia_pago) : '',
+      limite: t.limite != null ? String(t.limite) : '',
+      tasa:
+        t.tasa_interes_ea != null
+          ? String(Number(t.tasa_interes_ea) * 100)
+          : t.tasa_interes != null
+            ? String(Number(t.tasa_interes) * 100)
+            : '',
+    })
+    setShow(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function guardar() {
     setError('')
     try {
       const tasa = form.tasa ? Number(form.tasa) / 100 : null
-      await api('/tarjetas', {
-        method: 'POST',
-        body: JSON.stringify({
-          nombre: form.nombre,
-          banco: form.banco || null,
-          tipo: form.tipo,
-          moneda: form.moneda,
-          dia_corte: form.dia_corte ? Number(form.dia_corte) : null,
-          dia_pago: form.dia_pago ? Number(form.dia_pago) : null,
-          limite: form.limite || null,
-          tasa_interes_ea: tasaModo === 'ea' ? tasa : null,
-          tasa_interes: tasaModo === 'mensual' ? tasa : null,
-        }),
-      })
+      const cuerpo = {
+        nombre: form.nombre,
+        banco: form.banco || null,
+        tipo: form.tipo,
+        moneda: form.moneda,
+        dia_corte: form.dia_corte ? Number(form.dia_corte) : null,
+        dia_pago: form.dia_pago ? Number(form.dia_pago) : null,
+        limite: form.limite || null,
+        tasa_interes_ea: tasaModo === 'ea' ? tasa : null,
+        tasa_interes: tasaModo === 'mensual' ? tasa : null,
+      }
+      if (editando) {
+        await api(`/tarjetas/${editando}`, { method: 'PATCH', body: JSON.stringify(cuerpo) })
+      } else {
+        await api('/tarjetas', { method: 'POST', body: JSON.stringify(cuerpo) })
+      }
       setForm(empty)
+      setEditando(null)
       setShow(false)
       cargar()
     } catch (e) {
@@ -125,13 +160,18 @@ export default function Tarjetas() {
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Tarjetas</h2>
-        <button onClick={() => setShow((s) => !s)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+        <button onClick={() => (show ? (setShow(false), setEditando(null)) : nueva())} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
           {show ? 'Cancelar' : 'Nueva tarjeta'}
         </button>
       </div>
 
       {show && (
         <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
+          {editando && (
+            <p className="text-sm font-medium text-indigo-700 sm:col-span-2">
+              Editando: {form.nombre}
+            </p>
+          )}
           <input placeholder="Nombre (ej. AMEX Platinum)" value={form.nombre} onChange={(e) => set('nombre', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input placeholder="Banco (ej. Bancolombia)" value={form.banco} onChange={(e) => set('banco', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <select value={form.tipo} onChange={(e) => set('tipo', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
@@ -158,7 +198,9 @@ export default function Tarjetas() {
               <> {form.tasa}% E.A. = <strong>{mensualDesdeEa(Number(form.tasa)).toFixed(2)}% mensual</strong></>
             )}
           </p>
-          <button onClick={crear} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-2">Guardar</button>
+          <button onClick={guardar} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-2">
+            {editando ? 'Guardar cambios' : 'Guardar'}
+          </button>
         </div>
       )}
 
@@ -186,6 +228,9 @@ export default function Tarjetas() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
+                  <button onClick={() => abrirEditar(t)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+                    Editar
+                  </button>
                   <button onClick={() => setDeudaEn(deudaEn === t.id ? null : t.id)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
                     {deudaEn === t.id ? 'Cerrar' : 'Registrar deuda'}
                   </button>
@@ -281,10 +326,26 @@ export default function Tarjetas() {
                 </div>
               </div>
             ) : (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                ⚠️ Con un pago de {fmtMoney(simulacion.pago_mensual)} no cubres los intereses
-                ({fmtMoney(Number(simulacion.saldo_inicial) * Number(simulacion.tasa_mensual))}/mes): la deuda nunca baja.
-              </p>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <p>
+                  ⚠️ Con un pago de <strong>{fmtMoney(simulacion.pago_mensual)}</strong> no cubres los
+                  intereses (<strong>{fmtMoney(Number(simulacion.saldo_inicial) * Number(simulacion.tasa_mensual))}/mes</strong>,
+                  al <strong>{(Number(simulacion.tasa_mensual) * 100).toFixed(2)} % mensual</strong>): la deuda nunca baja.
+                </p>
+                <p className="mt-1">
+                  Tendrías que pagar más de {fmtMoney(Number(simulacion.saldo_inicial) * Number(simulacion.tasa_mensual))} al mes
+                  solo para que la deuda no crezca.
+                  {Number(simulacion.tasa_mensual) > 0.2 && (
+                    <>
+                      {' '}
+                      <strong>
+                        Y ojo: {(Number(simulacion.tasa_mensual) * 100).toFixed(2)} % mensual es una tasa
+                        altísima — revisa la tasa de la tarjeta (¿la escribiste como número en vez de porcentaje?).
+                      </strong>
+                    </>
+                  )}
+                </p>
+              </div>
             )}
           </div>
         )}

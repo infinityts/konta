@@ -114,3 +114,13 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
   correcta `(1+EA)^(1/12)−1` — **no** dividiendo entre 12 (25,93 % E.A. = 1,94 %/mes, no 2,16 %).
 - Se guardan ambas (`tasa_interes_ea` y `tasa_interes`) y el listado muestra las dos.
 - El simulador sigue usando la mensual ya convertida.
+
+## v1.4 — Editar tarjetas y validar la tasa
+
+- **Se puede editar una tarjeta** (antes solo crear y borrar): botón *Editar* que rellena el
+  formulario y guarda con `PATCH`. Era imposible corregir una tasa mal escrita sin borrar la tarjeta.
+- **Validación de la tasa**: se rechaza con un mensaje claro si la tasa mensual supera el 20 %
+  o la E.A. el 300 %. Esto atrapa el error típico de escribir `2.1593` (que es 215,93 %)
+  creyendo que son 2,1593 %.
+- **Mensaje del simulador más explícito**: ahora incluye la tasa mensual usada y avisa cuando es
+  anormalmente alta.

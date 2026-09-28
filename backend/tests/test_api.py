@@ -390,6 +390,30 @@ def test_tasa_ea_se_convierte_a_mensual(client):
     assert float(tar2["tasa_interes"]) == 0.02
 
 
+def test_tasa_en_escala_equivocada_se_rechaza(client):
+    """El error real: guardar 2,1593 (que es 215,93 %) en vez de 0,021593."""
+    _, h = _registrar(client)
+
+    r = client.post("/tarjetas", headers=h, json={"nombre": "Mala", "tipo": "credito", "tasa_interes": "2.1593"})
+    assert r.status_code == 400, r.text
+    assert "215" in r.json()["detail"]
+
+    # la forma correcta (E.A. del extracto) pasa y convierte exacto
+    r = client.post("/tarjetas", headers=h, json={"nombre": "AMEX", "tipo": "credito", "tasa_interes_ea": "0.292215"})
+    assert r.status_code == 201, r.text
+    tar = r.json()
+    assert abs(float(tar["tasa_interes"]) - 0.021593) < 0.00001
+
+    # y se puede corregir con PATCH (antes no había forma de editar)
+    r = client.patch(f"/tarjetas/{tar['id']}", headers=h, json={"tasa_interes_ea": "0.292215", "tasa_interes": None})
+    assert r.status_code == 200, r.text
+    assert abs(float(r.json()["tasa_interes"]) - 0.021593) < 0.00001
+
+    # E.A. absurda también se rechaza
+    r = client.patch(f"/tarjetas/{tar['id']}", headers=h, json={"tasa_interes_ea": "29.2215"})
+    assert r.status_code == 400
+
+
 def test_exportar_y_restaurar(client):
     _, h = _registrar(client)
     cat = client.get("/categorias", headers=h).json()[0]
