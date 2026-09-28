@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard B — fiel a la app (indigo)</title>
+<style>
+  /* Tokens COPIADOS de la app real: tailwind slate/indigo/emerald + topnav h-16 + max-w-[1500px] + rounded-xl */
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8fafc;color:#0f172a;-webkit-font-smoothing:antialiased}
+  .nota{background:#eef2ff;border-bottom:1px solid #c7d2fe;padding:9px 20px;font-size:12.5px;color:#3730a3}
+  header{position:sticky;top:0;z-index:40;border-bottom:1px solid #e2e8f0;background:#fff}
+  .nav{display:flex;height:64px;align-items:center;gap:24px;padding:0 20px;max-width:1500px;margin:0 auto}
+  .logo{font-size:18px;font-weight:700;letter-spacing:-.02em;color:#0f172a;text-decoration:none}
+  .logo b{color:#4f46e5;font-weight:700}
+  .menu{display:flex;align-items:center;gap:4px}
+  .it{font-size:14px;padding:8px 12px;border-radius:8px;color:#334155;text-decoration:none;white-space:nowrap}
+  .it.act{background:#eef2ff;color:#4338ca;font-weight:600}
+  .it .c{font-size:9px;opacity:.55;margin-left:5px}
+  .der{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .der span{font-size:14px;color:#64748b}
+  .der button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 12px;font-size:14px;color:#475569;font-family:inherit;cursor:pointer}
+  main{max-width:1500px;margin:0 auto;padding:24px 20px}
+  h2{font-size:20px;font-weight:600;margin:0 0 16px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px}
+  /* KPIs (reemplazan «Tarjetas: 2» y «Movimientos: 1») */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .kpi{padding:16px}
+  .kpi .l{font-size:13px;color:#64748b}
+  .kpi .v{font-size:24px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .kpi .d{font-size:12.5px;color:#94a3b8;margin-top:4px}
+  .grid{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-top:16px}
+  .head{padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+  .head span{font-size:12.5px;font-weight:400;color:#94a3b8}
+  .body{padding:16px}
+  /* Barras */
+  .fila{display:flex;align-items:center;gap:12px;margin-bottom:12px;font-size:14px}
+  .fila .n{width:150px;flex:0 0 150px;color:#334155}
+  .fila .bar{flex:1;height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden}
+  .fila .bar i{display:block;height:100%;background:#4f46e5;border-radius:999px}
+  .fila .v{width:92px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  /* Alertas: antes eran 5 bullets de prosa */
+  .al{display:flex;gap:11px;padding:12px 0;border-bottom:1px solid #f1f5f9;font-size:14px;align-items:flex-start}
+  .al:last-child{border-bottom:0}
+  .al .ic{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 28px}
+  .al .ic.r{background:#fee2e2}.al .ic.a{background:#fef3c7}.al .ic.e{background:#d1fae5}.al .ic.i{background:#e0e7ff}
+  .al .v{margin-left:auto;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+  .al small{color:#94a3b8;display:block;font-size:12.5px;margin-top:2px}
+  /* Gráfico */
+  .chart{display:flex;align-items:flex-end;gap:16px;height:150px;padding:4px}
+  .mes{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+  .mes i{display:block;background:#fca5a5;border-radius:4px 4px 0 0}
+  .mes .lb{font-size:12px;color:#94a3b8;text-align:center;margin-top:6px;font-weight:500}
+  .ley{display:flex;gap:14px;font-size:12.5px;color:#64748b;margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9}
+  .ley b{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
+  .aviso{margin-top:14px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:14px 16px;font-size:13.5px;color:#3730a3;line-height:1.65}
+</style>
+</head>
+<body>
+<div class="nota"><b>Maqueta fiel</b> — mismos colores (slate + indigo), misma tipografía, nav de 64 px, ancho 1500 px y radios de 12 px que tu app. Nada inventado.</div>
+
+<header>
+  <div class="nav">
+    <a class="logo">Kon<b>ta</b></a>
+    <nav class="menu">
+      <a class="it act">Resumen</a>
+      <a class="it">Movimientos <span class="c">▼</span></a>
+      <a class="it">Análisis <span class="c">▼</span></a>
+      <a class="it">Organización <span class="c">▼</span></a>
+      <a class="it">Herramientas <span class="c">▼</span></a>
+      <a class="it">Configuración <span class="c">▼</span></a>
+    </nav>
+    <div class="der"><span>Hola, usuario</span><button>Salir</button></div>
+  </div>
+</header>
+
+<main>
+  <h2>Resumen</h2>
+
+  <!-- 1) KPIs útiles arriba, en lugar de «Tarjetas: 2» / «Movimientos del mes: 1» -->
+  <div class="kpis">
+    <div class="card kpi"><div class="l">Saldo actual</div><div class="v" style="color:#dc2626">-$51.240</div><div class="d">2 cuentas · sobregirado</div></div>
+    <div class="card kpi"><div class="l">Ingresos del mes</div><div class="v">$0</div><div class="d">+$11.783.952 el 30 sep</div></div>
+    <div class="card kpi"><div class="l">Gastos del mes</div><div class="v" style="color:#dc2626">$127.240</div><div class="d">1 movimiento</div></div>
+    <div class="card kpi"><div class="l">Gasto fijo / mes</div><div class="v">$330.778</div><div class="d">9 suscripciones activas</div></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <!-- 2) Tendencia (hoy no existe) -->
+      <div class="card">
+        <div class="head">Ingresos vs gastos <span>últimos 6 meses</span></div>
+        <div class="body">
+          <div class="chart">
+            <div class="mes"><i style="height:0"></i><span class="lb">abr</span></div>
+            <div class="mes"><i style="height:0"></i><span class="lb">may</span></div>
+            <div class="mes"><i style="height:0"></i><span class="lb">jun</span></div>
+            <div class="mes"><i style="height:0"></i><span class="lb">jul</span></div>
+            <div class="mes"><i style="height:0"></i><span class="lb">ago</span></div>
+            <div class="mes"><i style="height:38px"></i><span class="lb">sep</span></div>
+          </div>
+          <div class="ley"><span><b style="background:#fca5a5"></b>Gastos</span><span><b style="background:#6ee7b7"></b>Ingresos</span><span style="margin-left:auto;color:#b45309;font-weight:600">Solo hay 1 movimiento: el gráfico cobra sentido con 3+ meses</span></div>
+        </div>
+      </div>
+
+      <!-- 3) Top categorías con la regla de 3 -->
+      <div class="card" style="margin-top:16px">
+        <div class="head">Top categorías del mes <span>gastos</span></div>
+        <div class="body">
+          <div class="fila"><span class="n">Vivienda › Internet</span><span class="bar"><i style="width:100%"></i></span><span class="v">$127.240</span></div>
+          <div class="fila" style="opacity:.35"><span class="n">—</span><span class="bar"><i style="width:0"></i></span><span class="v">$0</span></div>
+          <div class="fila" style="opacity:.35"><span class="n">—</span><span class="bar"><i style="width:0"></i></span><span class="v">$0</span></div>
+          <div style="margin-top:10px;font-size:12.5px;color:#94a3b8">Con una sola categoría el ranking no dice nada: se muestra apagado hasta tener 3.</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <!-- 4) El card rojo de 5 bullets → alertas con monto -->
+      <div class="card">
+        <div class="head">Alertas <span>3</span></div>
+        <div class="body">
+          <div class="al"><span class="ic r">⚠️</span><div>Saldo sobregirado<small>Faltan para cerrar septiembre</small></div><span class="v" style="color:#dc2626">-$51.240</span></div>
+          <div class="al"><span class="ic a">📅</span><div>Corte AMEX<small>30 sep · en 2 días</small></div><span class="v">—</span></div>
+          <div class="al"><span class="ic e">💰</span><div>Ingreso Intraway<small>30 sep · aún no sumado</small></div><span class="v" style="color:#059669">+$11,8M</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="head">Compromisos <span>al mes</span></div>
+        <div class="body">
+          <div class="al"><span class="ic i">🤖</span><div>Suscripciones<small>9 activas · anuales prorrateadas, USD a TRM</small></div><span class="v">$330.778</span></div>
+          <div class="al"><span class="ic a">💳</span><div>Pago AMEX<small>5 oct · en 7 días</small></div><span class="v">—</span></div>
+          <div class="al"><span class="ic i">🏠</span><div>Vivienda › Internet<small>mensual</small></div><span class="v">$127.240</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="head">Próximos pagos <span>15 días</span></div>
+        <div class="body">
+          <div class="al"><span class="ic a">💳</span><div>Corte AMERICA XPRESS<small>corte tarjeta</small></div><span class="v">30 sep<small style="color:#b45309">en 2 días</small></span></div>
+          <div class="al"><span class="ic a">💳</span><div>Pago AMERICA XPRESS<small>pago tarjeta</small></div><span class="v">5 oct<small style="color:#64748b">en 7 días</small></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="aviso">
+    <b>Qué cambia, punto por punto:</b><br>
+    <b>1.</b> KPIs arriba con <b>Ingresos · Gastos · Gasto fijo</b> en vez de <code>Tarjetas: 2</code> y <code>Movimientos: 1</code> (que no son indicadores financieros).<br>
+    <b>2.</b> El card rojo de <b>5 bullets de prosa</b> se convierte en <b>alertas con monto</b> — se lee en 2 segundos.<br>
+    <b>3.</b> Los «Próximos pagos» muestran <b>fecha corta</b> (<code>30 sep</code>) y <b>«en 2 días»</b>, no <code>2026-09-30 · en 2 día(s)</code>.<br>
+    <b>4.</b> Un solo formato de número en toda la pantalla: <code>-$51.240</code> (el signo antes del <code>$</code>) y <code>330.778</code> sin decimales.<br>
+    <b>5.</b> Desaparece el segundo card amarillo: el <b>balance del mes ya vive en los KPIs</b>, no hace falta repetirlo en un bloque gigante.<br>
+    <b>6.</b> El gasto fijo ahora es <b>real</b>: 330.778 (anuales prorrateadas ÷12 y USD a TRM oficial), no los 359.760 de la suma cruda.
+  </div>
+</main>
+</body>
+</html>
