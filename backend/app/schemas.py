@@ -153,6 +153,7 @@ class TransaccionIn(BaseModel):
     categoria_id: uuid.UUID | None = None
     tarjeta_id: uuid.UUID | None = None
     suscripcion_id: uuid.UUID | None = None
+    etiqueta_id: uuid.UUID | None = None
     notas: str | None = None
 
 
@@ -165,6 +166,7 @@ class TransaccionUpdate(BaseModel):
     categoria_id: uuid.UUID | None = None
     tarjeta_id: uuid.UUID | None = None
     suscripcion_id: uuid.UUID | None = None
+    etiqueta_id: uuid.UUID | None = None
     notas: str | None = None
 
 
@@ -213,3 +215,26 @@ class IngresoRecurrenteOut(IngresoRecurrenteIn):
     usuario_id: uuid.UUID
     proxima_ejecucion: date
     activa: bool
+
+
+# --- etiquetas y subetiquetas ---
+
+
+class EtiquetaIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=60)
+    color: str | None = None
+    # NULL = etiqueta raíz; con valor = subetiqueta de esa etiqueta
+    padre_id: uuid.UUID | None = None
+
+
+class EtiquetaUpdate(BaseModel):
+    nombre: str | None = None
+    color: str | None = None
+    padre_id: uuid.UUID | None = None
+
+
+class EtiquetaOut(EtiquetaIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    usuario_id: uuid.UUID

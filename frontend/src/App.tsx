@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
+import Etiquetas from './pages/Etiquetas'
 import IngresosRecurrentes from './pages/IngresosRecurrentes'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/tarjetas" element={<Tarjetas />} />
         <Route path="/suscripciones" element={<Suscripciones />} />
         <Route path="/ingresos-recurrentes" element={<IngresosRecurrentes />} />
+        <Route path="/etiquetas" element={<Etiquetas />} />
         <Route path="/transacciones" element={<Transacciones />} />
       </Route>
     </Routes>

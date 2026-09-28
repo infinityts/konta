@@ -10,6 +10,7 @@ from .recurrencia import procesar_ingresos_vencidos
 from .routers import (
     auth,
     categorias,
+    etiquetas,
     ingresos_recurrentes,
     suscripciones,
     tarjetas,
@@ -48,6 +49,7 @@ app.include_router(tarjetas.router)
 app.include_router(suscripciones.router)
 app.include_router(transacciones.router)
 app.include_router(ingresos_recurrentes.router)
+app.include_router(etiquetas.router)
 
 
 @app.get("/health")

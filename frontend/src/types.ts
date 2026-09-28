@@ -43,7 +43,15 @@ export interface Transaccion {
   categoria_id: string | null
   tarjeta_id: string | null
   suscripcion_id: string | null
+  etiqueta_id: string | null
   notas: string | null
+}
+
+export interface Etiqueta {
+  id: string
+  nombre: string
+  color: string | null
+  padre_id: string | null
 }
 
 export interface IngresoRecurrente {

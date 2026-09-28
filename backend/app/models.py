@@ -186,6 +186,9 @@ class Transaccion(Base):
     suscripcion_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("suscripciones.id", ondelete="SET NULL"), nullable=True
     )
+    etiqueta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
+    )
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -219,4 +222,25 @@ class IngresoRecurrente(Base):
         ForeignKey("categorias.id", ondelete="SET NULL"), nullable=True
     )
     activa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class Etiqueta(Base):
+    """Etiquetas y subetiquetas (autojerárquica).
+
+    `padre_id` es NULL para una etiqueta raíz y apunta a otra etiqueta para una
+    subetiqueta. Una transacción puede asociarse a una etiqueta (raíz o sub).
+    """
+
+    __tablename__ = "etiquetas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(60), nullable=False)
+    color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    padre_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("etiquetas.id", ondelete="CASCADE"), nullable=True
+    )
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)

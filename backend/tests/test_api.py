@@ -114,3 +114,32 @@ def test_ingresos_recurrentes_crud(client):
     assert len(client.get("/ingresos-recurrentes", headers=h).json()) == 1
     assert client.delete(f"/ingresos-recurrentes/{item['id']}", headers=h).status_code == 204
     assert len(client.get("/ingresos-recurrentes", headers=h).json()) == 0
+
+
+def test_etiquetas_y_subetiquetas(client):
+    _, h = _registrar(client)
+
+    # etiqueta raíz
+    r = client.post("/etiquetas", headers=h, json={"nombre": "Trabajo"})
+    assert r.status_code == 201
+    root = r.json()
+    assert root["padre_id"] is None
+
+    # subetiqueta
+    r = client.post("/etiquetas", headers=h, json={"nombre": "Reuniones", "padre_id": root["id"]})
+    assert r.status_code == 201
+    sub = r.json()
+    assert sub["padre_id"] == root["id"]
+
+    assert len(client.get("/etiquetas", headers=h).json()) == 2
+
+    # transacción etiquetada con la subetiqueta
+    tx = client.post(
+        "/transacciones", headers=h,
+        json={"tipo": "gasto", "monto": "5000", "fecha": "2026-09-27", "descripcion": "Almuerzo", "etiqueta_id": sub["id"]},
+    ).json()
+    assert tx["etiqueta_id"] == sub["id"]
+
+    # borrar la raíz elimina la subetiqueta en cascada
+    assert client.delete(f"/etiquetas/{root['id']}", headers=h).status_code == 204
+    assert len(client.get("/etiquetas", headers=h).json()) == 0

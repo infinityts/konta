@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { fmtMoney, type Categoria, type Transaccion } from '../types'
+import { fmtMoney, type Categoria, type Etiqueta, type Transaccion } from '../types'
 
 const empty = {
   tipo: 'gasto',
@@ -9,11 +9,13 @@ const empty = {
   fecha: new Date().toISOString().slice(0, 10),
   descripcion: '',
   categoria_id: '',
+  etiqueta_id: '',
 }
 
 export default function Transacciones() {
   const [items, setItems] = useState<Transaccion[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [form, setForm] = useState(empty)
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
@@ -29,6 +31,7 @@ export default function Transacciones() {
   useEffect(() => {
     cargar()
     api<Categoria[]>('/categorias').then(setCategorias)
+    api<Etiqueta[]>('/etiquetas').then(setEtiquetas)
   }, [])
 
   async function crear() {
@@ -43,6 +46,7 @@ export default function Transacciones() {
           fecha: form.fecha,
           descripcion: form.descripcion || null,
           categoria_id: form.categoria_id || null,
+          etiqueta_id: form.etiqueta_id || null,
         }),
       })
       setForm({ ...empty, tipo: form.tipo, fecha: form.fecha })
@@ -60,12 +64,14 @@ export default function Transacciones() {
 
   const set = (k: keyof typeof empty, v: string) => setForm((f) => ({ ...f, [k]: v }))
   function setTipo(tipo: string) {
-    // Al cambiar el tipo, resetea la categoría si no corresponde al nuevo tipo
     setForm((f) => ({ ...f, tipo, categoria_id: '' }))
   }
 
   const nombreCat = (id: string | null) => categorias.find((c) => c.id === id)?.nombre ?? '—'
+  const nombreEtiqueta = (id: string | null) => etiquetas.find((e) => e.id === id)?.nombre ?? null
   const categoriasFiltradas = categorias.filter((c) => c.tipo === form.tipo)
+  const raices = etiquetas.filter((e) => !e.padre_id)
+  const hijasDe = (id: string) => etiquetas.filter((e) => e.padre_id === id)
 
   return (
     <div>
@@ -84,11 +90,22 @@ export default function Transacciones() {
           </select>
           <input placeholder="Monto" value={form.monto} onChange={(e) => set('monto', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <input placeholder="Descripción (ej. Salario, Freelance, Mercado...)" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <input placeholder="Descripción (ej. Salario, Mercado...)" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <select value={form.categoria_id} onChange={(e) => set('categoria_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
             <option value="">Sin categoría</option>
             {categoriasFiltradas.map((c) => (
               <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </select>
+          <select value={form.etiqueta_id} onChange={(e) => set('etiqueta_id', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="">Sin etiqueta</option>
+            {raices.map((r) => (
+              <optgroup key={r.id} label={r.nombre}>
+                <option value={r.id}>{r.nombre}</option>
+                {hijasDe(r.id).map((h) => (
+                  <option key={h.id} value={h.id}>— {h.nombre}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <button onClick={crear} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 sm:col-span-2">Guardar</button>
@@ -101,7 +118,14 @@ export default function Transacciones() {
         {items.map((t) => (
           <li key={t.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
             <div>
-              <p className="font-medium">{t.descripcion ?? nombreCat(t.categoria_id)}</p>
+              <p className="font-medium">
+                {t.descripcion ?? nombreCat(t.categoria_id)}
+                {nombreEtiqueta(t.etiqueta_id) && (
+                  <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-normal text-indigo-700">
+                    #{nombreEtiqueta(t.etiqueta_id)}
+                  </span>
+                )}
+              </p>
               <p className="text-sm text-slate-500">{t.fecha} · {nombreCat(t.categoria_id)}</p>
             </div>
             <div className="flex items-center gap-3">
