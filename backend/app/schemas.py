@@ -675,6 +675,11 @@ class FlujoMesOut(BaseModel):
 
 
 class FlujoCajaOut(BaseModel):
+    # Todo el flujo se expresa en una sola moneda (COP): los importes en otra
+    # moneda se convierten con la tasa registrada, y las que no la tienen se
+    # informan en `sin_tasa` en vez de sumarse en crudo.
+    moneda: str = "COP"
+    sin_tasa: list[str] = []
     meses: list[FlujoMesOut]
     gasto_variable_promedio: float
     total_ingresos: float

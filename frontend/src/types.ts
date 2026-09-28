@@ -292,6 +292,10 @@ export interface FlujoMes {
 }
 
 export interface FlujoCaja {
+  /** Todo el flujo viene en esta moneda (COP); el resto se convierte con la tasa. */
+  moneda: string
+  /** Monedas sin tasa registrada: sus importes no se sumaron. */
+  sin_tasa: string[]
   meses: FlujoMes[]
   gasto_variable_promedio: number
   total_ingresos: number

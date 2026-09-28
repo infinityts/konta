@@ -1312,3 +1312,81 @@ def test_respaldo_incluye_polizas_y_lo_que_faltaba(client):
     assert len(client.get("/tarjetas", headers=h).json()) == 1
     # El saldo de la cuenta sobrevive al respaldo
     assert client.get("/saldos", headers=h).json()["saldo_inicial_total"] == 500000.0
+
+
+# --- flujo de caja: monedas, pólizas y doble conteo ------------------------ #
+
+
+def test_flujo_caja_convierte_monedas_y_suma_polizas(client):
+    """El flujo de caja no puede mezclar monedas ni ignorar las pólizas."""
+    _, h = _registrar(client)
+    hoy_ = date.today()
+    client.post("/tasas", headers=h, json={"moneda_origen": "USD", "moneda_destino": "COP", "tasa": "4000"})
+
+    # Suscripción de USD 10 al mes -> 40.000 COP, no 10
+    client.post("/suscripciones", headers=h, json={
+        "nombre": "Spotify", "monto": "10", "moneda": "USD",
+        "periodicidad": "mensual", "proximo_pago": hoy_.isoformat(),
+    })
+    # Póliza semestral de 600.000: dos primas en 12 meses, no doce
+    client.post("/polizas", headers=h, json={
+        "tipo": "vehiculo", "aseguradora": "Sura", "placa": "ABC123",
+        "prima": "600000", "periodicidad": "semestral", "proximo_pago": hoy_.isoformat(),
+    })
+
+    d = client.get("/flujo-caja?meses=12", headers=h).json()
+    assert len(d["meses"]) == 12
+    # El mes en curso paga la prima semestral y la suscripción convertida
+    assert d["meses"][0]["gastos_fijos"] == 640000.0
+    # 12 meses de suscripción (40.000) + 2 primas semestrales (600.000)
+    total_fijos = sum(m["gastos_fijos"] for m in d["meses"])
+    assert abs(total_fijos - (12 * 40000 + 2 * 600000)) < 0.01
+    # Un mes sin prima solo tiene la suscripción
+    assert d["meses"][1]["gastos_fijos"] == 40000.0
+    assert d["sin_tasa"] == []
+
+
+def test_flujo_caja_avisa_de_monedas_sin_tasa(client):
+    """Sin tasa de cambio no se suma: se avisa, en vez de inventar el número."""
+    _, h = _registrar(client)
+    hoy_ = date.today()
+    client.post("/suscripciones", headers=h, json={
+        "nombre": "Revista", "monto": "5", "moneda": "EUR",
+        "periodicidad": "mensual", "proximo_pago": hoy_.isoformat(),
+    })
+    client.post("/suscripciones", headers=h, json={
+        "nombre": "Local", "monto": "20000", "periodicidad": "mensual",
+        "proximo_pago": hoy_.isoformat(),
+    })
+
+    d = client.get("/flujo-caja?meses=6", headers=h).json()
+    assert d["sin_tasa"] == ["EUR"]
+    assert d["meses"][0]["gastos_fijos"] == 20000.0  # solo la que está en COP
+
+
+def test_flujo_caja_no_cuenta_dos_veces_el_gasto_de_una_poliza(client, engine):
+    """El gasto que genera una póliza es fijo, no variable: no puede contarse dos veces."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.recurrencia import hoy, procesar_polizas
+
+    _, h = _registrar(client)
+    hoy_ = hoy()
+    # El 10 del mes anterior: cae dentro de los meses completos del promedio
+    mes_anterior = (date(hoy_.year, hoy_.month, 1) - timedelta(days=1)).replace(day=10)
+    pol = client.post("/polizas", headers=h, json={
+        "tipo": "hogar", "aseguradora": "Sura", "prima": "180000",
+        "periodicidad": "mensual", "proximo_pago": mes_anterior.isoformat(),
+    }).json()
+
+    Session = sessionmaker(bind=engine)
+    with Session.begin() as s:
+        # La puesta al día genera 1 o 2 periodos según el día del mes
+        assert procesar_polizas(s, hoy_) >= 1
+
+    txs = client.get("/transacciones", headers=h).json()
+    assert txs and all(t["poliza_id"] == pol["id"] for t in txs)
+
+    d = client.get("/flujo-caja?meses=6", headers=h).json()
+    # El único gasto es el de la póliza: el promedio variable debe ser cero
+    assert d["gasto_variable_promedio"] == 0.0

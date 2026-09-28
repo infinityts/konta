@@ -2,9 +2,14 @@
 
 Proyecta los próximos N meses a partir de:
 - **Ingresos recurrentes** activos (diario/semanal/mensual).
-- **Suscripciones** activas (semanal/mensual/trimestral/anual).
-- **Gasto variable** = promedio mensual de los gastos sin suscripción de los
-  últimos meses completos.
+- **Cobros fijos** activos: suscripciones **y pólizas de seguro**
+  (semanal/mensual/trimestral/semestral/anual).
+- **Gasto variable** = promedio mensual de los gastos que no vienen de una
+  suscripción ni de una póliza, de los últimos meses completos.
+
+**Todo se expresa en COP.** Cada importe se convierte con la tasa registrada; si
+no hay tasa para una moneda, ese cobro **no se suma** y la moneda se informa en
+`sin_tasa` (antes se sumaban los números en crudo: USD 10 contaba como $10).
 """
 
 from __future__ import annotations
@@ -21,11 +26,13 @@ from .models import (
     IngresoRecurrente,
     Periodicidad,
     PeriodicidadIngreso,
+    Poliza,
     Suscripcion,
     TipoTransaccion,
     Transaccion,
 )
 from .recurrencia import hoy
+from .tasas import convertir
 
 CERO = Decimal("0.00")
 
@@ -74,14 +81,20 @@ def _ocurrencias_ingreso(ing: IngresoRecurrente, inicio: date, fin: date) -> lis
     return salida
 
 
-def _ocurrencias_suscripcion(sub: Suscripcion, inicio: date, fin: date) -> list[date]:
-    cursor = sub.proximo_pago or sub.fecha_inicio or inicio
+def _ocurrencias_cobro(cobro, inicio: date, fin: date) -> list[date]:
+    """Fechas de cobro de una suscripción o póliza dentro del rango.
+
+    Ojo con `SEMESTRAL`: sin su entrada en el mapa caía al valor por defecto (1
+    mes) y una prima semestral se proyectaba como si se pagara cada mes.
+    """
+    cursor = cobro.proximo_pago or cobro.fecha_inicio or inicio
     paso = {
         Periodicidad.SEMANAL: 0,
         Periodicidad.MENSUAL: 1,
         Periodicidad.TRIMESTRAL: 3,
+        Periodicidad.SEMESTRAL: 6,
         Periodicidad.ANUAL: 12,
-    }.get(sub.periodicidad, 1)
+    }.get(cobro.periodicidad, 1)
 
     salida: list[date] = []
     guarda = 0
@@ -95,8 +108,26 @@ def _ocurrencias_suscripcion(sub: Suscripcion, inicio: date, fin: date) -> list[
     return salida
 
 
+def _en_cop(db: Session, monto, moneda: str, sin_tasa: list[str]) -> Decimal | None:
+    """Monto en COP. `None` si no hay tasa: se anota la moneda y no se suma."""
+    valor = Decimal(str(monto))
+    if moneda == "COP":
+        return valor
+    convertido = convertir(db, moneda, "COP", valor)
+    if convertido is None:
+        if moneda not in sin_tasa:
+            sin_tasa.append(moneda)
+        return None
+    return convertido
+
+
 def gasto_variable_promedio(db: Session, usuario_id, meses: int = 3) -> Decimal:
-    """Promedio mensual de los gastos sin suscripción de los últimos meses completos."""
+    """Promedio mensual de los gastos que **no** son un cobro fijo.
+
+    Se excluyen los que generó una suscripción **y los que generó una póliza**:
+    esos ya entran como gasto fijo en su mes, y contarlos aquí los contaría dos
+    veces (la póliza es más nueva que este filtro).
+    """
     hoy_ = hoy()
     primer_mes_actual = date(hoy_.year, hoy_.month, 1)
     desde = _sumar_mes(primer_mes_actual, -meses)
@@ -107,6 +138,7 @@ def gasto_variable_promedio(db: Session, usuario_id, meses: int = 3) -> Decimal:
             Transaccion.usuario_id == usuario_id,
             Transaccion.tipo == TipoTransaccion.GASTO,
             Transaccion.suscripcion_id.is_(None),
+            Transaccion.poliza_id.is_(None),
             Transaccion.fecha >= desde,
             Transaccion.fecha <= hasta,
         )
@@ -132,21 +164,35 @@ def proyectar(db: Session, usuario_id, meses: int = 6) -> dict:
             Suscripcion.estado == EstadoSuscripcion.ACTIVA,
         )
     ).all()
+    polizas = db.scalars(
+        select(Poliza).where(
+            Poliza.usuario_id == usuario_id,
+            Poliza.estado == EstadoSuscripcion.ACTIVA,
+        )
+    ).all()
 
     ingresos_por_mes: dict[str, Decimal] = {m: CERO for m in etiquetas}
     fijos_por_mes: dict[str, Decimal] = {m: CERO for m in etiquetas}
+    sin_tasa: list[str] = []
 
     for ing in ingresos_rec:
+        valor = _en_cop(db, ing.monto, ing.moneda, sin_tasa)
+        if valor is None:
+            continue
         for fecha in _ocurrencias_ingreso(ing, inicio, fin):
             clave = f"{fecha.year:04d}-{fecha.month:02d}"
             if clave in ingresos_por_mes:
-                ingresos_por_mes[clave] += ing.monto
+                ingresos_por_mes[clave] += valor
 
-    for sub in suscripciones:
-        for fecha in _ocurrencias_suscripcion(sub, inicio, fin):
+    cobros = [(s, s.monto) for s in suscripciones] + [(p, p.prima) for p in polizas]
+    for cobro, monto in cobros:
+        valor = _en_cop(db, monto, cobro.moneda, sin_tasa)
+        if valor is None:
+            continue
+        for fecha in _ocurrencias_cobro(cobro, inicio, fin):
             clave = f"{fecha.year:04d}-{fecha.month:02d}"
             if clave in fijos_por_mes:
-                fijos_por_mes[clave] += sub.monto
+                fijos_por_mes[clave] += valor
 
     variable = gasto_variable_promedio(db, usuario_id)
 
@@ -171,6 +217,8 @@ def proyectar(db: Session, usuario_id, meses: int = 6) -> dict:
         )
 
     return {
+        "moneda": "COP",
+        "sin_tasa": sin_tasa,
         "meses": filas,
         "gasto_variable_promedio": float(variable),
         "total_ingresos": float(sum(ingresos_por_mes.values())),
