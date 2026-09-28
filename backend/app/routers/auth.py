@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..deps import get_db
+from ..deps import get_current_user, get_db
 from ..defaults import DEFAULT_CATEGORIAS
 from ..models import Categoria, TipoCategoria, Usuario
 from ..schemas import LoginIn, Token, UserCreate, UserOut
@@ -51,3 +51,9 @@ def login(data: LoginIn, db: Session = Depends(get_db)) -> Token:
     if usuario is None or not verify_password(data.password, usuario.password_hash):
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
     return Token(access_token=create_access_token(usuario.id))
+
+
+@router.get("/me", response_model=UserOut)
+def me(user: Usuario = Depends(get_current_user)) -> Usuario:
+    """Devuelve el usuario autenticado (útil para restaurar sesión en el frontend)."""
+    return user
