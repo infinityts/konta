@@ -124,3 +124,14 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
   creyendo que son 2,1593 %.
 - **Mensaje del simulador más explícito**: ahora incluye la tasa mensual usada y avisa cuando es
   anormalmente alta.
+
+## v1.5 — Editar movimientos y etiquetarlos
+
+- **Se pueden editar los movimientos** (antes solo crear y borrar): botón *Editar* que abre el
+  formulario con los datos actuales y guarda con `PATCH` — monto, fecha, descripción, categoría,
+  subcategoría, cuenta, etiqueta.
+- **Asignar etiquetas y subetiquetas** desde el propio movimiento, con la jerarquía indentada
+  (`Hogar › Internet`), y **crear etiquetas en línea** sin salir del formulario
+  (elige "es principal" o "subetiqueta de…").
+- **Filtros**: por Gastos / Ingresos / Todos y búsqueda por descripción o categoría.
+- El listado muestra la etiqueta con su ruta (`#Hogar › Internet`) y la cuenta.

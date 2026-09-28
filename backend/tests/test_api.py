@@ -414,6 +414,46 @@ def test_tasa_en_escala_equivocada_se_rechaza(client):
     assert r.status_code == 400
 
 
+def test_editar_transaccion_y_asignar_etiquetas(client):
+    """Editar un gasto ya registrado y ponerle etiqueta o subetiqueta."""
+    _, h = _registrar(client)
+    cats = client.get("/categorias", headers=h).json()
+    vivienda = next(c for c in cats if c["nombre"] == "Vivienda")
+    mercado = next(c for c in cats if c["nombre"] == "Mercado")
+
+    etq = client.post("/etiquetas", headers=h, json={"nombre": "Hogar"}).json()
+    sub = client.post("/etiquetas", headers=h, json={"nombre": "Internet", "padre_id": etq["id"]}).json()
+    assert sub["padre_id"] == etq["id"]
+
+    tx = client.post("/transacciones", headers=h, json={
+        "tipo": "gasto", "monto": "127240", "fecha": "2026-09-15",
+        "descripcion": "Internet Movistar", "categoria_id": vivienda["id"],
+    }).json()
+    assert tx["etiqueta_id"] is None
+
+    # edito monto, categoría, descripción y le asigno la SUBETIQUETA
+    r = client.patch(f"/transacciones/{tx['id']}", headers=h, json={
+        "monto": "130000",
+        "categoria_id": mercado["id"],
+        "etiqueta_id": sub["id"],
+        "descripcion": "Internet Movistar (corregido)",
+    })
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert float(d["monto"]) == 130000.0
+    assert d["categoria_id"] == mercado["id"]
+    assert d["etiqueta_id"] == sub["id"]
+    assert d["descripcion"] == "Internet Movistar (corregido)"
+
+    # sigue siendo un solo movimiento
+    assert len(client.get("/transacciones", headers=h).json()) == 1
+
+    # puedo quitar la etiqueta
+    r = client.patch(f"/transacciones/{tx['id']}", headers=h, json={"etiqueta_id": None})
+    assert r.status_code == 200
+    assert r.json()["etiqueta_id"] is None
+
+
 def test_exportar_y_restaurar(client):
     _, h = _registrar(client)
     cat = client.get("/categorias", headers=h).json()[0]
