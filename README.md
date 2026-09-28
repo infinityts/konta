@@ -111,11 +111,15 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   (ver [`docs/despliegue.md`](docs/despliegue.md)).
 
 ### Notificaciones
-- **Resumen diario de pagos** por **Telegram** y/o **correo** (SMTP), con días de
-  anticipación configurables. Se envía **como máximo una vez al día**.
-- La config del servidor (token del bot y SMTP) es global; cada usuario elige canal,
-  destino y días. Incluye botón de **prueba** y **detección del chat ID**.
-- *(Próximamente)* WhatsApp, que requeriría la Cloud API de Meta o un gateway externo.
+- **Resumen diario de pagos** por **Telegram**, **correo** (SMTP) y/o **WhatsApp**
+  (Cloud API de Meta), con días de anticipación configurables. Se envía **como máximo
+  una vez al día**.
+- La config del servidor (token del bot, SMTP y credenciales de Meta) es global; cada
+  usuario elige canal, destino y días. Incluye botón de **prueba** y **detección del
+  chat ID** de Telegram.
+- *Nota sobre WhatsApp*: fuera de la ventana de 24 h desde el último mensaje del
+  usuario, Meta exige una **plantilla aprobada** (*utility*); un texto libre se
+  rechaza. La app envía texto y avisa con el error de Meta si falta la plantilla.
 
 ---
 
@@ -228,6 +232,7 @@ Migrado con **Alembic** (`backend/alembic/versions/`):
 | `0015_suscripcion_etiqueta` | `suscripciones.etiqueta_id` |
 | `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea) |
 | `0017_nombres_indices_orm` | renombra los índices al nombre que espera el ORM (`alembic check` limpio) |
+| `0018_whatsapp` | `config_notificaciones.whatsapp_numero` (canal WhatsApp) |
 
 ---
 
@@ -253,7 +258,7 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
 ## Estado
 
-- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + suscripciones que generan su gasto + árbol Categoría › Etiqueta › Subetiqueta + alertas + reportes + facturas con OCR por línea (clasificación en cascada y aprendizaje) + presupuestos + importar CSV + mercado + multi-moneda (TRM oficial) + simulador y deuda de tarjeta + respaldo + flujo de caja + metas de ahorro + notificaciones + cuentas/saldos
+- [x] Backend: auth multi-usuario + CRUD + ingresos recurrentes + suscripciones que generan su gasto + árbol Categoría › Etiqueta › Subetiqueta + alertas + reportes + facturas con OCR por línea (clasificación en cascada y aprendizaje) + presupuestos + importar CSV + mercado + multi-moneda (TRM oficial) + simulador y deuda de tarjeta + respaldo + flujo de caja + metas de ahorro + notificaciones (Telegram, correo y WhatsApp) + cuentas/saldos
 - [x] Frontend: login/registro, dashboard con KPIs y motivo del sobregiro, cuentas y consolidado, categorías y etiquetas, transacciones con **edición** y etiquetas, tarjetas con deuda, edición y simulador, suscripciones con edición y pausa, ingresos recurrentes, reportes, facturas con líneas OCR editables, presupuestos, importar, mercado, monedas, respaldo, flujo de caja, metas, notificaciones
 - [x] Navegación agrupada: `Resumen` + 5 grupos en barra superior (hover en escritorio, hamburguesa en móvil), definidos en `frontend/src/nav.ts`
 - [x] Loader `AccordionLoader` (alias `@` → `src`) y **carga diferida por página** (bundle inicial 271 kB → 183 kB)
@@ -261,5 +266,5 @@ metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 - [x] Esquema sin deriva: `alembic check` limpio y `downgrade base` → `upgrade head` sin errores
 - [x] **OCR por línea**: `factura_lineas` + `reglas_ocr` expuestos en la API y en la UI de *Facturas*
 - [x] CI: `pytest` (con PostgreSQL 16 y `alembic check`) + `pnpm build` en GitHub Actions
+- [x] **WhatsApp** como canal de notificaciones (Cloud API de Meta; requiere plantilla *utility* aprobada para el envío diario)
 - [ ] **Seguros y pólizas** (vida/salud/vehículo/hogar): prima, vigencia, beneficiarios, bien asegurado y alertas de vencimiento
-- [ ] WhatsApp como canal de notificaciones (requiere Cloud API de Meta o gateway)

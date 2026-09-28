@@ -74,12 +74,6 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 
 ## Pendiente / ideas
 
-- **WhatsApp** como canal de notificaciones. Opciones evaluadas:
-  - **Cloud API oficial de Meta**: sin mensualidad, ~US$0.0008 (≈ COP 3) por mensaje
-    *utility* en Colombia. Requiere cuenta Meta Business, número dedicado, plantilla
-    aprobada y método de pago.
-  - **Gateway de terceros** (CallMeBot) o librerías no oficiales (Baileys): gratis,
-    pero con **riesgo de ban** del número por violar los términos de WhatsApp.
 - **Seguros y pólizas** (personas y vehículos): ver la tarea al final del backlog en el
   Sistema de Contexto. Cubre vida/salud/vehículo/hogar, prima y periodicidad, vigencia y
   renovación, beneficiarios y bien asegurado (placa), alertas de vencimiento y reporte
@@ -336,3 +330,26 @@ factura y su texto quedaba guardado sin partirlo. Ahora el flujo está cerrado.
   `pnpm build` (que ya incluye `tsc --noEmit`). Badge en el README.
 - El backlog vive en el Sistema de Contexto (RAG): se cerraron las 3 tareas demo que
   seguían como «pendientes» estando ya implementadas y se registraron las reales.
+
+## v1.19 — WhatsApp como canal de notificaciones
+
+Era el último canal pendiente. Se implementa con la **Cloud API oficial de Meta**, sin
+gateways de terceros ni librerías no oficiales (que arriesgan el ban del número).
+
+- **`config_notificaciones.whatsapp_numero`** (migración `0018`): el destino, en formato
+  internacional sin `+` (ej. `573001234567`).
+- **`enviar_whatsapp()`** (`notificaciones.py`): `POST` a
+  `graph.facebook.com/<version>/<phone_id>/messages` con el token en la cabecera. Usa
+  `urllib` de la biblioteca estándar: sin dependencias nuevas.
+- **Config del servidor**: `FINANZAS_WHATSAPP_TOKEN`, `FINANZAS_WHATSAPP_PHONE_ID` y
+  `FINANZAS_WHATSAPP_API_VERSION`. Sin token/phone_id el canal queda deshabilitado y el
+  botón de prueba responde **502 con el mensaje de qué falta**, en vez de romper.
+- **Canales**: se añade `whatsapp` y `todos` (los tres). `ambos` sigue significando
+  *Telegram + correo*, así que las configuraciones existentes no cambian de significado.
+- **Frontend**: opción WhatsApp en el selector de canal y campo del número destino.
+- **Tests**: 36 en verde (antes 35). Cubren el mapeo de canales, que sin credenciales el
+  canal avise en vez de reventar, el guardado del número por la API y el 502 del envío de
+  prueba.
+- **Aviso real de Meta**: fuera de la ventana de 24 h desde el último mensaje del usuario,
+  la API exige una **plantilla aprobada** (*utility*); un texto libre se rechaza. Está
+  documentado en el README y en `docs/despliegue.md`.

@@ -151,6 +151,14 @@ que falta configurarlas.
 | `FINANZAS_SMTP_PASSWORD` | Contraseña o *app password* |
 | `FINANZAS_SMTP_FROM` | Remitente (por defecto, el usuario SMTP) |
 | `FINANZAS_SMTP_TLS` | `true` para STARTTLS (por defecto) |
+| `FINANZAS_WHATSAPP_TOKEN` | Token de la **Cloud API** de Meta (permanente, de un usuario del sistema) |
+| `FINANZAS_WHATSAPP_PHONE_ID` | *Phone number ID* del número emisor en Meta |
+| `FINANZAS_WHATSAPP_API_VERSION` | `v21.0` — versión de Graph API |
+
+> **WhatsApp tiene una condición extra**: fuera de la ventana de 24 h desde el último
+> mensaje del usuario, Meta rechaza el texto libre y exige una **plantilla aprobada**
+> (categoría *utility*). Para el resumen diario hay que crear y aprobar la plantilla en
+> Meta Business y usarla; sin ella el envío devuelve el error de Meta tal cual.
 
 Ejemplo para agregarlas al contenedor:
 

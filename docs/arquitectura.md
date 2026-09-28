@@ -94,7 +94,7 @@ relacionan las piezas.
 | `metas.py` | Progreso de metas de ahorro y aporte sugerido |
 | `saldos.py` | Saldo por cuenta y total, consolidado mensual y diagnóstico del sobregiro |
 | `jerarquia.py` | Helpers del árbol `Categoría › Etiqueta › Subetiqueta` (rutas para mostrar) |
-| `notificaciones.py` | Envío por Telegram/SMTP + job diario con dedup |
+| `notificaciones.py` | Envío por Telegram / SMTP / WhatsApp + job diario con dedup |
 | `scheduler.py` | Los 4 jobs: ingresos recurrentes, suscripciones vencidas, TRM oficial y notificaciones |
 
 ### Routers (21)
@@ -109,7 +109,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-21 tablas de negocio (más `alembic_version`), creadas por 17 migraciones:
+21 tablas de negocio (más `alembic_version`), creadas por 18 migraciones:
 
 | Migración | Tablas |
 |---|---|
@@ -130,6 +130,7 @@ relacionan las piezas.
 | `0015_suscripcion_etiqueta` | `suscripciones.etiqueta_id` |
 | `0016_ocr_lineas` | `factura_lineas`, `reglas_ocr` (OCR por línea, aún sin exponer) |
 | `0017_nombres_indices_orm` | renombra 22 índices al nombre que espera el ORM (`ix_tabla_columna`) |
+| `0018_whatsapp` | `config_notificaciones.whatsapp_numero` (canal WhatsApp) |
 
 ### Relaciones principales
 
@@ -181,13 +182,17 @@ Se puede desactivar con `FINANZAS_SCHEDULER_ENABLED=false` (los tests lo hacen).
 
 ## Notificaciones
 
-- **Config global del servidor**: `FINANZAS_TELEGRAM_BOT_TOKEN` y las `FINANZAS_SMTP_*`.
-- **Config por usuario**: canal (`telegram` | `email` | `ambos`), destino y días de anticipación.
+- **Config global del servidor**: `FINANZAS_TELEGRAM_BOT_TOKEN`, las `FINANZAS_SMTP_*`
+  y `FINANZAS_WHATSAPP_TOKEN` / `FINANZAS_WHATSAPP_PHONE_ID`.
+- **Config por usuario**: canal (`telegram` | `email` | `whatsapp` | `ambos` | `todos`),
+  destino y días de anticipación.
 - **Telegram**: `POST /notificaciones/telegram/detectar` lee `getUpdates` del bot para
   obtener el chat ID sin que el usuario lo busque a mano.
-- **Diseño extensible**: agregar WhatsApp sería un canal más en
-  `notificaciones.py` + una opción en el selector; la lógica de alarmas y el
-  scheduler no cambian.
+- **WhatsApp**: Cloud API de Meta. Fuera de la ventana de 24 h desde el último mensaje
+  del usuario, Meta exige **plantilla aprobada** (*utility*); la app envía texto y
+  propaga el error de Meta si falta.
+- **Diseño extensible**: un canal nuevo es una función `enviar_*`, una entrada en
+  `CANALES` y una opción en el selector; la lógica de alarmas y el scheduler no cambian.
 
 ---
 
