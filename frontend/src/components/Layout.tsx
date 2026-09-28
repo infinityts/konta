@@ -1,74 +1,23 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth'
+import { Suspense } from 'react'
+import { Outlet } from 'react-router-dom'
+import TopNav from './TopNav'
+import { Cargando } from './loading-ui/cargando'
 
-const items = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/tarjetas', label: 'Tarjetas', end: false },
-  { to: '/suscripciones', label: 'Suscripciones', end: false },
-  { to: '/ingresos-recurrentes', label: 'Ingresos recurrentes', end: false },
-  { to: '/cuentas', label: 'Cuentas', end: false },
-  { to: '/categorias', label: 'Categorías', end: false },
-  { to: '/transacciones', label: 'Transacciones', end: false },
-  { to: '/reportes', label: 'Reportes', end: false },
-  { to: '/flujo', label: 'Flujo', end: false },
-  { to: '/presupuestos', label: 'Presupuestos', end: false },
-  { to: '/metas', label: 'Metas', end: false },
-  { to: '/facturas', label: 'Facturas', end: false },
-  { to: '/importar', label: 'Importar', end: false },
-  { to: '/mercado', label: 'Mercado', end: false },
-  { to: '/monedas', label: 'Monedas', end: false },
-  { to: '/respaldo', label: 'Respaldo', end: false },
-  { to: '/notificaciones', label: 'Notificaciones', end: false },
-  { to: '/etiquetas', label: 'Etiquetas', end: false },
-]
-
+/**
+ * Marco de la aplicación: barra superior agrupada + contenido a ancho completo.
+ *
+ * El `Suspense` vive aquí (alrededor del `Outlet`) para que, mientras baja el
+ * código de una página, se vea el loader **sin que desaparezca la navegación**.
+ */
 export default function Layout() {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-
-  function salir() {
-    logout()
-    navigate('/login')
-  }
-
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-56 shrink-0 border-r border-slate-200 bg-white p-4">
-        <h1 className="text-lg font-semibold">Konta</h1>
-        <nav className="mt-6 flex flex-col gap-1">
-          {items.map((i) => (
-            <NavLink
-              key={i.to}
-              to={i.to}
-              end={i.end}
-              className={({ isActive }) =>
-                `rounded-lg px-3 py-2 text-sm ${
-                  isActive
-                    ? 'bg-indigo-50 font-medium text-indigo-700'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`
-              }
-            >
-              {i.label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-
-      <div className="flex-1">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-          <p className="text-sm text-slate-500">Hola, {user?.nombre ?? 'usuario'}</p>
-          <button
-            onClick={salir}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-          >
-            Salir
-          </button>
-        </header>
-        <main className="p-6">
+    <div className="min-h-screen">
+      <TopNav />
+      <main className="mx-auto w-full max-w-[1500px] px-5 py-6">
+        <Suspense fallback={<Cargando texto="Cargando página…" />}>
           <Outlet />
-        </main>
-      </div>
+        </Suspense>
+      </main>
     </div>
   )
 }

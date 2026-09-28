@@ -3,3 +3,31 @@
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+/* ---------------------------------------------------------------------------
+   Loader «accordion»: barras que suben y bajan en secuencia.
+   Usa `currentColor`, así se colorea con clases tipo `text-[#2563eb]`.
+--------------------------------------------------------------------------- */
+@keyframes konta-accordion {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.konta-accordion-bar {
+  height: 100%;
+  transform-origin: bottom;
+  animation: konta-accordion 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .konta-accordion-bar {
+    animation-duration: 2.4s;
+  }
+}

@@ -184,3 +184,19 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
   (el campo `subcategoria` del reporte pasa a llamarse `etiqueta`).
 - **Editar** en **Etiquetas** (cambiar nombre, categoría o padre) y en **Categorías** (renombrar),
   sin tener que borrar y crear.
+
+## v1.9 — Menú agrupado (barra superior) y loader
+
+- **Navegación reagrupada**: las 18 opciones sueltas pasan a **`Resumen` + 5 grupos**
+  (`Movimientos`, `Análisis`, `Organización`, `Herramientas`, `Configuración`),
+  definidos en `src/nav.ts`. `Transacciones` sube al primer lugar de Movimientos.
+- **Barra superior con desplegables** (`TopNav.tsx`): el submenú abre al **pasar el
+  mouse** en escritorio (y con clic para teclado/táctil); cierra al navegar, al hacer
+  clic fuera y con `Esc`; resalta el grupo y la opción activos según la ruta.
+- **Móvil**: bajo 768 px aparece una **hamburguesa** con panel lateral y grupos en acordeón.
+- **Contenido a ancho completo**: al quitar la barra lateral, las páginas ganan ~220 px.
+- **Loader `AccordionLoader`**: nuevo alias `@` → `src`, componente
+  `components/loading-ui/accordion-loader.tsx` (color por `currentColor`) y
+  `AccordionLoaderColor` con los tres colores. Se usa como pantalla de carga.
+- **Carga diferida (code splitting)**: cada página es un chunk aparte → el bundle inicial
+  baja de **271 kB a 183 kB**, y el loader se muestra mientras baja cada página.
