@@ -1465,3 +1465,34 @@ importación devolvía **500**. Eran dos bugs distintos, **ninguno** de los camb
   con `movimiento_id` nulo. En un extracto de **tarjeta** no se notaba (no declara
   intereses); en uno de **cuenta** el previo devolvía 500. Ahora es opcional, con test.
 - Tests: **212 en verde** (antes 211).
+
+## v1.52 — La conciliación del CMR (Falabella) ya cuadra
+
+Era la tarea 15 del backlog, aparcada desde el principio: el extracto del CMR se leía pero
+**la conciliación no cuadraba**. Tres causas, todas de diseño del PDF de ese banco:
+
+- **La columna «Cuota a pagar este mes» no se detectaba.** El encabezado viene partido en
+  tres renglones (`Cuota a` / `pagar` / `este mes`) y el nombre del grupo se armaba **de
+  abajo hacia arriba**, así que quedaba `ESTEMESPAGARCUOTAA` y no casaba con nada. Ahora se
+  prueba el orden de lectura correcto y la columna se detecta (x≈605).
+- **La fila del pago no cae en la columna de valor.** El CMR dibuja su `-$612.126,00` en la
+  x de la cuota. La fila quedaba **abierta** (sin valor) y se tragaba el importe del renglón
+  siguiente: el pago aparecía con `$86.090,03` y la compra de PAYPAL se quedaba sin su peso.
+  Ahora, cuando una fila no tiene valor pero sí cuota y no trae «N de M», ese importe es su
+  valor (y el pago se cierra en su renglón).
+- **Algunas celdas llegan con los dígitos separados y el extractor pierde un cero**
+  (`$8.000,00` llega como `$ 8.0 0 ,0 0` → 800). Se detecta por el espaciado y se corrige con
+  la **aritmética del propio extracto**: el capital por cuota que queda (`pendiente / (M-N)`)
+  o, en una compra de una sola cuota, el valor de la compra. Con eso las 30 cuotas coinciden
+  una a una con el PDF.
+- **«Consumos del mes facturados» es el CAPITAL** facturado, no el valor de las compras: el
+  control ahora suma la cuota del mes de **todas** las compras pendientes (no solo las del
+  periodo). Y la deuda se calcula con los «consumos del periodo» y el seguro de vida, que el
+  banco declara aparte.
+
+Resultado con el archivo real: **capital facturado 489.088,85 = declarado**, **pagos
+612.126,00 = declarado**, **pago total 2.771.831,16 = declarado** y **`conciliacion_ok`**.
+De paso, el parser por coordenadas estrena tests (fragmentos sintéticos): era lo único sin
+cobertura, y por eso estos bugs pasaron.
+
+Tests: **216 en verde** (antes 212).

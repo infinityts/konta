@@ -184,6 +184,10 @@ class ExtractoCrudo:
     fecha_pago: date | None = None
     saldo_anterior: Decimal | None = None
     compras: Decimal | None = None
+    # El CMR declara aparte los `Consumos del periodo` (las compras nuevas, que son las que
+    # forman la deuda) y el `Seguro de vida deudor`, que va sumado a los otros cargos
+    compras_periodo: Decimal | None = None
+    seguro: Decimal | None = None
     intereses: Decimal | None = None
     intereses_mora: Decimal | None = None
     otros_cargos: Decimal | None = None
@@ -221,10 +225,12 @@ _ETIQUETAS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("cupo_total", ("CUPO TOTAL DE TU TARJETA", "CUPO TOTAL DE TU TARJETA CMR", "CUPO TOTAL")),
     ("saldo_anterior", ("SALDO PERIODO ANTERIOR", "SALDO ANTERIOR")),
     ("compras", ("CONSUMOS DEL MES FACTURADOS", "CONSUMOS DEL MES", "COMPRAS DEL MES")),
+    ("compras_periodo", ("CONSUMOS DEL PERIODO", "CONSUMOS DEL PERIODO FACTURADO")),
     ("intereses", ("INTERESES CORRIENTES DEL MES", "INTERESES CORRIENTES")),
     ("intereses_mora", ("INTERESES DE MORA", "INTERESES MORA")),
     ("abonos", ("PAGOS INCLUYE ABONOS", "PAGOS ABONOS", "ABONO")),
     ("otros_cargos", ("OTROS CARGOS", "CUOTA DE MANEJO")),
+    ("seguro", ("SEGURO DE VIDA DEUDOR", "SEGURO DE VIDA")),
     ("tasa_ea", ("TASA EFECTIVA ANUAL", "TASA E.A", "INTERES ANUAL")),
     ("tasa_mv", ("TASA M.V", "TASA MENSUAL", "INTERES MENSUAL")),
 )
@@ -457,8 +463,14 @@ def columnas_por_encabezado(
 
     columnas: list[tuple[str, float]] = []
     for cluster in sorted(clusters, key=lambda c: c[0].x):
-        nombre = " ".join(f.texto for f in sorted(cluster, key=lambda f: (-f.y, f.x)))
-        campo = campo_de(nombre)
+        # El nombre se arma en orden de lectura. En unos PDF la `y` crece hacia abajo y en
+        # otros hacia arriba, así que se prueban los dos órdenes: el CMR reparte
+        # «Cuota a» / «pagar» / «este mes» en tres renglones y solo el orden de arriba
+        # abajo da `CUOTAAPAGARESTEMES` (al revés quedaba `ESTEMESPAGARCUOTAA` y la columna
+        # se perdía, que es lo que dejaba `cuota_mes` vacío).
+        orden = sorted(cluster, key=lambda f: (f.y, f.x))
+        nombre = " ".join(f.texto for f in orden)
+        campo = campo_de(nombre) or campo_de(" ".join(f.texto for f in reversed(orden)))
         x = sum(f.x for f in cluster) / len(cluster)
         if campo and all(campo != c for c, _ in columnas):
             columnas.append((campo, x))
@@ -506,6 +518,8 @@ def movimientos_desde_filas(
     movimientos: list[MovimientoCrudo] = []
     actual: MovimientoCrudo | None = None
     ultimo: MovimientoCrudo | None = None
+    # Importe en pesos que el banco dibujó en un renglón propio, encima de su compra
+    valor_suelto: Decimal | None = None
 
     if hacia_abajo:
         datos = [f for f in frags if f.y > y_encabezado + 4]
@@ -523,10 +537,20 @@ def movimientos_desde_filas(
             break
 
         celdas = _asignar(fila, columnas)
+        # ¿La fila es de una compra internacional? (el banco imprime `US D`)
+        hay_divisa = bool(re.search(r"(?i)us\s*d", texto_fila))
         fecha = _fecha_de(celdas.get("fecha", ""))
         valor = _valor_de(celdas.get("valor")) if celdas.get("valor") else None
         if valor is None:
             valor = _valor_de(celdas.get("capital_periodo"))
+
+        # La fila del **pago** del CMR trae su importe en la columna de la cuota (x≈592) y
+        # nada en la de valor, y sin «N de M». Si se deja ahí, la fila queda abierta (sin
+        # valor) y se traga el importe del renglón siguiente: el pago «se comía» el
+        # `$86.090,03` de la compra de PAYPAL que venía debajo.
+        if valor is None and celdas.get("cuota_mes") and not _cuotas_de(celdas.get("cuotas", "")):
+            valor = _valor_de(celdas["cuota_mes"])
+            del celdas["cuota_mes"]
 
         # La tasa de cambio de una compra internacional viene en su propio renglón
         if "T.C" in _plano(texto_fila):
@@ -542,41 +566,85 @@ def movimientos_desde_filas(
                 movimientos.append(actual.cerrar())
                 ultimo = movimientos[-1]
             actual = MovimientoCrudo(fecha=fecha, descripcion="", valor=CERO, moneda=moneda)
+            # El importe en pesos del renglón de arriba es el de **esta** compra
+            if valor_suelto is not None:
+                actual.valor = valor_suelto
+                valor_suelto = None
 
         if actual is None:
+            # Renglón suelto sin fecha: en las compras internacionales el banco imprime el
+            # **valor en pesos** en su propio renglón (una decena de puntos arriba) y deja
+            # la divisa en el renglón de la compra.
+            if valor is not None and valor > 0:
+                valor_suelto = valor
             continue
 
         descripcion = (celdas.get("descripcion") or "").strip()
         if descripcion:
             actual.descripcion = f"{actual.descripcion} {descripcion}".strip()
 
-        if valor is not None:
+        if valor is not None and not hay_divisa:
             actual.valor = valor
         if actual.tasa_ea is None:
             actual.tasa_ea = _tasa_de(celdas.get("tasa"))
         pendiente = _valor_de(celdas.get("valor_pendiente"))
         if pendiente is not None:
             actual.valor_pendiente = pendiente
-        cuota = _valor_de(celdas.get("cuota_mes"))
-        if cuota is None:
-            cuota = _valor_de(celdas.get("capital_periodo"))
-        if cuota is not None:
-            actual.cuota_mes = cuota
         cuotas = _cuotas_de(celdas.get("cuotas", ""))
         if cuotas:
             actual.cuotas_n, actual.cuotas_total = cuotas
+        celda_cuota = celdas.get("cuota_mes") or ""
+        cuota = _valor_de(celda_cuota)
+        if cuota is None:
+            cuota = _valor_de(celdas.get("capital_periodo"))
+        # El CMR dibuja algunas cuotas con los dígitos separados y el extractor **pierde un
+        # cero** (`$8.000,00` llega como `$ 8.0 0 ,0 0` -> 800). Cuando eso pasa, la
+        # aritmética del propio extracto dice cuál es la cuota: el capital que reparte cada
+        # cuota que queda (`pendiente / (M - N)`) o, si es de una sola cuota, el valor de la
+        # compra. Solo se corrige en ese caso, para no pisar una cuota legítimamente distinta.
+        if cuota is not None and _DIGITOS_SEPARADOS.search(celda_cuota or ""):
+            faltantes = (actual.cuotas_total or 0) - (actual.cuotas_n or 0)
+            if faltantes > 0 and actual.valor_pendiente:
+                esperado = (actual.valor_pendiente / faltantes).quantize(Decimal("0.01"))
+                # Solo si lo leído **rompe** la aritmética (se perdió un cero). Una cuota
+                # correcta queda dentro del rango y no se toca (el banco redondea).
+                if not (esperado * Decimal("0.98") <= cuota <= esperado * Decimal("2.5")):
+                    cuota = esperado
+            elif actual.cuotas_total == 1 and actual.cuotas_n == 1 and actual.valor > 0:
+                # Una compra de una sola cuota: su cuota es el valor de la compra
+                if abs(cuota * 10 - actual.valor) <= actual.valor * Decimal("0.01"):
+                    cuota = actual.valor
+        if cuota is not None:
+            actual.cuota_mes = cuota
         titular = (celdas.get("titular") or "").strip()
         if titular and _plano(titular) in ("T", "TT", "A", "AA"):
             actual.titular = titular[:1].upper()
-        # Compra internacional: el banco imprime el monto **en divisa** y solo la cuota y
-        # el pendiente en pesos. Se detecta porque la celda de valor no trae `$`.
-        original = celdas.get("original") or ""
-        hay_divisa = "USD" in _plano(original) or bool(re.search(r"(?i)us\s*d", texto_fila))
-        if hay_divisa and actual.valor > 0:
-            actual.monto_original = actual.valor
-            actual.moneda_original = "USD"
-            actual.moneda = "USD"
-            actual.valor = actual.valor  # se queda en su moneda: sumar pesos y dólares no significa nada
+        # Compra internacional: la celda de valor trae la divisa (y a veces también el peso
+        # pegado: `$86.090,0325,81 US D`). El peso manda para los totales del extracto y la
+        # divisa se guarda como monto original.
+        if hay_divisa:
+            celda_valor = celdas.get("valor") or ""
+            montos = _montos_en_celda(celda_valor)
+            valor_peso = valor_divisa = None
+            if montos and "$" in celda_valor:
+                valor_peso = montos[0]
+                valor_divisa = montos[1] if len(montos) > 1 else None
+            elif montos:
+                valor_divisa = montos[0]  # sin `$`: la celda solo trae la divisa
+            if valor_peso is None:
+                valor_peso = valor_suelto  # el renglón de arriba, en pesos
+                valor_suelto = None
+            if valor_peso is not None:
+                actual.valor = valor_peso
+            elif valor_divisa is not None and actual.valor <= 0:
+                # Sin peso conocido (ni en la celda ni en el renglón de arriba): se queda en
+                # su moneda —sumar pesos y dólares no significa nada— y no entra en los
+                # totales del extracto. Si el peso ya se leyó, **no se pisa**.
+                actual.valor = valor_divisa
+                actual.moneda = "USD"
+            if valor_divisa is not None:
+                actual.monto_original = valor_divisa
+                actual.moneda_original = "USD"
 
         if actual.valor != CERO:
             movimientos.append(actual.cerrar())
@@ -673,10 +741,39 @@ def _fecha_de(texto: str) -> date | None:
     return None
 
 
+# Un importe en formato colombiano: `86.090,03`. El CMR pega dos seguidos sin separador
+# (`$86.090,0325,81 US D`), y este patrón los corta donde corresponde: `86.090,03` y `25,81`.
+_IMPORTE_CO = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}")
+
+
+# El CMR dibuja algunas celdas con los dígitos separados (`$ 8.0 0 ,0 0`): el extractor
+# mete espacios entre glifos y **pierde un dígito** del grupo de miles (`8.000,00` llega
+# como `8.00,00`). Se detecta por el espaciado y se repone el grupo a tres cifras.
+_DIGITOS_SEPARADOS = re.compile(r"\d\s+\d")
+
+
+def _reparar_espaciado(texto: str | None) -> str:
+    """Recompone un importe que el PDF dibujó con los dígitos separados."""
+    if not texto or not _DIGITOS_SEPARADOS.search(texto):
+        return texto or ""
+    junto = re.sub(r"(?<=\d)\s+(?=\d)", "", texto)  # `8.0 0 ,0 0` -> `8.00,00`
+    return re.sub(r"\s+(?=[.,])|(?<=[.,])\s+", "", junto)
+
+
+def _montos_en_celda(celda: str | None) -> list[Decimal]:
+    """Los importes de una celda, en el orden en que están escritos."""
+    return [
+        v
+        for v in (parsear_monto(m, Formato.CO) for m in _IMPORTE_CO.findall(_reparar_espaciado(celda)))
+        if v is not None
+    ]
+
+
 def _valor_de(texto: str | None) -> Decimal | None:
     """Valor de una celda ya aislada (por eso aquí sí se tolera suciedad)."""
     if not texto:
         return None
+    texto = _reparar_espaciado(texto)
     unico = parsear_monto(quitar_duplicado(texto), Formato.CO)
     if unico is not None:
         return unico
@@ -1016,14 +1113,12 @@ def conciliar(extracto: ExtractoCrudo) -> list[dict]:
     # `compras` es lo que el extracto llama consumos: sin intereses, comisiones,
     # impuestos ni ajustes (esos van en sus propias líneas del desglose)
     compras = sum((m.valor for m in del_periodo if m.tipo == "compra" and m.valor > 0), CERO)
-    # Algunos extractos (CMR) llaman «consumos del mes» al **capital facturado** del mes,
-    # no al valor de las compras: ahí lo que se suma es lo que se factura de cada compra
+    # Algunos extractos (CMR) llaman «consumos del mes facturados» al **capital** que se
+    # factura este mes: la lista de movimientos son **todas** las compras pendientes (no
+    # solo las del periodo) y lo que se factura de cada una es su cuota del mes (la cuota
+    # del CMR es capital; los intereses van en su propia línea del resumen).
     facturado = sum(
-        (
-            (m.cuota_mes or m.valor_pendiente or CERO)
-            for m in del_periodo
-            if m.tipo == "compra" and m.valor > 0
-        ),
+        (m.cuota_mes for m in extracto.movimientos if m.tipo == "compra" and m.cuota_mes is not None),
         CERO,
     )
     # Según el banco, un pago viene en negativo (Davivienda, Amex) o en positivo con
@@ -1045,12 +1140,18 @@ def conciliar(extracto: ExtractoCrudo) -> list[dict]:
         ]
 
     if extracto.saldo_anterior is not None and extracto.pago_total is not None:
+        # Si el extracto declara los «consumos del periodo» (las compras nuevas), la deuda
+        # se forma con esos y no con el capital facturado que llama «consumos del mes»
+        consumos = (
+            extracto.compras_periodo if extracto.compras_periodo is not None else extracto.compras
+        )
         esperado = (
             extracto.saldo_anterior
-            + (extracto.compras or CERO)
+            + (consumos or CERO)
             + (extracto.intereses or CERO)
             + (extracto.intereses_mora or CERO)
             + (extracto.otros_cargos or CERO)
+            + (extracto.seguro or CERO)
             - (extracto.abonos or CERO)
         )
         checks.append(_check("pago total", esperado, extracto.pago_total))
