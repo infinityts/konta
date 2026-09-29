@@ -1413,3 +1413,17 @@ pasaje de Transmilenio o un viaje de Uber no se etiquetaban nunca. Ahora
 Uber, DiDi, Cabify, InDrive, Beat y taxi. Con su test.
 
 Tests: **205 en verde**.
+
+### v1.49.2 — La foto no llegaba al OCR (bug que encontraste al subirla)
+
+Subiste la foto del parqueadero y salió **«Monto detectado: —»** con un **400** al leer
+líneas. La causa: el endpoint de subida llamaba a `extraer_texto(contenido)` **sin el
+nombre ni el tipo de archivo**, y sin ellos `extraer_texto` no sabe que es una imagen: la
+trataba como PDF, fallaba y devolvía texto vacío. El OCR de imágenes existía desde antes
+pero **era inalcanzable desde la API**.
+
+- Ahora la subida pasa `archivo.filename` y `archivo.content_type`.
+- Si el OCR de una foto no consigue texto, el mensaje lo dice: «No pudimos leer el texto de
+  la foto (OCR): prueba con más luz, el recibo recto y sin sombras».
+- Tests: **207 en verde**, con uno que vigila que la subida **siempre** le pase el nombre y
+  el tipo al extractor (es el bug exacto, y sin depender de tesseract).

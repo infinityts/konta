@@ -92,3 +92,39 @@ def test_un_recibo_de_servicio_se_registra_como_un_solo_gasto(client):
     assert len(txs) == 1, txs
     assert float(txs[0]["monto"]) == 4100.0
     assert txs[0]["etiqueta_id"] == etqs["Parqueadero"]
+
+
+def test_la_subida_le_pasa_el_nombre_y_el_tipo_al_extractor(client, monkeypatch):
+    """El bug real: `extraer_texto` se llamaba sin nombre ni tipo, así que un JPG se
+    trataba como PDF y la foto quedaba sin texto (monto `—` y 400 al leer líneas)."""
+    import app.routers.facturas as R
+
+    llamadas: list[tuple[str, str | None]] = []
+    real = R.extraer_texto
+
+    def espia(contenido, nombre="", content_type=None):
+        llamadas.append((nombre, content_type))
+        return real(contenido, nombre, content_type)
+
+    monkeypatch.setattr(R, "extraer_texto", espia)
+    _, h = _registrar(client)
+    r = client.post(
+        "/facturas",
+        headers=h,
+        files={"archivo": ("WhatsApp Image.jpeg", b"\xff\xd8\xff\xe0datos", "image/jpeg")},
+    )
+    assert r.status_code == 201, r.text
+    assert llamadas == [("WhatsApp Image.jpeg", "image/jpeg")]
+
+
+def test_una_foto_ilegible_avisa_que_es_el_ocr(client):
+    """Sin texto y siendo foto, el mensaje habla del OCR (no de «súbela de nuevo»)."""
+    _, h = _registrar(client)
+    f = client.post(
+        "/facturas",
+        headers=h,
+        files={"archivo": ("foto.jpeg", b"\xff\xd8\xff\xe0nada", "image/jpeg")},
+    ).json()
+    r = client.post(f"/facturas/{f['id']}/lineas", headers=h, json={})
+    assert r.status_code == 400
+    assert "OCR" in r.json()["detail"] or "foto" in r.json()["detail"].lower()

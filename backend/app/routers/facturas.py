@@ -27,7 +27,7 @@ from ..crud_utils import get_owned
 from ..defaults import sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..embeddings import make_embedding
-from ..facturas import detectar_fecha, detectar_monto, extraer_texto, nombre_factura
+from ..facturas import detectar_fecha, detectar_monto, es_imagen, extraer_texto, nombre_factura
 from ..impuestos import a_json, detectar_impuestos
 from ..lineas import detectar_tipo, parsear_lineas
 from ..models import (
@@ -146,7 +146,9 @@ async def subir(
     if len(contenido) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="El archivo supera 10 MB")
 
-    texto = extraer_texto(contenido)
+    # El nombre y el tipo son **imprescindibles**: sin ellos `extraer_texto` no sabe que
+    # es una foto y la trata como PDF, así que una imagen devolvía texto vacío.
+    texto = extraer_texto(contenido, archivo.filename or "", archivo.content_type)
     impuestos = detectar_impuestos(texto) if texto else None
     factura = Factura(
         usuario_id=user.id,
@@ -235,7 +237,12 @@ def parsear(
     if not texto.strip():
         raise HTTPException(
             status_code=400,
-            detail="La factura no tiene texto extraído; súbela de nuevo o envía el texto",
+            detail=(
+                "No pudimos leer el texto de la foto (OCR): prueba con más luz, el recibo "
+                "recto y sin sombras, o escribe el total a mano."
+                if es_imagen(factura.nombre_archivo)
+                else "La factura no tiene texto extraído; súbela de nuevo o envía el texto"
+            ),
         )
 
     for linea in _lineas(db, factura.id):
