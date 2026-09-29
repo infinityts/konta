@@ -183,6 +183,7 @@ def subir_extracto(
         pago_minimo=crudo.pago_minimo,
         cupo_total=crudo.cupo_total,
         cupo_disponible=crudo.cupo_disponible,
+        cupo_utilizado=crudo.cupo_utilizado,
         tasa_mv=crudo.tasa_mv,
         tasa_ea=crudo.tasa_ea,
         conciliacion_ok=conciliacion_ok(checks),

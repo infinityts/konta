@@ -62,6 +62,7 @@ class ExtractoOut(BaseModel):
     pago_minimo: Decimal | None
     cupo_total: Decimal | None
     cupo_disponible: Decimal | None
+    cupo_utilizado: Decimal | None = None
     conciliacion_ok: bool
     creado_en: datetime
 
@@ -106,6 +107,7 @@ class AnalisisOut(BaseModel):
 
     cupo_total: Decimal | None
     cupo_disponible: Decimal | None
+    cupo_utilizado: Decimal | None = None
     cupo_utilizado: Decimal | None
     pago_total: Decimal | None
     pago_minimo: Decimal | None

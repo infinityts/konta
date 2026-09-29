@@ -389,6 +389,8 @@ class Extracto(Base):
     pago_minimo: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     cupo_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     cupo_disponible: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Lo que el corte declara como usado (`Has utilizado:`), para poder comprobarlo
+    cupo_utilizado: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     # La tasa que cobra el banco, como **fracción** (0,2630 = 26,30 % E.A.), igual que en
     # `tarjetas`: así el simulador usa la tasa real del extracto y no una configurada
     tasa_mv: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)

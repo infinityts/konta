@@ -1508,3 +1508,8 @@ que es exactamente lo que dice el corte. Con el cuidado de no confundirlo con «
 miran las dos.
 
 Tests: **217 en verde**.
+
+> Nota: el valor declarado se guarda en la columna `extractos.cupo_utilizado`
+> (migración `0032`), no solo en el dataclass del parser: el análisis lee del **modelo**,
+> y sin la columna el endpoint devolvía `AttributeError` (lo cazó el test del Excel de
+> Amex, que no declara cupo).
