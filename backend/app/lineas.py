@@ -43,6 +43,9 @@ IGNORAR = (
     "AVENIDA", "CARRERA", "CALLE", "DIAGONAL", "TRANSVERSAL", "INGRESO",
     "MATRICULA", "DURACION", "OPERARIO", "METODO", "PREFIJO", "POLIZA",
     "SOFTWARE", "FABRICANTE", "CONSUMIDOR", "EQUIVALENTE", "DOCUMENTO",
+    # Pie del recibo que el OCR convirtió en «artículos» con valores absurdos:
+    # «SE Rango desde 85550» ($85.550) y «Hasta 500000» ($500.000)
+    "RANGO", "DESDE", "HASTA", "VIGENCIA", "VIGENTE",
 )
 
 # Se busca por **palabra completa**, no por subcadena: con `in`, `PARMESANO` contenía
@@ -202,7 +205,8 @@ def _linea_plausible(descripcion: str, total: Decimal | None) -> bool:
     «artículos» que en realidad son la cabecera.
     """
     d = (descripcion or "").strip()
-    if len(d) < 3:
+    # Un artículo tiene nombre: «Eta» o «asta» son trozos de la cabecera
+    if len(d) < 5 or sum(1 for c in d if c.isalpha()) < 4:
         return False
     bajo = sin_acentos(d).lower()
     if "@" in d or ".com" in bajo or "www" in bajo:

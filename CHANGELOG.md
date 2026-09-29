@@ -1427,3 +1427,26 @@ pero **era inalcanzable desde la API**.
   la foto (OCR): prueba con más luz, el recibo recto y sin sombras».
 - Tests: **207 en verde**, con uno que vigila que la subida **siempre** le pase el nombre y
   el tipo al extractor (es el bug exacto, y sin depender de tesseract).
+
+## v1.50 — El QR de la factura (CUDE de la DIAN) y no inventar artículos
+
+Viste que la foto del parqueadero generaba **3 artículos falsos** (`Eta $2.026`,
+`SE Rango desde $85.550`, `asta $500.000`, que son el pie del recibo: «Rango desde 85550»,
+«Hasta 500000»). Y propusiste algo mejor que el OCR: **el QR**.
+
+- **Un recibo de servicio no genera artículos.** Si el documento es de tipo `parqueadero` o
+  `servicios`, sus «líneas» son cabecera y pie: no se guardan. La ficha muestra 0 artículos y
+  el botón «Registrar el gasto» con el total detectado.
+- **Filtro reforzado**: `RANGO`, `DESDE`, `HASTA`, `VIGENCIA` al `IGNORAR`, y las
+  descripciones de menos de 5 caracteres (o con menos de 4 letras) ya no son «artículos».
+- **Se lee el QR** de la foto (y de la primera página del PDF) con `zxing-cpp`, **sin
+  depender del OCR**: de ahí salen el **CUDE** (código único del documento en la DIAN) y la
+  **URL oficial** de consulta. Migración `0031`.
+- **Duplicados**: dos facturas con el mismo CUDE son el mismo documento. Al subir una
+  repetida, la app avisa «ya la habías subido».
+- La ficha muestra el CUDE y un enlace **«Ver en la DIAN ↗»**.
+  **Límite honesto**: la descarga automática del PDF oficial **no** es posible sin sesión
+  (probado: `/User/SearchDocument` devuelve el formulario de acceso). Lo que sí se puede es
+  abrir el enlace con tu cuenta, descargar el PDF oficial y subirlo: ese se lee perfecto
+  porque es digital y trae la tabla de artículos.
+- Tests: **211 en verde** (antes 207).

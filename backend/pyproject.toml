@@ -25,6 +25,8 @@ dependencies = [
     "pdf2image>=1.17",
     # Extractos en Excel (y el Excel de Amex que se usa para validar)
     "openpyxl>=3.1",
+    # Lectura del QR de una factura electrónica (CUDE/CUFE de la DIAN)
+    "zxing-cpp>=2.3",
 ]
 
 [project.optional-dependencies]

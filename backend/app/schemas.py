@@ -597,6 +597,11 @@ class FacturaOut(BaseModel):
     iva_valor: Decimal | None = None
     descuento: Decimal | None = None
     impuestos_detalle: str | None = None
+    # Del QR de la factura electrónica: el código único y el enlace de la DIAN
+    cude: str | None = None
+    url_dian: str | None = None
+    # True si ya hay otra factura del mismo usuario con el mismo CUDE
+    duplicada: bool = False
     creada_en: datetime
 
 

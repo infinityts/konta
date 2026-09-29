@@ -270,6 +270,10 @@ export interface Factura {
   impuestos_total: number | string | null
   iva_valor: number | string | null
   descuento: number | string | null
+  /** Del QR de la factura electrónica */
+  cude: string | null
+  url_dian: string | null
+  duplicada: boolean
   creada_en: string
 }
 

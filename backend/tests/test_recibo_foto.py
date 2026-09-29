@@ -128,3 +128,63 @@ def test_una_foto_ilegible_avisa_que_es_el_ocr(client):
     r = client.post(f"/facturas/{f['id']}/lineas", headers=h, json={})
     assert r.status_code == 400
     assert "OCR" in r.json()["detail"] or "foto" in r.json()["detail"].lower()
+
+
+# El pie del recibo, tal como el OCR de producción lo convirtió en «artículos»:
+# «Eta $2.026», «SE Rango desde $85.550» y «asta $500.000».
+OCR_PARQUEADERO_RUIDO = OCR_PARQUEADERO + "Eta 2.026\nSE Rango desde 85.550\nHasta 500.000\n"
+
+URL_QR = (
+    "https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey="
+    "75d42c2ee77b714f7431e708c5803054e30fdbebe5190abe65eadc265ef297238c55278da30137409ac3fa5e6b36cd53"
+)
+CUDE = "75d42c2ee77b714f7431e708c5803054e30fdbebe5190abe65eadc265ef297238c55278da30137409ac3fa5e6b36cd53"
+
+
+def test_el_pie_del_recibo_no_se_convierte_en_articulos():
+    """El rango del POS («Hasta 500000») y los trozos cortos no son artículos."""
+    arts = parsear_lineas(OCR_PARQUEADERO_RUIDO)
+    assert arts == [], [a["descripcion"] for a in arts]
+
+
+def test_el_cude_y_el_enlace_salen_del_qr():
+    from app.qr import cude_de_url, url_dian
+
+    assert cude_de_url(URL_QR) == CUDE
+    assert cude_de_url(CUDE) == CUDE
+    assert cude_de_url(None) is None
+    assert cude_de_url("https://otra.com/x") is None
+    assert url_dian(URL_QR) == URL_QR
+    assert url_dian("nada") is None
+
+
+def test_la_subida_guarda_el_cude_y_avisa_del_duplicado(client, monkeypatch):
+    """El CUDE del QR no depende del OCR y delata la misma factura subida dos veces."""
+    import app.routers.facturas as R
+
+    monkeypatch.setattr(R, "qr_de_documento", lambda *a, **k: URL_QR)
+    _, h = _registrar(client)
+
+    datos = {"archivo": ("f.pdf", _pdf_minimo(OCR_PARQUEADERO), "application/pdf")}
+    primera = client.post("/facturas", headers=h, files=datos).json()
+    assert primera["cude"] == CUDE
+    assert primera["url_dian"] == URL_QR
+    assert primera["duplicada"] is False
+
+    segunda = client.post("/facturas", headers=h, files=datos).json()
+    assert segunda["duplicada"] is True, "misma factura, mismo CUDE"
+    assert segunda["cude"] == CUDE
+
+
+def test_un_recibo_de_parqueadero_no_crea_lineas_en_el_endpoint(client):
+    """El texto con ruido tampoco llega a la tabla: es un recibo de servicio."""
+    _, h = _registrar(client)
+    f = client.post(
+        "/facturas",
+        headers=h,
+        files={"archivo": ("f.pdf", _pdf_minimo(OCR_PARQUEADERO_RUIDO), "application/pdf")},
+    ).json()
+    d = client.post(f"/facturas/{f['id']}/lineas", headers=h, json={}).json()
+    assert d["tipo_documento"] == "parqueadero"
+    assert d["lineas"] == []
+    assert float(d["monto_detectado"]) == 4100.0

@@ -73,7 +73,12 @@ export default function Facturas() {
     try {
       const fd = new FormData()
       fd.append('archivo', file)
-      await apiUpload<Factura>('/facturas', fd)
+      const subida = await apiUpload<Factura>('/facturas', fd)
+      setAviso(
+        subida.duplicada
+          ? '⚠ Esa factura ya la habías subido (mismo CUDE de la DIAN). Revísala antes de confirmarla.'
+          : ''
+      )
       await cargar()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al subir la factura')
@@ -368,6 +373,26 @@ export default function Facturas() {
                     </span>
                     {' · '}Fecha: {f.fecha_detectada ?? '—'}
                   </p>
+                  {f.cude && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      CUDE {f.cude.slice(0, 10)}…{' '}
+                      {f.url_dian && (
+                        <a
+                          href={f.url_dian}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-600 hover:underline"
+                        >
+                          Ver en la DIAN ↗
+                        </a>
+                      )}
+                    </p>
+                  )}
+                  {(detalle?.duplicada || f.duplicada) && (
+                    <p className="mt-1 text-xs text-amber-600">
+                      ⚠ Ya tienes otra factura con este mismo CUDE
+                    </p>
+                  )}
                   {f.transaccion_id ? (
                     detalle && detalle.descuadre != null && Number(detalle.descuadre) !== 0 ? (
                       <p className="mt-1 text-xs text-red-600">

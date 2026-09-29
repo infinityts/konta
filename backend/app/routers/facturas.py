@@ -43,6 +43,8 @@ from ..models import (
     Transaccion,
     Usuario,
 )
+from ..qr import cude_de_url, qr_de_documento
+from ..qr import url_dian as url_dian_de_qr
 from ..recurrencia import hoy
 from ..schemas import (
     ArticuloDetalleOut,
@@ -77,12 +79,34 @@ def _lineas(db: Session, factura_id: uuid.UUID) -> list[FacturaLinea]:
     )
 
 
+def _duplicada(db: Session, factura: Factura) -> bool:
+    """¿Hay **otra** factura del mismo usuario con el mismo CUDE?
+
+    El CUDE viene del QR, así que dos facturas con el mismo código son el mismo documento
+    subido dos veces (o la foto y el PDF oficial de la misma compra).
+    """
+    if not factura.cude:
+        return False
+    return bool(
+        db.scalar(
+            select(func.count())
+            .select_from(Factura)
+            .where(
+                Factura.usuario_id == factura.usuario_id,
+                Factura.cude == factura.cude,
+                Factura.id != factura.id,
+            )
+        )
+    )
+
+
 def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
     lineas = _lineas(db, factura.id)
     detalle = FacturaDetalleOut.model_validate(factura)
     detalle.lineas = [FacturaLineaOut.model_validate(li) for li in lineas]
     if factura.texto_extraido or lineas:
         detalle.tipo_documento = detectar_tipo(factura.texto_extraido or "", lineas)
+    detalle.duplicada = _duplicada(db, factura)
     # Auditoría: ¿cuadra con la transacción asociada?
     if factura.transaccion_id:
         tx = db.get(Transaccion, factura.transaccion_id)
@@ -150,6 +174,9 @@ async def subir(
     # es una foto y la trata como PDF, así que una imagen devolvía texto vacío.
     texto = extraer_texto(contenido, archivo.filename or "", archivo.content_type)
     impuestos = detectar_impuestos(texto) if texto else None
+    # El QR trae el CUDE/CUFE de la DIAN: no se adivina con OCR
+    qr = qr_de_documento(contenido, archivo.filename or "", archivo.content_type)
+    cude = cude_de_url(qr)
     factura = Factura(
         usuario_id=user.id,
         nombre_archivo=archivo.filename or "factura.pdf",
@@ -164,11 +191,15 @@ async def subir(
         ),
         descuento=impuestos["descuento"] if impuestos else None,
         impuestos_detalle=json.dumps(a_json(impuestos)) if impuestos else None,
+        cude=cude,
+        url_dian=url_dian_de_qr(qr),
     )
     db.add(factura)
     db.commit()
     db.refresh(factura)
-    return factura
+    salida = FacturaOut.model_validate(factura)
+    salida.duplicada = _duplicada(db, factura)
+    return salida
 
 
 @router.get("/{id}", response_model=FacturaDetalleOut)
@@ -261,8 +292,15 @@ def parsear(
     etiquetas = list(
         db.scalars(select(Etiqueta).where(Etiqueta.usuario_id == user.id)).all()
     )
+    # Un recibo de **servicio** (parqueadero, factura de servicios) no tiene artículos: su
+    # texto es cabecera y pie, y el OCR los convertiría en «artículos» con valores absurdos
+    # («Hasta 500000» = $500.000). Se guarda sin detalle y se registra como un solo gasto.
+    articulos = parsear_lineas(texto)
+    if detectar_tipo(texto, articulos) in ("parqueadero", "servicios"):
+        articulos = []
+
     emb = make_embedding()
-    for orden, articulo in enumerate(parsear_lineas(texto)):
+    for orden, articulo in enumerate(articulos):
         etiqueta_id, origen, confianza = clasificar(
             db, user.id, articulo["descripcion"], etiquetas, emb
         )

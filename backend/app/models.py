@@ -482,6 +482,9 @@ class Factura(Base):
     iva_valor: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     descuento: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     impuestos_detalle: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Del QR de la factura electrónica (migración 0031)
+    cude: Mapped[str | None] = mapped_column(String(96), nullable=True, index=True)
+    url_dian: Mapped[str | None] = mapped_column(String(500), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 
