@@ -469,3 +469,105 @@ export function fmtMoney(v: number | string | null | undefined): string {
   if (!Number.isFinite(n)) return '—'
   return `$${n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 }
+
+// ---------------------------------------------------------------------------
+// Extractos bancarios (Fase 1: ingesta y análisis)
+// ---------------------------------------------------------------------------
+
+export interface ExtractoMovimiento {
+  id: string
+  orden: number
+  fecha: string | null
+  descripcion: string
+  valor: string
+  moneda: string
+  saldo: string | null
+  monto_original: string | null
+  moneda_original: string | null
+  tasa_cambio: string | null
+  cuotas_n: number | null
+  cuotas_total: number | null
+  cuota_mes: string | null
+  valor_pendiente: string | null
+  titular: string | null
+  tipo: string
+  categoria_id: string | null
+  etiqueta_id: string | null
+  origen: string
+  es_informativo: boolean
+}
+
+export interface ControlConciliacion {
+  nombre: string
+  calculado: string | null
+  declarado: string | null
+  diferencia?: string
+  ok: boolean | null
+  filas_dudosas?: Array<Record<string, string>>
+}
+
+export interface Extracto {
+  id: string
+  tipo: string
+  formato: string
+  banco: string | null
+  nombre_archivo: string
+  moneda: string
+  cuenta_id: string | null
+  tarjeta_id: string | null
+  periodo_desde: string | null
+  periodo_hasta: string | null
+  fecha_corte: string | null
+  fecha_pago: string | null
+  compras: string | null
+  abonos: string | null
+  intereses: string | null
+  otros_cargos: string | null
+  pago_total: string | null
+  pago_minimo: string | null
+  cupo_total: string | null
+  cupo_disponible: string | null
+  conciliacion_ok: boolean
+  creado_en: string
+}
+
+export interface ExtractoDetalle extends Extracto {
+  saldo_anterior: string | null
+  intereses_mora: string | null
+  movimientos: ExtractoMovimiento[]
+  conciliacion: ControlConciliacion[]
+}
+
+export interface TramoCategoria {
+  categoria: string
+  total: string
+  etiquetas: string[]
+}
+
+export interface AnalisisExtracto {
+  extracto_id: string
+  moneda: string
+  moneda_extracto: string
+  moneda_solicitada: string
+  conversion_aplicada: boolean
+  conciliacion_ok: boolean
+  conciliacion: ControlConciliacion[]
+  compras: string
+  pagos: string
+  intereses: string
+  comisiones: string
+  costos_financieros: string
+  movimientos: number
+  movimientos_informativos: number
+  por_moneda: Record<string, Record<string, number | string>>
+  por_categoria: TramoCategoria[]
+  compromiso_futuro: Record<string, string>
+  cupo_total: string | null
+  cupo_disponible: string | null
+  cupo_utilizado: string | null
+  pago_total: string | null
+  pago_minimo: string | null
+  intereses_declarados: string | null
+  avisos: string[]
+  sin_tasa: Array<Record<string, string>>
+}

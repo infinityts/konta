@@ -1009,3 +1009,46 @@ van en el siguiente tramo.
   (tipo de movimiento, cuotas pegadas a la tasa, fechas sin año), la conciliación de los dos
   niveles y un **Excel de punta a punta construido en el test** (dos monedas, dos tablas,
   cuotas), porque los extractos reales no se versionan.
+
+## v1.38 — Extractos, Fase 1 completa: API y panel
+
+Segunda mitad de la Fase 1. Ya se puede **subir un extracto desde la interfaz**, ver si los
+números cuadran y leer el análisis.
+
+- **API** (`/extractos`): subir (PDF con contraseña o Excel), listar, ver el detalle, borrar y
+  `…/analisis`. Al subir se lee, se clasifica cada compra con el mismo motor del OCR
+  (`historial → diccionario → embeddings`) y **no se crea ninguna transacción**: eso es la
+  Fase 2, y solo después de que la conciliación cuadre.
+- **Panel** (página *Extractos*, en *Herramientas*): subida con contraseña y tipo (tarjeta o
+  cuenta), lista de extractos con su semáforo («cuadra» / «revisar»), y el análisis:
+  - **¿Cuadra con lo que dice el banco?** los controles uno por uno, con lo calculado, lo que
+    declara el extracto y la diferencia; y el detalle de los movimientos dudosos.
+  - Tarjetas de **compras del periodo**, pagos, **costo del dinero** (intereses + comisiones),
+    pago total y mínimo, **cupo utilizado** (con el % del cupo) e intereses declarados.
+  - **A dónde se fue la plata** por categoría, **por moneda** y **compromiso futuro** (capital
+    de las compras a cuotas).
+  - Tabla de movimientos con tipo, cuotas, cuota del mes, pendiente, la compra en dólares con su
+    tasa, y casilla para ver u ocultar lo anterior al periodo.
+- **La invariante por fila estaba mintiendo y se arregló**: daba ✅ **sin validar ninguna fila**
+  (bastaba con que no hubiera filas que validar). Ahora devuelve «sin datos» y lo avisa.
+  - Y al mirar la fila que marcaba, resultó que **el banco es incoherente consigo mismo**: la
+    cuota **incluye intereses** y el pendiente es **capital**. El control se reformuló con esa
+    regla del dominio (`pendiente / cuotas que faltan ≤ cuota ≤ 2,5 ×`), así que una compra con
+    intereses ya no se marca como error, pero una columna mal leída sí.
+  - Al ampliar la detección de columnas apareció otra: **el Excel escribe las cuotas `1/1`** y
+    solo se aceptaba `1 de 1`.
+- **La moneda se dice como es**: los totales van en la moneda del extracto, con el desglose por
+  moneda al lado. El selector «ver en USD» se quitó porque **no convertía**: mostrar pesos con
+  símbolo de dólares es peor que no ofrecerlo. Convertir necesita la tasa de cada compra, y las
+  que no la traen salen listadas como `sin_tasa` en vez de inventarla.
+- **Cómo se decide qué es de este mes**: el periodo se lee del extracto (`Desde/Hasta` o «Periodo
+  facturado»), con dos guardas nuevas: un rótulo como *«Movimientos durante el periodo»* no es la
+  etiqueta del periodo, y un periodo con las fechas al revés se **descarta** (un periodo falso
+  marcaría todo el detalle como de meses anteriores, que es justo lo que no hay que hacer).
+- Tests: **142 en verde** (antes 136). Incluyen la API de punta a punta (subir el Excel
+  construido en el test, analizarlo, borrarlo, y que un usuario no vea los extractos de otro), el
+  PDF **con contraseña** (sin ella 400, con ella se lee) y la regla de la cuota con intereses.
+- Estado de los tres extractos reales: **Davivienda (PDF cifrado) y Amex (Excel de dos monedas)
+  cuadran todos los controles**; el CMR (PDF) lee sus 30 movimientos pero su conciliación todavía
+  no cuadra: imprime los pagos en positivo y llama «consumos del mes» al capital facturado. Queda
+  como tarea propia.

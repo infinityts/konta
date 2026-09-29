@@ -11,6 +11,7 @@ const Categorias = lazy(() => import('./pages/Categorias'))
 const Cuentas = lazy(() => import('./pages/Cuentas'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Etiquetas = lazy(() => import('./pages/Etiquetas'))
+const Extractos = lazy(() => import('./pages/Extractos'))
 const Facturas = lazy(() => import('./pages/Facturas'))
 const FlujoCaja = lazy(() => import('./pages/FlujoCaja'))
 const Importar = lazy(() => import('./pages/Importar'))
@@ -40,6 +41,7 @@ const RUTAS: Array<{ path: string; element: RouteObject['element'] }> = [
   { path: '/polizas', element: <Polizas /> },
   { path: '/ingresos-recurrentes', element: <IngresosRecurrentes /> },
   { path: '/etiquetas', element: <Etiquetas /> },
+  { path: '/extractos', element: <Extractos /> },
   { path: '/reportes', element: <Reportes /> },
   { path: '/reglas-ocr', element: <ReglasOcr /> },
   { path: '/flujo', element: <FlujoCaja /> },

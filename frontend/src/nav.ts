@@ -70,6 +70,7 @@ export const GRUPOS: GrupoNav[] = [
     id: 'herramientas',
     label: 'Herramientas',
     items: [
+      { to: '/extractos', label: 'Extractos', icono: '📄' },
       { to: '/facturas', label: 'Facturas', icono: '🧾' },
       { to: '/reglas-ocr', label: 'Reglas de OCR', icono: '🧠' },
       { to: '/importar', label: 'Importar', icono: '📥' },

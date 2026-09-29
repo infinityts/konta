@@ -356,7 +356,35 @@ si te pasas.
 
 ---
 
-## 15. Subir un recibo (OCR por línea)
+## 15. Leer un extracto del banco (tarjeta o cuenta)
+
+👉 **Extractos** → elige el archivo (**PDF o Excel**) → si el PDF tiene contraseña, escríbela →
+**Leer extracto**.
+
+| Paso | Qué pasa |
+|---|---|
+| 1. Subes el archivo | Se lee el **PDF por coordenadas** (cada valor cae en su columna) o el **Excel hoja por hoja** |
+| 2. Konta lo lee | Saca el periodo, el corte, el pago total, el pago mínimo, el cupo y cada movimiento, con sus cuotas |
+| 3. **¿Cuadra?** | Compara lo leído con lo que **dice el banco**. Si no cuadra, lo dice y señala los movimientos dudosos |
+| 4. Miras el análisis | Compras, pagos, **costo del dinero** (intereses + comisiones), cupo usado, a dónde se fue la plata y el **compromiso futuro** de las compras a cuotas |
+| 5. Revisas el detalle | La tabla de movimientos, con su tipo (compra, pago, interés, comisión…) y las compras en dólares con su tasa |
+
+> **Konta todavía no crea transacciones al leer un extracto.** Primero enseña el análisis y
+> comprueba que los números cuadren con los del banco; importar los movimientos es el paso
+> siguiente. Así nada entra en tus cuentas sin que lo hayas visto.
+
+- **Lo anterior al periodo no es un gasto nuevo**: los extractos listan el capital de compras de
+  meses atrás. Esas filas se marcan *informativas* y se pueden ocultar (casilla de la tabla).
+- **Una compra a cuotas no es una suscripción**: `7 de 24` significa que ya la estabas pagando.
+  El detalle trae la cuota del mes y lo que queda pendiente.
+- **Multi-moneda**: si el extracto trae pesos y dólares (Amex), cada movimiento se guarda **en su
+  moneda** y el análisis muestra el desglose al lado. No se convierte nada al guardar: la
+  conversión es de presentación y, si falta la tasa, se avisa en vez de inventarla.
+- Si el extracto es de una **cuenta** (ahorros o corriente), dilo en el desplegable *Tipo*.
+
+---
+
+## 16. Subir un recibo (OCR por línea)
 
 👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
 

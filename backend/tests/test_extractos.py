@@ -86,12 +86,13 @@ def test_conciliar_detecta_lo_que_no_cuadra():
             MovimientoCrudo(
                 fecha=date(2026, 9, 2), descripcion="PAGO", valor=Decimal("-300")
             ).cerrar(),
-            # Cuota 5 de 10 con pendiente 5.000: debería ser 1.000 × 5
+            # Cuota 100 con 5 cuotas por delante y 4.500 de capital: la cuota no cubre
+            # el capital (4.500 / 5 = 900), así que una columna se leyó mal
             MovimientoCrudo(
                 fecha=date(2026, 9, 3),
                 descripcion="COMPRA MAL LEIDA",
                 valor=Decimal("0"),
-                cuota_mes=Decimal("1000"),
+                cuota_mes=Decimal("100"),
                 cuotas_n=5,
                 cuotas_total=10,
                 valor_pendiente=Decimal("4500"),
@@ -102,10 +103,37 @@ def test_conciliar_detecta_lo_que_no_cuadra():
     assert checks["compras del periodo"]["ok"] is True
     assert checks["pagos y abonos"]["ok"] is True
     assert checks["pago total"]["ok"] is True
-    aritmetica = checks["aritmética de cada movimiento (pendiente = cuota × cuotas que faltan)"]
-    assert aritmetica["ok"] is False
-    assert aritmetica["filas_dudosas"][0]["descripcion"] == "COMPRA MAL LEIDA"
+    cuotas = checks["coherencia de las cuotas (la cuota cubre el capital que queda)"]
+    assert cuotas["ok"] is False
+    assert cuotas["filas_dudosas"][0]["descripcion"] == "COMPRA MAL LEIDA"
     assert conciliacion_ok(list(checks.values())) is False
+
+
+def test_la_cuota_con_intereses_es_coherente():
+    """La cuota incluye intereses y el pendiente es **capital**: eso no es un error.
+
+    Es el caso real de una compra a 25 cuotas en el extracto de Amex: la cuota
+    (17.304,50) es mayor que el capital que reparte (242.263,00 / 18 = 13.459,06) porque
+    lleva los intereses. El control tiene que aceptarlo, no marcar la fila.
+    """
+    extracto = ExtractoCrudo(
+        movimientos=[
+            MovimientoCrudo(
+                fecha=date(2026, 2, 15),
+                descripcion="COMPRA A CUOTAS",
+                valor=Decimal("415308.00"),
+                cuota_mes=Decimal("17304.50"),
+                cuotas_n=7,
+                cuotas_total=25,
+                valor_pendiente=Decimal("242263.00"),
+            ).cerrar()
+        ]
+    )
+    cuotas = [
+        c for c in conciliar(extracto) if c["nombre"].startswith("coherencia de las cuotas")
+    ][0]
+    assert cuotas["ok"] is True, cuotas["filas_dudosas"]
+    assert cuotas["calculado"] == "1"
 
 
 def _excel_amex() -> bytes:
@@ -123,6 +151,7 @@ def _excel_amex() -> bytes:
         hoja.append(["Moneda:", moneda])
         hoja.append(["Pago mínimo", "1.000,00"])
         hoja.append(["Pago total", "5.000,00"])
+        hoja.append(["Periodo facturado", "17 ago", "15 sep. 2026"])
         hoja.append([])
         hoja.append(["Movimientos durante el periodo"])
         hoja.append(

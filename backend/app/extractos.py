@@ -253,13 +253,20 @@ def metadatos(texto: str, extracto: ExtractoCrudo) -> None:
             if d1 and d2:
                 extracto.periodo_desde, extracto.periodo_hasta = d1, d2
     if extracto.periodo_desde is None:
-        for clave in ("PERIODO FACTURADO", "PERIODO", "FECHAS IMPORTANTES"):
+        for clave in ("PERIODO FACTURADO", "PERIODO DE FACTURACION", "FECHAS IMPORTANTES"):
             m = patron_tolerante(clave).search(base)
             if not m:
                 continue
             ventana = base[m.end() : m.end() + 300]
             fechas = _fechas_con_anio_inferido(ventana)
             if len(fechas) >= 2:
+                if fechas[0] > fechas[1]:
+                    # Fechas al revés = la etiqueta no era la del periodo. No se inventa:
+                    # un periodo falso marcaría todo el detalle como «de meses anteriores»
+                    extracto.avisos.append(
+                        "No se pudo leer el periodo facturado (las fechas salen al revés)"
+                    )
+                    break
                 extracto.periodo_desde, extracto.periodo_hasta = fechas[0], fechas[1]
                 break
     if extracto.fecha_pago is None:
@@ -389,7 +396,7 @@ def columnas_por_encabezado(
     # Banda de y con más palabras de encabezado (el encabezado real)
     bandas: list[list[Fragmento]] = []
     for f in sorted(candidatos, key=lambda f: -f.y):
-        if bandas and abs(bandas[-1][0].y - f.y) <= 25:
+        if bandas and abs(bandas[-1][0].y - f.y) <= 40:
             bandas[-1].append(f)
         else:
             bandas.append([f])
@@ -399,7 +406,7 @@ def columnas_por_encabezado(
     y_min, y_max = min(f.y for f in banda), max(f.y for f in banda)
 
     # Todos los fragmentos de esa banda (no solo los candidatos) agrupados por x
-    en_banda = [f for f in frags if y_min - 8 <= f.y <= y_max + 8]
+    en_banda = [f for f in frags if y_min - 12 <= f.y <= y_max + 12]
     clusters: list[list[Fragmento]] = []
     for f in sorted(en_banda, key=lambda f: f.x):
         if clusters and f.x - clusters[-1][-1].x <= 20:
@@ -636,7 +643,8 @@ def _valor_de(texto: str | None) -> Decimal | None:
 
 def _cuotas_de(texto: str) -> tuple[int, int] | None:
     """`7 de 24`, y tolera que la tasa venga pegada (`1 de 128,15%` = `1 de 1` + `28,15%`)."""
-    m = re.search(r"(\d{1,3})\s*de\s*(\d{1,4})", texto or "", re.IGNORECASE)
+    # Dos formas: `7 de 24` (PDF) y `1/1` (Excel de Amex)
+    m = re.search(r"(\d{1,3})\s*(?:de|/)\s*(\d{1,4})", texto or "", re.IGNORECASE)
     if not m:
         return None
     n_txt, total_txt = m.group(1), m.group(2)
@@ -775,11 +783,22 @@ def movimientos_desde_hoja(filas: list[list[str]], moneda: str) -> list[Movimien
 
 
 def formato_de(nombre: str, content_type: str | None = None) -> str:
+    """Qué es el archivo. **Manda la extensión**: los navegadores mandan tipos raros.
+
+    Un `extracto.pdf` con `content-type` de Excel (pasa cuando el sistema no lo conoce)
+    tiene que leerse como PDF, no intentar abrirlo como libro.
+    """
     bajo = (nombre or "").lower()
-    tipo = (content_type or "").lower()
-    if bajo.endswith((".xlsx", ".xlsm")) or "spreadsheetml" in tipo:
+    if bajo.endswith((".xlsx", ".xlsm")):
         return "xlsx"
-    if bajo.endswith(".csv") or "csv" in tipo:
+    if bajo.endswith(".csv"):
+        return "csv"
+    if bajo.endswith(".pdf"):
+        return "pdf"
+    tipo = (content_type or "").lower()
+    if "spreadsheetml" in tipo or "ms-excel" in tipo:
+        return "xlsx"
+    if "csv" in tipo:
         return "csv"
     return "pdf"
 
@@ -862,6 +881,8 @@ def marcar_informativos(extracto: ExtractoCrudo) -> None:
     """
     if extracto.periodo_desde is None or extracto.periodo_hasta is None:
         return
+    if extracto.periodo_desde > extracto.periodo_hasta:
+        return  # un periodo invertido no sirve para decidir qué es de este mes
     for m in extracto.movimientos:
         if m.fecha is None:
             continue
@@ -953,29 +974,55 @@ def conciliar(extracto: ExtractoCrudo) -> list[dict]:
         checks.append(_check("cupo utilizado", extracto.cupo_total - extracto.cupo_disponible, None))
 
     filas_dudosas = []
+    validadas = 0
+    con_cuotas = [m for m in extracto.movimientos if m.cuotas_total and m.cuotas_total > 1]
     for m in extracto.movimientos:
         if not m.cuotas_total or not m.cuotas_n or m.cuota_mes is None or m.valor_pendiente is None:
             continue
-        esperado = CERO if m.cuotas_n == m.cuotas_total else m.cuota_mes * (m.cuotas_total - m.cuotas_n)
-        if abs(m.valor_pendiente - esperado) > max(TOLERANCIA_FILA, esperado * Decimal("0.005")):
+        validadas += 1
+        faltantes = m.cuotas_total - m.cuotas_n
+        if faltantes == 0:
+            # La última cuota no puede dejar capital pendiente
+            coherente = m.valor_pendiente <= TOLERANCIA_FILA
+            esperado = CERO
+        else:
+            # OJO: el pendiente es **capital** y la cuota **incluye intereses**, así que la
+            # cuota nunca es menor que el capital que reparte, y si es muchísimo mayor es
+            # que una columna se leyó mal. Con 0% de interés coinciden exactamente (fue el
+            # caso en 46 de 48 filas de Davivienda).
+            capital_por_cuota = m.valor_pendiente / faltantes
+            esperado = capital_por_cuota
+            coherente = (
+                capital_por_cuota * Decimal("0.98")
+                <= m.cuota_mes
+                <= capital_por_cuota * Decimal("2.5")
+            )
+        if not coherente:
             filas_dudosas.append(
                 {
                     "fecha": m.fecha.isoformat() if m.fecha else None,
                     "descripcion": m.descripcion[:60],
                     "pendiente": str(m.valor_pendiente),
-                    "esperado": str(esperado),
+                    "cuota": str(m.cuota_mes),
+                    "capital_por_cuota": str(esperado),
                 }
             )
     if filas_dudosas:
         extracto.avisos.append(
             f"{len(filas_dudosas)} movimiento(s) no cuadran con su propia aritmética"
         )
+    if con_cuotas and validadas == 0:
+        # Un ✅ porque no se validó nada sería mentira: se dice que no hay datos
+        extracto.avisos.append(
+            "No se pudo comprobar la aritmética de los movimientos a cuotas: falta la "
+            "columna de la cuota del mes en este extracto"
+        )
     checks.append(
         {
-            "nombre": "aritmética de cada movimiento (pendiente = cuota × cuotas que faltan)",
-            "calculado": str(len(extracto.movimientos) - len(filas_dudosas)),
+            "nombre": "coherencia de las cuotas (la cuota cubre el capital que queda)",
+            "calculado": str(validadas),
             "declarado": str(len(extracto.movimientos)),
-            "ok": not filas_dudosas,
+            "ok": (not filas_dudosas) if validadas else None,
             "filas_dudosas": filas_dudosas[:10],
         }
     )

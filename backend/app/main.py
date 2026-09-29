@@ -18,6 +18,7 @@ from .routers import (
     categorias,
     cuentas,
     etiquetas,
+    extractos,
     facturas,
     flujo,
     importacion,
@@ -92,6 +93,7 @@ app.include_router(polizas.router)
 app.include_router(cuentas.router)
 app.include_router(saldos.router)
 app.include_router(reglas_ocr.router)
+app.include_router(extractos.router)
 
 
 @app.get("/health", response_model=SaludOut, responses={503: {"model": SaludOut}})
