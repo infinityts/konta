@@ -9,6 +9,10 @@ Tres niveles, de más barato a más listo:
 
 Lo que no se puede decidir queda como `sin_clasificar` para que el usuario lo
 elija una vez (y la próxima ya lo sepa).
+
+El diccionario empareja contra **nombres de etiquetas** del usuario, así que las
+palabras de aquí solo sirven si existe la etiqueta correspondiente (las crea
+`defaults.sembrar_etiquetas_diccionario`). Un test vigila esa coherencia.
 """
 
 from __future__ import annotations
@@ -25,36 +29,55 @@ from .models import Etiqueta, ReglaOcr
 # Palabras clave por **nombre de etiqueta**. Solo aplican si el usuario tiene
 # esa etiqueta creada.
 DICCIONARIO: dict[str, tuple[str, ...]] = {
+    # El **orden importa**: gana la primera etiqueta que encuentra una palabra suya. Por eso
+    # van primero las que describen el producto ya elaborado (una carne, un lácteo, un
+    # aseo) y **al final** las frutas y verduras: `PEPINO RES` es carne de res, no un
+    # pepino, y `SALSA DE TOMATE` es despensa, no un tomate.
     "Carnes": (
         "POLLO", "PECHUGA", "CARNE", "RES", "CERDO", "PESCADO", "CHORIZO", "JAMON",
-        "MOLIDA", "COSTILLA", "LOMO", "TOCINO", "SALCHICHA", "MUSLO", "ALAS",
+        "MOLIDA", "COSTILLA", "LOMO", "TOCINO", "TOCINETA", "SALCHICHA", "MUSLO", "ALAS",
+        "FILETE", "PERNIL", "CHULETA", "MORCILLA", "PUNTA DE ANCA", "SOBREBARRIGA",
+        "MUCHACHO", "MENUDENCIA", "HUESO", "PIERNA", "PEZUNA", "HIGADO", "BOLA NEGRA",
+        "PEPINO RES", "LENGUA", "RABO", "OSOBUCO",
+    ),
+    "Lácteos y huevos": (
+        "LECHE", "QUESO", "HUEVO", "YOGUR", "YOGURT", "MANTEQUILLA", "MARGARINA", "CREMA", "KUMIS",
+        "CUAJADA", "AREQUIPE", "PARMESANO", "MOZAREL", "CREMOSINO", "CAMPESINO",
+        "ALQUERIA", "COLANTA", "ALPINA",
+    ),
+    "Cuidado personal": (
+        "SHAMPOO", "CREMA DENTAL", "SEDA DENT", "HILO DENTAL", "CEPILLO DE DIENTES",
+        "CEPILLO", "CEP COLGATE", "DESODORANTE", "DESOD", "TOALLA HIGIENICA", "TOALLA",
+        "T.H", "NOSOTRAS", "PANAL", "AFEITAR", "COLGATE", "PROTEX",
+        "SEDAL", "JABON DE BANO", "ENJUAGUE", "REXONA", "PAPEL HIGIENICO",
+    ),
+    "Aseo del hogar": (
+        "JABON", "DETERGENTE", "BLANQUEADOR", "LIMPIADOR", "SUAVIZANTE", "ESCOBA",
+        "BOLSA", "CLORO", "LAVAPLATOS", "ESPONJA", "SERVILLETA", "FABULOSO", "DESMAN",
+        "QUITAMANCHAS", "VANISH", "TC FAMILIA", "ACOLCHAMAX", "TOALLA DE COCINA",
+        "PAPEL DE COCINA", "FAB", "AXION", "SUAVITEL", "BLANQUITA",
+    ),
+    "Despensa": (
+        "ARROZ", "ACEITE", "PANELA", "PASTA", "AZUCAR", "CAFE", "HARINA", "ATUN",
+        "SARDINA", "GALLETA", "CHOCOLATE", "SALSA", "CONDIMENTO", "FRIJOL",
+        "LENTEJA", "MAIZ", "AVENA", "CEREAL", "ESPAGUETI", "VINAGRE", "MAYONESA",
+        "MIEL", "GELATINA", "PAN ", "PANTAJADO", "SAL ", "SALSA DE TOMATE",
+        "SALSA NAPOLITANA", "SOPA", "CALDO", "LEVADURA", "AREPA", "TOSTADA",
+        "TORTILLA", "SAZONADOR", "OREGANO", "TOMILLO", "COLOR MAC", "ACEITUNA",
+        # «de tomate» y «en polvo» son más largas que TOMATE y CEBOLLA, así que ganan:
+        # una salsa de tomate es despensa y una cebolla en polvo también
+        "DE TOMATE", "EN POLVO", "TOSTADITA",
+        "SARDINAS", "SALCHICHON", "CEREALES", "GALLETAS",
     ),
     "Frutas y verduras": (
         "TOMATE", "CEBOLLA", "PAPA", "PLATANO", "MANZANA", "NARANJA", "LECHUGA",
         "ZANAHORIA", "LIMON", "AGUACATE", "BANANO", "FRUTA", "VERDURA", "CHONTO",
         "GUINEO", "MARACUYA", "MANGO", "PINA", "PEPINO", "AHUYAMA", "ESPINACA",
         "BROCOLI", "ZAPALLO", "YUCA", "ARVEJA", "HABICHUELA", "CILANTRO", "PEREJIL",
-    ),
-    "Lácteos y huevos": (
-        "LECHE", "QUESO", "HUEVO", "YOGUR", "MANTEQUILLA", "CREMA", "KUMIS",
-        "CUAJADA", "AREQUIPE",
-    ),
-    "Despensa": (
-        "ARROZ", "ACEITE", "PANELA", "PASTA", "AZUCAR", "CAFE", "HARINA", "ATUN",
-        "SARDINA", "GALLETAS", "CHOCOLATE", "SALSA", "CONDIMENTO", "FRIJOL",
-        "LENTEJA", "MAIZ", "AVENA", "CEREAL", "SPAGUETTI", "VINAGRE", "MAYONESA",
-        "MIEL", "GELATINA", "PAN ", "PANTAJADO", "SAL ", "SALSA DE TOMATE",
-        "SALSA NAPOLITANA", "SOPA", "CALDO", "LEVADURA",
-    ),
-    "Aseo del hogar": (
-        "JABON", "DETERGENTE", "BLANQUEADOR", "LIMPIADOR", "SUAVIZANTE", "ESCOBA",
-        "BOLSA", "CLORO", "LAVAPLATOS", "ESPONJA", "PAPEL HIGIENICO", "SERVILLETA",
-        "FAB", "AXION", "SUAVITEL", "BLANQUITA",
-    ),
-    "Cuidado personal": (
-        "SHAMPOO", "CREMA DENTAL", "CEPILLO DE DIENTES", "CEPILLO", "DESODORANTE",
-        "TOALLA HIGIENICA", "TOALLA", "PANAL", "AFEITAR", "COLGATE", "PROTEX",
-        "SEDAL", "JABON DE BANO", "ENJUAGUE",
+        "UVA", "SANDIA", "GRANADILLA", "APIO", "COLIFLOR", "PIMENTON", "AJO",
+        "ENSALADA", "REMOLACHA", "RABANO", "ACELGA", "REPOLLO", "MAZORCA",
+        "CHAMPINON", "MANDARINA", "PAPAYA", "GUAYABA", "LULO", "CURUBA", "MELON",
+        "PERA", "GRANADA", "TOMATE DE ARBOL", "KIWI", "REPOLLITA", "PINA ORO",
     ),
     "Gasolina": (
         "GASOLINA", "COMBUSTIBLE", "DIESEL", "TERPEL", "PRIMAX", "TEXACO",

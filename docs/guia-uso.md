@@ -461,10 +461,34 @@ que ya existían se omiten en vez de duplicarse. Dos cargos del mismo servicio e
 
 👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
 
+### Los dos formatos que sabe leer
+
+| Formato | Cómo se ve | Qué hace Konta |
+|---|---|---|
+| **Recibo de tirilla** | `PECHUGA POLLO BANDEJA   15.916` | Cada línea es un artículo y trae su valor |
+| **Factura de caja grande** | `1 FILETE PECHUGA...` y debajo `023029 1.372 kg 24,674 33,854**` | Un artículo por línea **numerada** y su línea de valores. Se apoya en que los números van en orden (1, 2, 3…) y en que la tabla termina en el `T O T A L`, así no se cuelan el `Tel:`, el `TPV` ni el pie legal |
+
+Dos detalles que costaron sangre y ya están resueltos: hay cajas que imprimen **`24,674`**
+(veinticuatro mil) en vez de `24.674`, y hay líneas con **marca de descuento** (`6,375* D`) que
+antes se perdían. Con la factura de prueba: **120 artículos, los 120 que declara el documento, y
+la suma de las líneas cuadra con el `TOTAL`**.
+
+### El etiquetado es automático
+
+Cada artículo cae en su **Categoría › Etiqueta** sin que toques nada (Carnes, Lácteos y huevos,
+Despensa, Frutas y verduras, Aseo del hogar, Cuidado personal…). El diccionario se amplía con
+los artículos que ves de verdad: `PERNIL`, `MARGARINA`, `UVA`, `SANDIA`, `REPOLLITA`, y aprende
+que `SALSA ... DE TOMATE` es despensa y no verdura, o que `PEPINO RES` es carne de res.
+
+> **Va a fallar en algo, y está bien.** Puede que un artículo quede mal etiquetado o sin
+> etiquetar: para eso está el paso 3-4, que es donde tú decides. **Antes de confirmar** puedes
+> cambiar la etiqueta, descartar la línea o añadir la que falte, y la app lo aprende para la
+> próxima. El diccionario propone; tú mandas.
+
 | Paso | Qué pasa |
 |---|---|
 | 1. Subes el archivo | Se extrae el texto (OCR si es una foto, con preprocesado) y se detectan monto y fecha |
-| 2. **Leer líneas** | Parte el recibo en artículos y los clasifica: `historial` → `diccionario` → `embeddings` |
+| 2. **Leer líneas** | Parte el recibo en artículos y **los etiqueta solo**: `historial` → `diccionario` → `embeddings` |
 | 3. Revisas la tabla | Cada línea trae su etiqueta sugerida y de dónde salió (el *badge* de la derecha) |
 | 4. Corriges lo que esté mal | Cambia la etiqueta en el desplegable: la app **lo aprende** y la próxima vez lo acierta |
 | 5. Dices de dónde sale el dinero | **Tarjeta** (💳) y/o **cuenta**, y la **fecha** si el recibo es de otro día |

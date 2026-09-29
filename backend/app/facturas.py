@@ -95,15 +95,27 @@ def detectar_monto(texto: str) -> Decimal | None:
     ponen el total al final, después de subtotal e impuestos.
     """
     formato = detectar_formato([texto])
-    for patron in (
-        r"(?i)\btotal(?:\s+a\s+pagar|\s+general|\s+neto)?\b[^\d]{0,25}(\d[\d.,]*)",
-        r"(?i)\b(?:valor\s+total|importe\s+total|monto\s+total)\b[^\d]{0,25}(\d[\d.,]*)",
-    ):
-        encontrados = re.findall(patron, texto)
-        if encontrados:
-            valor = parsear_monto(encontrados[-1], formato)
-            if valor is not None:
-                return valor
+    # Hay cajas que imprimen la etiqueta letra a letra: `T O T A L .... $1,188,248`. Se
+    # busca en el texto original y en uno con esas letras sueltas ya pegadas.
+    pegado = re.sub(
+        r"\b(?:[A-Za-z]\s+){2,}[A-Za-z]\b", lambda m: m.group(0).replace(" ", ""), texto
+    )
+    for fuente in (pegado, texto):
+        for patron in (
+            r"(?i)\btotal(?:\s+a\s+pagar|\s+general|\s+neto)?\b[^\d]{0,25}(\d[\d.,]*)",
+            r"(?i)\b(?:valor\s+total|importe\s+total|monto\s+total)\b[^\d]{0,25}(\d[\d.,]*)",
+        ):
+            encontrados = []
+            for m in re.finditer(patron, fuente):
+                # `TOTAL ITEMS 120` no es el monto de la factura: es cuántos artículos trae
+                etiqueta = fuente[m.start() : m.start(1)]
+                if re.match(r"(?i)\s*total\s+(?:items?|articulos?|unidades?|cantidad)", etiqueta):
+                    continue
+                encontrados.append(m.group(1))
+            if encontrados:
+                valor = parsear_monto(encontrados[-1], formato)
+                if valor is not None:
+                    return valor
     # Fallback: el número con formato de dinero más grande
     candidatos = re.findall(r"\d[\d.,]{2,}", texto)
     valores = [v for v in (parsear_monto(c, formato) for c in candidatos) if v is not None]

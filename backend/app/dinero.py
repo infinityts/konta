@@ -159,8 +159,10 @@ def detectar_formato(textos: Iterable[str]) -> Formato:
     """Infiere la convención de separadores del documento.
 
     Solo cuentan las cifras que **delatan** el formato: las que llevan los dos
-    separadores (el orden lo dice todo) y las que tienen 1 o 2 decimales tras el
-    separador. Las ambiguas (`1.234`) no aportan.
+    separadores (el orden lo dice todo), las que tienen 1 o 2 decimales tras el
+    separador, y las que agrupan de tres en tres después de una coma (`24,674`), que en
+    un documento con muchas así solo pueden ser miles. Las ambiguas (`1.234`) no aportan:
+    las decide el formato del conjunto.
     """
     puntos_co = puntos_us = 0
     for texto in textos:
@@ -175,4 +177,9 @@ def detectar_formato(textos: Iterable[str]) -> Formato:
                 puntos_us += 1
             elif s.count(",") == 1 and "." not in s and len(s.split(",")[1]) in (1, 2):
                 puntos_co += 1
+            elif re.fullmatch(r"\d{1,3}(?:,\d{3})+", s):
+                # Coma seguida de grupos de exactamente 3 dígitos: es separador de miles
+                # (`24,674` = 24674). Lo usan cajas registradoras colombianas que imprimen
+                # el dinero al estilo de EE. UU. en vez del `24.674` de siempre.
+                puntos_us += 1
     return Formato.CO if puntos_co >= puntos_us else Formato.US

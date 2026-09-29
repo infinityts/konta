@@ -23,7 +23,7 @@ import re
 import unicodedata
 from decimal import Decimal, InvalidOperation
 
-from .dinero import Formato, parsear_monto
+from .dinero import Formato, detectar_formato, parsear_monto
 
 # Orden importa: las alternativas largas van primero (GALONES antes que G).
 UNIDADES = r"(?:GALONES|GALON|GAL|KGS|KG|GRS|GR|LT|LTS|ML|UND|UNI|UN|PZ|DOC|BOLSA|PAQ|G|L)"
@@ -66,9 +66,13 @@ def _decimal(s: str) -> Decimal | None:
         return None
 
 
-def monto(s: str) -> Decimal | None:
-    """Dinero de un recibo: formato colombiano (delega en `dinero.parsear_monto`)."""
-    return parsear_monto(s, Formato.CO)
+def monto(s: str, formato: Formato = Formato.CO) -> Decimal | None:
+    """Dinero de un recibo, en el formato del documento (`dinero.parsear_monto`).
+
+    El formato importa: hay cajas registradoras colombianas que imprimen `24,674`
+    (veinticuatro mil seiscientos setenta y cuatro) en vez de `24.674`.
+    """
+    return parsear_monto(s, formato)
 
 
 def cantidad(s: str, unidad: str | None) -> Decimal | None:
@@ -78,7 +82,11 @@ def cantidad(s: str, unidad: str | None) -> Decimal | None:
         return _decimal(s.replace(".", "").replace(",", "."))
     if "." in s:
         u = (unidad or "").upper()
-        # Con peso/volumen el punto es decimal; con unidades cuenta, es de miles
+        # Dos decimales tras el punto son decimales siempre: `4.00 un` son 4 unidades
+        # (antes se leían como 400, porque con «unidad de cuenta» el punto se tomaba de
+        # miles). Con tres dígitos manda la unidad: en peso/volumen es decimal.
+        if len(s.split(".")[-1]) != 3:
+            return _decimal(s)
         return _decimal(s) if u in UNIDADES_PESO_VOLUMEN else _decimal(s.replace(".", ""))
     return _decimal(s)
 
@@ -93,11 +101,101 @@ def _es_articulo(texto: str) -> bool:
     return bool(LETRAS.search(sin_acentos(texto).upper()))
 
 
-def parsear_lineas(texto: str) -> list[dict]:
+# --------------------------------------------------------------------------- #
+# Facturas con un artículo por línea y su línea de valores
+# --------------------------------------------------------------------------- #
+
+ENCABEZADO_TABLA = re.compile(r"(?i)item\s+descripcion|referencia\s+cant")
+# `12 YOGURT VITAD*150g FRESA`
+PATRON_ITEM_NUMERADO = re.compile(r"^\s*(\d{1,3})\s+(\S.{2,})$")
+# `023029 1.372 kg 24,674 33,854**`  /  `COVA-00 1.00 un 5,950 5,950*`
+# Al final puede venir la marca del artículo: `*` gravado, `**` exento, `D` descuento
+# (y combinaciones: `6,375* D`).
+PATRON_VALORES = re.compile(
+    rf"^\s*(?P<ref>\S+)\s+(?P<cant>\d+(?:[.,]\d+)?)\s+(?P<um>{UNIDADES})\s+"
+    rf"(?P<vu>[\d.,]+)\s+(?P<total>[\d.,]+)[\sD*]*$",
+    re.IGNORECASE,
+)
+FIN_TABLA = re.compile(r"(?i)^\s*[-\s]*T\s?O\s?T\s?A\s?L\b")
+
+
+def _parsear_factura_numerada(texto: str, formato: Formato) -> list[dict] | None:
+    """Artículos de una factura con **una línea por artículo y otra de valores**.
+
+       1 FILETE PECHUGA BUCANERO A GRANEL
+       023029 1.372 kg 24,674 33,854**
+
+    Se apoya en tres cosas que este formato cumple: los artículos están **numerados en
+    orden** (1, 2, 3…), cada uno trae su línea de valores (aunque la referencia sea
+    `COVA-00`, un código de promoción) y la tabla **termina** en el `T O T A L`. Antes
+    esta factura se leía con el parser de recibos y se colaban en la lista el `Tel:`, el
+    `TPV` y las líneas del pie, además de perder artículos.
+
+    Devuelve `None` si el documento no es de este tipo (y entonces manda el otro parser).
+    """
+    lineas = texto.splitlines()
+    desde = None
+    for i, linea in enumerate(lineas):
+        if ENCABEZADO_TABLA.search(linea):
+            desde = i + 1
+            break
+    if desde is None:
+        return None
+
+    articulos: list[dict] = []
+    esperado: int | None = None
+    pendiente: str | None = None
+    for linea in lineas[desde:]:
+        t = linea.strip()
+        if FIN_TABLA.match(t):
+            break
+
+        item = PATRON_ITEM_NUMERADO.match(t)
+        if item and (esperado is None or int(item.group(1)) == esperado):
+            numero = int(item.group(1))
+            if esperado is None and numero > 3:
+                return None  # no empieza cerca del 1: no es una tabla de artículos
+            esperado = numero + 1
+            pendiente = _limpiar_descripcion(item.group(2).rstrip("*"))
+            continue
+
+        valores = PATRON_VALORES.match(t)
+        if valores and pendiente:
+            total = monto(valores.group("total"), formato)
+            if total is not None and total > 0 and _es_articulo(pendiente):
+                articulos.append(
+                    {
+                        "descripcion": pendiente[:200],
+                        "cantidad": cantidad(valores.group("cant"), valores.group("um")),
+                        "valor_unitario": monto(valores.group("vu"), formato),
+                        "valor_total": total,
+                    }
+                )
+            pendiente = None
+            continue
+
+        # Ni artículo ni valores: puede ser la continuación del nombre (los largos se parten)
+        if pendiente and not PATRON_MONTO.search(t):
+            continuacion = _limpiar_descripcion(t)
+            if _es_articulo(continuacion):
+                pendiente = f"{pendiente} {continuacion}"[:200]
+
+    return articulos if len(articulos) >= 3 else None
+
+
+def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
     """Devuelve los artículos detectados, en orden.
 
     Cada artículo: {descripcion, cantidad, valor_unitario, valor_total}
+
+    Primero se prueba el formato de **factura numerada** (una línea por artículo y su
+    línea de valores), que es el de las cajas grandes; si no, el de recibo de siempre.
     """
+    formato = formato or detectar_formato(texto.splitlines())
+    de_factura = _parsear_factura_numerada(texto, formato)
+    if de_factura is not None:
+        return de_factura
+
     articulos: list[dict] = []
     pendiente = ""  # descripción sin monto (formato de dos líneas)
 
@@ -113,7 +211,7 @@ def parsear_lineas(texto: str) -> list[dict]:
         m = PATRON_CANT_X_UNIT.search(t)
         if m:
             cant = cantidad(m.group(1), m.group(2))
-            unit = monto(m.group(3))
+            unit = monto(m.group(3), formato)
             descripcion = t[: m.start()]
             resto = t[m.end() :]
             coincidencias = list(PATRON_MONTO.finditer(resto))
@@ -121,7 +219,7 @@ def parsear_lineas(texto: str) -> list[dict]:
                 # La línea solo trae "cant x unit" (el total es el unitario)
                 total = unit
             else:
-                total = monto(coincidencias[-1].group(1))
+                total = monto(coincidencias[-1].group(1), formato)
         else:
             coincidencias = list(PATRON_MONTO.finditer(t))
             if not coincidencias:
@@ -130,7 +228,7 @@ def parsear_lineas(texto: str) -> list[dict]:
                 if _es_articulo(solo_texto):
                     pendiente = solo_texto
                 continue
-            total = monto(coincidencias[-1].group(1))
+            total = monto(coincidencias[-1].group(1), formato)
             descripcion = t[: coincidencias[-1].start()]
 
         if total is None or total <= 0:
