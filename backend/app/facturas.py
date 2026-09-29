@@ -51,8 +51,19 @@ def _ocr_imagen(imagen) -> str:
     return pytesseract.image_to_string(_preprocesar(imagen), lang="spa")
 
 
-def extraer_texto(contenido: bytes, nombre: str = "", content_type: str | None = None) -> str:
-    """Devuelve el texto de un PDF o de una foto de recibo."""
+def extraer_texto(
+    contenido: bytes,
+    nombre: str = "",
+    content_type: str | None = None,
+    password: str | None = None,
+) -> str:
+    """Devuelve el texto de un PDF o de una foto de recibo.
+
+    Los PDF de factura electrónica suelen venir **protegidos con contraseña** (el NIT del
+    emisor es lo habitual). Si lo está y no hay contraseña —o no es la correcta— se
+    **avisa** con un `ValueError`: devolver un texto vacío haría pensar que el archivo no se
+    pudo leer, que es otra cosa.
+    """
     if es_imagen(nombre, content_type):
         try:
             from PIL import Image
@@ -67,7 +78,11 @@ def extraer_texto(contenido: bytes, nombre: str = "", content_type: str | None =
         from pypdf import PdfReader
 
         reader = PdfReader(io.BytesIO(contenido))
+        if reader.is_encrypted and not (password and reader.decrypt(password)):
+            raise ValueError("El PDF está protegido y la contraseña no es correcta")
         texto = "\n".join((pagina.extract_text() or "") for pagina in reader.pages)
+    except ValueError:
+        raise  # la contraseña es un dato de la subida, no un PDF raro
     except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
         texto = ""
 
@@ -79,7 +94,11 @@ def extraer_texto(contenido: bytes, nombre: str = "", content_type: str | None =
         import pytesseract
         from pdf2image import convert_from_bytes
 
-        paginas = convert_from_bytes(contenido)
+        paginas = (
+            convert_from_bytes(contenido, userpw=password)
+            if password
+            else convert_from_bytes(contenido)
+        )
         return "\n".join(pytesseract.image_to_string(_preprocesar(p), lang="spa") for p in paginas)
     except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
         return texto

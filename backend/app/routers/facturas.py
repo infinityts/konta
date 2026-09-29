@@ -18,7 +18,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -161,6 +161,8 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
 @router.post("", response_model=FacturaOut, status_code=201)
 async def subir(
     archivo: UploadFile = File(...),
+    # Los PDF de factura electrónica suelen venir protegidos (el NIT del emisor)
+    contrasena: str | None = Form(None),
     db: Session = Depends(get_db),
     user: Usuario = Depends(get_current_user),
 ):
@@ -172,7 +174,13 @@ async def subir(
 
     # El nombre y el tipo son **imprescindibles**: sin ellos `extraer_texto` no sabe que
     # es una foto y la trata como PDF, así que una imagen devolvía texto vacío.
-    texto = extraer_texto(contenido, archivo.filename or "", archivo.content_type)
+    try:
+        texto = extraer_texto(
+            contenido, archivo.filename or "", archivo.content_type, contrasena
+        )
+    except ValueError as error:
+        # PDF protegido: se dice, en vez de guardar una factura «sin texto»
+        raise HTTPException(status_code=400, detail=str(error)) from error
     impuestos = detectar_impuestos(texto) if texto else None
     # El QR trae el CUDE/CUFE de la DIAN: no se adivina con OCR
     qr = qr_de_documento(contenido, archivo.filename or "", archivo.content_type)

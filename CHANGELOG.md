@@ -1513,3 +1513,18 @@ Tests: **217 en verde**.
 > (migración `0032`), no solo en el dataclass del parser: el análisis lee del **modelo**,
 > y sin la columna el endpoint devolvía `AttributeError` (lo cazó el test del Excel de
 > Amex, que no declara cupo).
+
+## v1.53 — Subir una factura electrónica con contraseña (el NIT del emisor)
+
+Las facturas electrónicas llegan en **PDF protegido**, casi siempre con el **NIT del emisor**
+como contraseña. La subida de facturas no tenía dónde escribirla, así que el PDF no se podía
+abrir y la app decía «no tiene texto extraído» — que además confundía dos cosas distintas.
+
+- **Backend**: `extraer_texto` acepta la contraseña y hace `decrypt`; si el PDF está protegido
+  y la clave falta o no sirve, **lo dice** («El PDF está protegido y la contraseña no es
+  correcta», igual que ya hacían los extractos) en vez de devolver un texto vacío. El OCR de
+  un PDF escaneado también usa la contraseña.
+- **Pantalla de Facturas**: campo de contraseña + botón «Subir factura» (antes se subía al
+  elegir el archivo, sin oportunidad de escribirla). Si falla, se conservan el archivo y la
+  contraseña para corregirla; el campo es `type="password"` con `autocomplete="off"`.
+- Tests: **221 en verde** (antes 217), con un PDF protegido de verdad creado en el test.

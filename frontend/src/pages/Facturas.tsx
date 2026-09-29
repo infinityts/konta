@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { api, apiUpload } from '../api'
 import SelectBuscable, { type Opcion } from '../components/SelectBuscable'
@@ -47,6 +47,10 @@ export default function Facturas() {
   const [subiendo, setSubiendo] = useState(false)
   const [ocupado, setOcupado] = useState('')
   const [error, setError] = useState('')
+  // El archivo se guarda (no se sube al elegirlo) para poder escribir la contraseña del PDF
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [contrasena, setContrasena] = useState('')
+  const entradaArchivo = useRef<HTMLInputElement>(null)
   const [aviso, setAviso] = useState('')
 
   async function cargar() {
@@ -65,26 +69,35 @@ export default function Facturas() {
     ]).catch((e) => setError(e instanceof Error ? e.message : 'Error'))
   }, [])
 
-  async function subir(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function subir() {
+    if (!archivo) {
+      setError('Elige el archivo de la factura (PDF o foto)')
+      return
+    }
     setSubiendo(true)
     setError('')
+    setAviso('')
     try {
       const fd = new FormData()
-      fd.append('archivo', file)
+      fd.append('archivo', archivo)
+      // Las facturas electrónicas suelen venir en PDF protegido (la clave es el NIT del
+      // emisor). Si el PDF no está protegido, la contraseña se ignora.
+      if (contrasena) fd.append('contrasena', contrasena)
       const subida = await apiUpload<Factura>('/facturas', fd)
       setAviso(
         subida.duplicada
           ? '⚠ Esa factura ya la habías subido (mismo CUDE de la DIAN). Revísala antes de confirmarla.'
           : ''
       )
+      setArchivo(null)
+      setContrasena('')
+      if (entradaArchivo.current) entradaArchivo.current.value = ''
       await cargar()
     } catch (err) {
+      // Se conserva el archivo y la contraseña: casi siempre es que hay que corregirla
       setError(err instanceof Error ? err.message : 'Error al subir la factura')
     } finally {
       setSubiendo(false)
-      e.target.value = ''
     }
   }
 
@@ -348,13 +361,41 @@ export default function Facturas() {
           <strong>Leer líneas</strong> se parte en artículos: uno por transacción.
         </p>
         <input
+          ref={entradaArchivo}
           type="file"
           accept="application/pdf,image/*"
-          onChange={subir}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => {
+            setArchivo(e.target.files?.[0] ?? null)
+            setError('')
+            setAviso('')
+          }}
           disabled={subiendo}
           className="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700"
         />
-        {subiendo && <p className="mt-2 text-sm text-slate-500">Procesando el archivo…</p>}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            type="password"
+            value={contrasena}
+            onChange={(e) => setContrasena(e.target.value)}
+            placeholder="Contraseña del PDF (si está protegido)"
+            autoComplete="off"
+            className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={subir}
+            disabled={subiendo || !archivo}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {subiendo ? 'Procesando…' : 'Subir factura'}
+          </button>
+          <span className="text-xs text-slate-500">
+            {archivo ? archivo.name : 'Ningún archivo seleccionado'}
+          </span>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Si el PDF viene con contraseña (lo normal en una factura electrónica: suele ser el{' '}
+          <strong>NIT del emisor</strong>), escríbela aquí antes de subir.
+        </p>
       </div>
 
       <ul className="mt-4 space-y-3">
