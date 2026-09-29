@@ -365,6 +365,14 @@ export interface Meta {
   notas: string | null
 }
 
+export interface Aporte {
+  id: string
+  meta_id: string
+  monto: number | string
+  fecha: string
+  notas: string | null
+}
+
 export interface Notificaciones {
   id: string
   canal: 'telegram' | 'email' | 'whatsapp' | 'ambos' | 'todos'

@@ -11,6 +11,10 @@ export default function Mercado() {
   const [selProducto, setSelProducto] = useState('')
   const [comparativo, setComparativo] = useState<Comparativo | null>(null)
   const [error, setError] = useState('')
+  // Editar un producto se hace en su propia fila; solo uno a la vez
+  const [editando, setEditando] = useState<string>('')
+  const [edicion, setEdicion] = useState({ nombre: '', unidad: '' })
+  const [ocupado, setOcupado] = useState('')
 
   async function cargar() {
     setLista(await api<ListaMercado>('/lista-mercado'))
@@ -57,6 +61,52 @@ export default function Mercado() {
     await api('/productos', { method: 'POST', body: JSON.stringify({ nombre: prodForm.nombre, unidad: prodForm.unidad || null }) })
     setProdForm({ nombre: '', unidad: '' })
     cargar()
+  }
+
+  /** Abre la fila de edición con los valores actuales del producto. */
+  function empezarEdicion(p: Producto) {
+    setEditando(p.id)
+    setEdicion({ nombre: p.nombre, unidad: p.unidad ?? '' })
+  }
+
+  async function guardarProducto(id: string) {
+    if (!edicion.nombre.trim()) return
+    setOcupado(id)
+    setError('')
+    try {
+      await api(`/productos/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ nombre: edicion.nombre, unidad: edicion.unidad || null }),
+      })
+      setEditando('')
+      await cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar el producto')
+    } finally {
+      setOcupado('')
+    }
+  }
+
+  /**
+   * Borra un producto y sus precios. Si estaba elegido en el comparativo, se limpia la
+   * selección para no dejar la pantalla pidiendo un producto que ya no existe.
+   */
+  async function borrarProducto(id: string, nombre: string) {
+    if (!confirm(`¿Borrar «${nombre}» y sus precios?`)) return
+    setOcupado(id)
+    setError('')
+    try {
+      await api(`/productos/${id}`, { method: 'DELETE' })
+      if (selProducto === id) {
+        setSelProducto('')
+        setComparativo(null)
+      }
+      await cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo borrar el producto')
+    } finally {
+      setOcupado('')
+    }
   }
 
   async function registrarPrecio() {
@@ -122,6 +172,71 @@ export default function Mercado() {
           <input placeholder="Unidad (opcional)" value={prodForm.unidad} onChange={(e) => setProdForm((f) => ({ ...f, unidad: e.target.value }))} className="w-36 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <button onClick={crearProducto} className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Crear producto</button>
         </div>
+
+        {productos.length > 0 && (
+          <ul className="mt-4 divide-y divide-slate-100">
+            {productos.map((p) => (
+              <li key={p.id} className="py-2">
+                {editando === p.id ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={edicion.nombre}
+                      onChange={(e) => setEdicion((f) => ({ ...f, nombre: e.target.value }))}
+                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <input
+                      placeholder="Unidad (opcional)"
+                      value={edicion.unidad}
+                      onChange={(e) => setEdicion((f) => ({ ...f, unidad: e.target.value }))}
+                      className="w-36 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <button
+                      onClick={() => guardarProducto(p.id)}
+                      disabled={ocupado === p.id}
+                      className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {ocupado === p.id ? 'Guardando…' : 'Guardar'}
+                    </button>
+                    <button
+                      onClick={() => setEditando('')}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="text-slate-800">
+                      {p.nombre}
+                      {p.unidad && <span className="ml-2 text-slate-500">({p.unidad})</span>}
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <button
+                        onClick={() => verComparativo(p.id)}
+                        className="text-slate-600 hover:underline"
+                      >
+                        Precios
+                      </button>
+                      <button
+                        onClick={() => empezarEdicion(p)}
+                        className="text-indigo-600 hover:underline"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => borrarProducto(p.id, p.nombre)}
+                        disabled={ocupado === p.id}
+                        className="text-red-600 hover:underline disabled:opacity-50"
+                      >
+                        {ocupado === p.id ? 'Borrando…' : 'Borrar'}
+                      </button>
+                    </span>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
 
         {selProducto && (
           <>

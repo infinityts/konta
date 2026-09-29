@@ -2656,3 +2656,64 @@ def test_los_enums_de_la_base_coinciden_con_los_del_codigo(engine):
                 f"{tipo}: solo en la base {sorted(en_bd - en_codigo)}, "
                 f"solo en el código {sorted(en_codigo - en_bd)}"
             )
+
+
+def test_borrar_un_aporte_de_una_meta(client):
+    """El aporte se puede borrar y el saldo de la meta baja (es lo que hace la UI)."""
+    _, h = _registrar(client)
+    meta = client.post(
+        "/metas", headers=h, json={"nombre": "Viaje", "monto_objetivo": "1000000"}
+    ).json()
+    client.post(f"/metas/{meta['id']}/aportes", headers=h, json={"monto": "250000"})
+    client.post(f"/metas/{meta['id']}/aportes", headers=h, json={"monto": "100000"})
+
+    aportes = client.get(f"/metas/{meta['id']}/aportes", headers=h).json()
+    assert len(aportes) == 2
+    assert client.get("/metas", headers=h).json()[0]["monto_actual"] == 350000.0
+
+    # Se borra el de 250.000
+    a_borrar = next(a for a in aportes if float(a["monto"]) == 250000.0)
+    r = client.delete(f"/metas/aportes/{a_borrar['id']}", headers=h)
+    assert r.status_code == 204
+
+    quedan = client.get(f"/metas/{meta['id']}/aportes", headers=h).json()
+    assert len(quedan) == 1
+    assert float(quedan[0]["monto"]) == 100000.0
+    # Y el saldo de la meta baja: no es solo un borrado visual
+    assert client.get("/metas", headers=h).json()[0]["monto_actual"] == 100000.0
+
+    # Un aporte que no es tuyo no se puede borrar
+    _, h2 = _registrar(client)
+    assert client.delete(f"/metas/aportes/{quedan[0]['id']}", headers=h2).status_code == 404
+
+
+def test_editar_y_borrar_un_producto(client):
+    """Editar el nombre y la unidad, y borrar el producto (con sus precios)."""
+    _, h = _registrar(client)
+    prod = client.post(
+        "/productos", headers=h, json={"nombre": "Leche", "unidad": "litro"}
+    ).json()
+    client.post(f"/productos/{prod['id']}/precios", headers=h, json={"tienda": "A", "precio": "4000"})
+
+    # Editar
+    editado = client.patch(
+        f"/productos/{prod['id']}", headers=h, json={"nombre": "Leche entera", "unidad": "caja"}
+    )
+    assert editado.status_code == 200, editado.text
+    assert editado.json()["nombre"] == "Leche entera"
+    assert editado.json()["unidad"] == "caja"
+    listado = client.get("/productos", headers=h).json()
+    assert [p["nombre"] for p in listado] == ["Leche entera"]
+
+    # Borrar: se lleva sus precios por delante
+    assert client.delete(f"/productos/{prod['id']}", headers=h).status_code == 204
+    assert client.get("/productos", headers=h).json() == []
+    assert client.get(f"/productos/{prod['id']}", headers=h).status_code == 404
+    assert client.get(f"/productos/{prod['id']}/comparativo", headers=h).status_code == 404
+    assert client.get(f"/productos/{prod['id']}/precios", headers=h).status_code == 404
+
+    # Y no se puede tocar el producto de otro
+    otro = client.post("/productos", headers=h, json={"nombre": "Pan"}).json()
+    _, h2 = _registrar(client)
+    assert client.patch(f"/productos/{otro['id']}", headers=h2, json={"nombre": "X"}).status_code == 404
+    assert client.delete(f"/productos/{otro['id']}", headers=h2).status_code == 404

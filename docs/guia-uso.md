@@ -179,7 +179,8 @@ Si aparece **SOBREGIRADO** en rojo, debajo vienen los **motivos**:
 | **Reportes** | Evolución de 6 meses y desglose por `Categoría › Etiqueta › Subetiqueta` |
 | **Presupuestos** | Límite mensual por categoría, % consumido y aviso de exceso |
 | **Flujo** | Proyección a 3/6/12 meses con ingresos recurrentes, suscripciones **y pólizas** (en COP) |
-| **Metas** | Objetivos de ahorro con aportes y aporte mensual sugerido |
+| **Metas** | Objetivos de ahorro con aportes, **ver y borrar cada aporte** y aporte mensual sugerido |
+| **Mercado** | Lista de mercado y comparativo de precios por tienda; los productos se **editan y borran** ahí mismo |
 
 ---
 
@@ -356,7 +357,21 @@ si te pasas.
 
 ---
 
-## 15. Leer un extracto del banco (tarjeta o cuenta)
+## 15. Corregir lo que te equivocaste (aportes y productos)
+
+**Un aporte a una meta que pusiste mal.** En **Metas** → botón **Ver aportes** de esa meta →
+la lista con la fecha, el monto y la nota de cada uno → **Borrar**. El saldo de la meta baja
+solo: no es un borrado de adorno, se recalcula al quitar el aporte.
+
+**Un producto del mercado mal escrito.** En **Mercado**, en la lista de productos → **Editar**
+(se abre la fila con el nombre y la unidad) → **Guardar**. Y **Borrar** elimina el producto
+**con sus precios**; si lo tenías elegido en el comparativo, la selección se limpia sola para
+no dejarte pidiendo un producto que ya no existe. El botón **Precios** de cada fila te deja
+directo en su comparativo.
+
+---
+
+## 16. Leer un extracto del banco (tarjeta o cuenta)
 
 👉 **Extractos** → elige el archivo (**PDF o Excel**) → si el PDF tiene contraseña, escríbela →
 **Leer extracto**.
@@ -424,7 +439,7 @@ que ya existían se omiten en vez de duplicarse. Dos cargos del mismo servicio e
 
 ---
 
-## 16. Cuánto debo, cuánto me cuesta y si cuadra (deuda y cuotas)
+## 17. Cuánto debo, cuánto me cuesta y si cuadra (deuda y cuotas)
 
 👉 **Deuda y cuotas** (junto a Extractos). Mira todos tus extractos juntos.
 
@@ -442,7 +457,7 @@ que ya existían se omiten en vez de duplicarse. Dos cargos del mismo servicio e
 
 ---
 
-## 17. Subir un recibo (OCR por línea)
+## 18. Subir un recibo (OCR por línea)
 
 👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
 
