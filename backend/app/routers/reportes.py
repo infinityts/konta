@@ -9,7 +9,7 @@ from ..deps import get_current_user, get_db
 from ..models import Usuario
 from ..polizas import resumen as resumen_polizas
 from ..recurrencia import hoy
-from ..reportes import reporte_categorias, reporte_mensual
+from ..reportes import panel, reporte_categorias, reporte_mensual
 from ..schemas import PolizaResumenOut, ReporteCategoriaOut, ReporteMesOut
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
@@ -24,6 +24,14 @@ def mensual(meses: int = 6, db: Session = Depends(get_db), user: Usuario = Depen
 def categorias(mes: str | None = None, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     mes = mes or hoy().strftime("%Y-%m")
     return reporte_categorias(db, user.id, mes)
+
+
+@router.get("/panel")
+def panel_reportes(
+    meses: int = 12, mes: str | None = None, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)
+):
+    """Todo el panel de Reportes en una llamada (KPIs, serie, categorías, mercado e IVA)."""
+    return panel(db, user.id, meses, mes)
 
 
 @router.get("/seguros", response_model=PolizaResumenOut)

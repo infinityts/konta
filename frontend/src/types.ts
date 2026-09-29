@@ -769,3 +769,51 @@ export interface SimulacionExtracto {
   viable: boolean | null
   aviso: string | null
 }
+
+export interface PanelKpis {
+  ingresos: number
+  gastos: number
+  balance: number
+  iva: number
+  compras: number
+}
+
+export interface PanelSerie {
+  mes: string
+  ingresos: number
+  gastos: number
+  balance: number
+  iva: number
+  compras: number
+}
+
+export interface PanelCategoria {
+  categoria: string
+  total: number
+  anterior: number
+  variacion: number
+}
+
+export interface PanelEtiqueta {
+  etiqueta: string
+  total: number
+  anterior: number
+  variacion: number
+}
+
+export interface PanelProducto {
+  descripcion: string
+  total: number
+  veces: number
+  precio_promedio: number | null
+}
+
+export interface PanelReporte {
+  mes: string
+  anterior: string
+  kpis: PanelKpis
+  serie: PanelSerie[]
+  categorias: PanelCategoria[]
+  mercado: { etiquetas: PanelEtiqueta[]; productos: PanelProducto[] }
+  impuestos: { mes: number; periodo: number; sobre_compras: number | null }
+}

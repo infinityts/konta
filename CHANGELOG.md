@@ -1360,3 +1360,22 @@ opción de un solo movimiento estaba escondida y con el texto al revés.
   «parece un duplicado del gasto». Justo el typo que te pasó a ti se habría visto al instante.
 - Tests: **198 en verde** (antes 196): el bloque real que concilia, el guardado al subir, la
   marca de IVA por línea, el caso «sin dato» y los dos avisos de auditoría.
+
+## v1.48 — Panel de Reportes con gráficas y comparación mes a mes
+
+La pestaña de Reportes se rehizo por completo, con recharts y comparación entre meses.
+
+- **KPIs del mes** (ingresos, gastos, balance, compras, IVA) con su variación ▲▼ vs el mes
+  anterior.
+- **Gráfica 1**: evolución de 12 meses (barras de ingresos/gastos + línea de balance), con
+  gradientes y tooltip.
+- **Gráfica 2**: gasto por categoría del mes comparado con el anterior.
+- **Qué subió y qué bajó**: tabla de categorías con la variación.
+- **Mercado por etiqueta**: en qué se te fue la plata (con barra y variación).
+- **Artículos que más te cuestan**: top con veces compradas y precio promedio por unidad.
+- **IVA**: del mes, del periodo y su peso sobre las compras.
+- Todo sale de un solo `GET /reportes/panel?meses=12` (KPIs, serie, categorías, mercado e IVA).
+- **Bug de fecha corregido**: `2026/9/16` se leía como `26/9/2016` porque caía en el patrón
+  ambiguo `D/M/Y`. Ahora se reconoce el año de 4 cifras primero.
+
+Tests: **199 en verde** (antes 198).

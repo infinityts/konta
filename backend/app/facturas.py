@@ -129,6 +129,14 @@ def detectar_fecha(texto: str) -> date | None:
             return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
         except ValueError:
             pass
+    # `2026/9/16` (año de 4 cifras primero): sin esto, la fecha caía en el patrón
+    # ambiguo `D/M/Y` de abajo y se leía como 26/9/2016.
+    m = re.search(r"(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})", texto)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            pass
     m = re.search(r"(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})", texto)
     if m:
         d, mes, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
