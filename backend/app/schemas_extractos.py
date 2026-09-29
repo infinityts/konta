@@ -121,7 +121,9 @@ class ImportarLineaOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    movimiento_id: uuid.UUID
+    # Nulo cuando la línea la **declara el corte** (intereses, comisiones) y no viene de
+    # un movimiento del extracto: sin esto, el previo devolvía 500 en un extracto de cuenta.
+    movimiento_id: uuid.UUID | None
     fecha: str | None
     descripcion: str
     moneda: str

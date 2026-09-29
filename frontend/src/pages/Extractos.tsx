@@ -12,6 +12,7 @@ import {
   type CrearRecurrentesResultado,
   type ImportarPreview,
   type ImportarResultado,
+  type SaldoResumen,
   type Tarjeta,
 } from '../types'
 import { Cargando } from '../components/loading-ui/cargando'
@@ -118,7 +119,10 @@ export default function Extractos() {
   useEffect(() => {
     Promise.all([
       cargar(),
-      api<Cuenta[]>('/cuentas').then(setCuentas),
+      // `GET /cuentas` devuelve el **resumen** (con saldos), no una lista: la lista
+      // está en `.cuentas`. Sin esto, `cuentas` quedaba como un objeto y `cuentas.map`
+      // reventaba la página al abrir un extracto.
+      api<SaldoResumen>('/cuentas').then((r) => setCuentas(r.cuentas)),
       api<Tarjeta[]>('/tarjetas').then(setTarjetas),
     ]).finally(() => setCargando(false))
   }, [])

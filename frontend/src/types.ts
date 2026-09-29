@@ -642,7 +642,8 @@ export interface AnalisisExtracto {
 }
 
 export interface ImportarLinea {
-  movimiento_id: string
+  /** Nulo si la línea la declara el corte (intereses, comisiones) y no es un movimiento */
+  movimiento_id: string | null
   fecha: string | null
   descripcion: string
   moneda: string

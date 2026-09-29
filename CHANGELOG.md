@@ -1450,3 +1450,18 @@ Viste que la foto del parqueadero generaba **3 artículos falsos** (`Eta $2.026`
   abrir el enlace con tu cuenta, descargar el PDF oficial y subirlo: ese se lee perfecto
   porque es digital y trae la tabla de artículos.
 - Tests: **211 en verde** (antes 207).
+
+## v1.51 — Dos bugs al cargar un extracto de **cuenta**
+
+Al abrir un extracto, la página reventaba con `p.map is not a function` y el previo de
+importación devolvía **500**. Eran dos bugs distintos, **ninguno** de los cambios del día:
+
+- **Frontend**: `Extractos.tsx` hacía `api<Cuenta[]>('/cuentas')`, pero `GET /cuentas`
+  devuelve el **resumen con saldos** (un objeto), no una lista. Las otras siete páginas ya
+  hacían `r.cuentas`; Extractos no, así que `cuentas` quedaba como objeto y `cuentas.map`
+  tumbaba la página al pintar el selector «Sale de». Arreglado leyendo `.cuentas`.
+- **Backend**: `ImportarLineaOut.movimiento_id` exigía un UUID, pero los **intereses y
+  comisiones que declara el corte** no son movimientos: se sintetizan como líneas a importar
+  con `movimiento_id` nulo. En un extracto de **tarjeta** no se notaba (no declara
+  intereses); en uno de **cuenta** el previo devolvía 500. Ahora es opcional, con test.
+- Tests: **212 en verde** (antes 211).
