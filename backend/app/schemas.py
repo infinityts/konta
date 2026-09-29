@@ -678,6 +678,20 @@ class ConfirmarLineasIn(BaseModel):
     categoria_id: uuid.UUID | None = None
 
 
+class ConfirmarTotalIn(ConfirmarLineasIn):
+    """Cerrar el recibo como **una sola** transacción con el total.
+
+    Las líneas quedan como **detalle** de ese gasto (no desaparecen: siguen ahí y
+    enlazadas a la misma transacción). Si no se indica `monto`, se usa la suma de
+    las líneas pendientes, que es lo que ves en la tabla; `monto` permite usar el
+    total que trae el recibo cuando el OCR lo detectó distinto.
+    """
+
+    monto: Decimal | None = Field(default=None, gt=0)
+    # Por defecto se propone el nombre del artículo (si es uno) o «Compra de N artículos»
+    descripcion: str | None = Field(default=None, max_length=200)
+
+
 # --- presupuestos ---
 
 

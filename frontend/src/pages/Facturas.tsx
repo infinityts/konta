@@ -37,6 +37,9 @@ export default function Facturas() {
   const [tarjetaSel, setTarjetaSel] = useState<Record<string, string>>({})
   const [fechaSel, setFechaSel] = useState<Record<string, string>>({})
   const [bulkCat, setBulkCat] = useState<Record<string, string>>({})
+  // Un solo gasto con el total (la otra forma de cerrar el recibo)
+  const [unicoMonto, setUnicoMonto] = useState<Record<string, string>>({})
+  const [unicoDesc, setUnicoDesc] = useState<Record<string, string>>({})
   const [bulkEtq, setBulkEtq] = useState<Record<string, string>>({})
   const [respaldoCat, setRespaldoCat] = useState<Record<string, string>>({})
   const [sel, setSel] = useState<Record<string, string>>({})
@@ -155,6 +158,26 @@ export default function Facturas() {
         }),
       })
       setDetalles((d) => ({ ...d, [facturaId]: detalle }))
+      await cargar()
+    })
+
+  /** Cierra el recibo como **una sola** transacción con el total. */
+  const confirmarTotal = (facturaId: string) =>
+    conOcupado(facturaId, async () => {
+      const detalle = await api<FacturaDetalle>(`/facturas/${facturaId}/confirmar-total`, {
+        method: 'POST',
+        body: JSON.stringify({
+          cuenta_id: cuentaSel[facturaId] || null,
+          tarjeta_id: tarjetaSel[facturaId] || null,
+          fecha: fechaSel[facturaId] || null,
+          categoria_id: respaldoCat[facturaId] || null,
+          // Vacío = que el servidor sume las líneas pendientes
+          monto: unicoMonto[facturaId] || null,
+          descripcion: unicoDesc[facturaId] || null,
+        }),
+      })
+      setDetalles((d) => ({ ...d, [facturaId]: detalle }))
+      setAviso('Recibo confirmado como un solo gasto (las líneas quedan como detalle).')
       await cargar()
     })
 
@@ -299,6 +322,13 @@ export default function Facturas() {
                       {detalle.tipo_documento ? ` · ${detalle.tipo_documento}` : ''} · total{' '}
                       <strong className="text-slate-800">{fmtMoney(totalDe(detalle.lineas))}</strong>
                       {pendientes.length > 0 && ` · ${pendientes.length} sin confirmar`}
+                      {(() => {
+                        const confirmadas = detalle.lineas.filter((li) => li.transaccion_id)
+                        const ids = new Set(confirmadas.map((li) => li.transaccion_id))
+                        return confirmadas.length > 1 && ids.size === 1
+                          ? ' · confirmado como un solo gasto'
+                          : ''
+                      })()}
                     </p>
                     {pendientes.length > 0 && (
                       <div className="flex flex-wrap items-center gap-2">
@@ -418,6 +448,49 @@ export default function Facturas() {
                       >
                         Preparar etiquetas del diccionario y volver a clasificar
                       </button>
+                    )}
+
+                    {pendientes.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                        <p className="text-xs text-slate-500">
+                          <strong>O registra todo como un solo gasto</strong> (una compra de dos o
+                          tres cosas): una única transacción con el total y las líneas guardadas
+                          como detalle. Se usa la cuenta, la tarjeta y la fecha de arriba.
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <input
+                            placeholder="Descripción (ej. Ropa de temporada)"
+                            value={unicoDesc[f.id] ?? ''}
+                            onChange={(e) => setUnicoDesc((s) => ({ ...s, [f.id]: e.target.value }))}
+                            className="w-56 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                          />
+                          <input
+                            placeholder={fmtMoney(pendientes.reduce((a, li) => a + Number(li.valor_total), 0))}
+                            value={unicoMonto[f.id] ?? ''}
+                            onChange={(e) => setUnicoMonto((s) => ({ ...s, [f.id]: e.target.value }))}
+                            className="w-32 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                          />
+                          <button
+                            onClick={() => confirmarTotal(f.id)}
+                            disabled={ocupado === f.id}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                          >
+                            Un solo gasto
+                          </button>
+                          {f.monto_detectado != null &&
+                            Number(f.monto_detectado) !==
+                              pendientes.reduce((a, li) => a + Number(li.valor_total), 0) && (
+                              <button
+                                onClick={() =>
+                                  setUnicoMonto((s) => ({ ...s, [f.id]: String(f.monto_detectado) }))
+                                }
+                                className="text-xs text-indigo-600 hover:underline"
+                              >
+                                usar el total del recibo ({fmtMoney(f.monto_detectado)})
+                              </button>
+                            )}
+                        </div>
+                      </div>
                     )}
                   </div>
 

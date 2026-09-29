@@ -2467,3 +2467,107 @@ def test_reglas_ocr_validaciones_y_aislamiento(client):
     assert client.patch(f"/reglas-ocr/{otra['id']}", headers=h, json={
         "patron": "ARROZ DIANA 500G",
     }).status_code == 200
+
+
+# --- confirmar el recibo como un solo gasto -------------------------------- #
+
+
+def test_confirmar_recibo_como_un_solo_gasto(client, engine):
+    """Una compra de tres cosas, un solo movimiento (con las líneas como detalle)."""
+    _, h = _registrar(client)
+    cuenta = client.post("/cuentas", headers=h, json={"nombre": "Ahorros", "saldo_inicial": "0"}).json()
+    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Otros gastos")
+    # «Ropa» ya viene de fábrica: es una de las etiquetas del diccionario
+    etq = next(e for e in client.get("/etiquetas", headers=h).json() if e["nombre"] == "Ropa")
+
+    fid = _factura_con(client, engine, h, ROPA)
+    detalle = client.post(f"/facturas/{fid}/lineas", headers=h, json={}).json()
+    assert len(detalle["lineas"]) == 3
+    suma = sum((Decimal(li["valor_total"]) for li in detalle["lineas"]), Decimal("0"))
+    assert suma == Decimal("499700")
+
+    # Un solo gasto, con la etiqueta de respaldo y la cuenta
+    r = client.post(f"/facturas/{fid}/confirmar-total", headers=h, json={
+        "cuenta_id": cuenta["id"], "etiqueta_id": etq["id"], "descripcion": "Ropa de temporada",
+    })
+    assert r.status_code == 200, r.text
+    detalle = r.json()
+    # Todas las líneas quedan enlazadas a la MISMA transacción (el detalle no se pierde)
+    ids = {li["transaccion_id"] for li in detalle["lineas"]}
+    assert len(ids) == 1 and None not in ids
+    # Y la factura queda asociada a ese gasto
+    assert detalle["transaccion_id"] == next(iter(ids))
+
+    txs = client.get("/transacciones", headers=h).json()
+    assert len(txs) == 1, "una sola transacción, no tres"
+    tx = txs[0]
+    assert float(tx["monto"]) == 499700.0, "el total es la suma de las líneas"
+    assert tx["descripcion"] == "Ropa de temporada"
+    assert tx["categoria_id"] == cat["id"] and tx["etiqueta_id"] == etq["id"]
+    assert tx["cuenta_id"] == cuenta["id"]
+    assert tx["suscripcion_id"] is None
+
+    # La cuenta descontó el total una sola vez
+    saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
+    assert saldos["Ahorros"]["saldo_actual"] == -499700.0
+    mensual = client.get("/reportes/mensual?meses=6", headers=h).json()
+    assert mensual[-1]["gastos"] == 499700.0
+
+    # Idempotente: ya no quedan líneas pendientes
+    assert client.post(f"/facturas/{fid}/confirmar-total", headers=h, json={}).status_code == 400
+
+
+def test_solo_gasto_con_monto_del_recibo_y_sin_descripcion(client, engine):
+    """El monto se puede forzar al total del recibo; sin descripción, se propone una."""
+    _, h = _registrar(client)
+    cat = next(c for c in client.get("/categorias", headers=h).json() if c["nombre"] == "Otros gastos")
+
+    # 1) Forzando el monto (el recibo dice 500.000 y las líneas suman 499.700)
+    fid = _factura_con(client, engine, h, ROPA)
+    client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    r = client.post(f"/facturas/{fid}/confirmar-total", headers=h, json={
+        "categoria_id": cat["id"], "monto": "500000",
+    })
+    assert r.status_code == 200, r.text
+    tx = client.get("/transacciones", headers=h).json()[0]
+    assert float(tx["monto"]) == 500000.0
+    # Sin descripción y con 3 líneas, se propone una legible
+    assert tx["descripcion"] == "Compra de 3 artículos"
+    # Y con categoría de respaldo (sin etiqueta), el gasto no queda huérfano
+    assert tx["categoria_id"] == cat["id"] and tx["etiqueta_id"] is None
+
+    # 2) Con una sola línea, la descripción es el propio artículo
+    fid = _factura_con(client, engine, h, "PANELA CUADRADA 500G        3.500\n")
+    client.post(f"/facturas/{fid}/lineas", headers=h, json={})
+    r = client.post(f"/facturas/{fid}/confirmar-total", headers=h, json={"categoria_id": cat["id"]})
+    assert r.status_code == 200, r.text
+    nueva = [t for t in client.get("/transacciones", headers=h).json() if float(t["monto"]) == 3500.0]
+    assert nueva[0]["descripcion"] == "PANELA CUADRADA 500G"
+
+    # 3) Aislamiento: la factura de otro no existe para mí
+    _, h2 = _registrar(client)
+    assert client.post(f"/facturas/{fid}/confirmar-total", headers=h2, json={}).status_code == 404
+    # 4) Y una cuenta ajena se rechaza
+    usuario2 = client.get("/auth/me", headers=h2).json()["id"]
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Cuenta, Factura
+
+    Session = sessionmaker(bind=engine)
+    with Session.begin() as s:
+        cta = Cuenta(usuario_id=usuario2, nombre="Suya", saldo_inicial=0)
+        s.add(cta)
+        s.flush()
+        cta_id = str(cta.id)
+        f = Factura(usuario_id=usuario2, nombre_archivo="x.txt", texto_extraido=ROPA)
+        s.add(f)
+        s.flush()
+        fid2 = str(f.id)
+    client.post(f"/facturas/{fid2}/lineas", headers=h2, json={})
+    assert client.post(f"/facturas/{fid2}/confirmar-total", headers=h2, json={
+        "cuenta_id": cta_id,
+    }).status_code == 200
+    # La misma cuenta, desde el otro usuario, no se puede usar
+    assert client.post(f"/facturas/{fid2}/confirmar-total", headers=h, json={
+        "cuenta_id": cta_id,
+    }).status_code == 404

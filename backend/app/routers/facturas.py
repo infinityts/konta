@@ -45,6 +45,7 @@ from ..schemas import (
     AsignarEtiquetaIn,
     AsociarFacturaIn,
     ConfirmarLineasIn,
+    ConfirmarTotalIn,
     FacturaDetalleOut,
     FacturaLineaOut,
     FacturaOut,
@@ -324,24 +325,39 @@ def asignar_etiqueta(
     return _detalle(db, factura)
 
 
-@router.post("/{id}/confirmar", response_model=FacturaDetalleOut)
-def confirmar(
-    id: uuid.UUID,
-    data: ConfirmarLineasIn | None = None,
-    db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
-):
-    """Crea una transacción de gasto por cada línea pendiente.
+class _Pago:
+    """De dónde sale el dinero, cuándo y con qué respaldo (lo comparten las dos
+    formas de confirmar: una transacción por línea o una sola con el total)."""
 
-    La categoría sale de la etiqueta de la línea (el árbol es
-    `Categoría › Etiqueta › Subetiqueta`), así el gasto cae donde debe.
+    def __init__(self, cuenta_id, tarjeta, fecha, etiquetas, respaldo, categoria_respaldo):
+        self.cuenta_id = cuenta_id
+        self.tarjeta = tarjeta
+        self.fecha = fecha
+        self.etiquetas = etiquetas
+        self.respaldo = respaldo
+        self.categoria_respaldo = categoria_respaldo
 
-    Se le indica **de dónde sale el dinero** (`tarjeta_id` y/o `cuenta_id`) y la
-    **fecha** si el recibo es de otro día. Si la tarjeta es de **débito**, la
-    transacción hereda su cuenta: una tarjeta de débito es un instrumento de esa
-    cuenta, no un saldo aparte.
+    def de_linea(self, linea) -> tuple[uuid.UUID | None, uuid.UUID | None]:
+        """`(categoria_id, etiqueta_id)` que le tocan a una línea."""
+        etiqueta = self.etiquetas.get(linea.etiqueta_id) if linea.etiqueta_id else None
+        if etiqueta is None:
+            etiqueta = self.respaldo  # etiqueta elegida para toda la factura
+        categoria_id = (
+            etiqueta.categoria_id
+            if etiqueta is not None
+            else self.categoria_respaldo  # categoría elegida para toda la factura
+        )
+        return categoria_id, (etiqueta.id if etiqueta else None)
+
+
+def _contexto_de_pago(
+    db: Session, user: Usuario, factura: Factura, data: ConfirmarLineasIn | None
+) -> _Pago:
+    """Valida y resuelve cuenta, tarjeta, fecha y respaldo.
+
+    Si la tarjeta es de **débito**, la transacción hereda su cuenta: una tarjeta de
+    débito es un instrumento de esa cuenta, no un saldo aparte.
     """
-    factura = get_owned(db, Factura, id, user.id)
     cuenta_id = data.cuenta_id if data else None
     if cuenta_id is not None:
         get_owned(db, Cuenta, cuenta_id, user.id)  # valida que sea del usuario
@@ -350,16 +366,7 @@ def confirmar(
     if data and data.tarjeta_id is not None:
         tarjeta = get_owned(db, Tarjeta, data.tarjeta_id, user.id)
         if tarjeta.tipo == TipoTarjeta.DEBITO and cuenta_id is None:
-            cuenta_id = tarjeta.cuenta_id  # el débito descuenta de su cuenta
-
-    pedidas = set(data.linea_ids) if data and data.linea_ids else None
-    pendientes = [
-        li
-        for li in _lineas(db, factura.id)
-        if li.transaccion_id is None and (pedidas is None or li.id in pedidas)
-    ]
-    if not pendientes:
-        raise HTTPException(status_code=400, detail="No hay líneas pendientes de confirmar")
+            cuenta_id = tarjeta.cuenta_id
 
     etiquetas = {
         e.id: e
@@ -374,33 +381,125 @@ def confirmar(
         get_owned(db, Categoria, categoria_respaldo, user.id)
 
     fecha = (data.fecha if data and data.fecha else None) or factura.fecha_detectada or hoy()
+    return _Pago(cuenta_id, tarjeta, fecha, etiquetas, respaldo, categoria_respaldo)
+
+
+@router.post("/{id}/confirmar", response_model=FacturaDetalleOut)
+def confirmar(
+    id: uuid.UUID,
+    data: ConfirmarLineasIn | None = None,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Crea una transacción de gasto **por cada línea** pendiente.
+
+    La categoría sale de la etiqueta de la línea (el árbol es
+    `Categoría › Etiqueta › Subetiqueta`), así el gasto cae donde debe.
+
+    Se le indica **de dónde sale el dinero** (`tarjeta_id` y/o `cuenta_id`) y la
+    **fecha** si el recibo es de otro día.
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    pago = _contexto_de_pago(db, user, factura, data)
+
+    pedidas = set(data.linea_ids) if data and data.linea_ids else None
+    pendientes = [
+        li
+        for li in _lineas(db, factura.id)
+        if li.transaccion_id is None and (pedidas is None or li.id in pedidas)
+    ]
+    if not pendientes:
+        raise HTTPException(status_code=400, detail="No hay líneas pendientes de confirmar")
 
     for linea in pendientes:
-        etiqueta = etiquetas.get(linea.etiqueta_id) if linea.etiqueta_id else None
-        if etiqueta is None:
-            etiqueta = respaldo  # etiqueta elegida para toda la factura
-        categoria_id = (
-            etiqueta.categoria_id
-            if etiqueta is not None
-            else categoria_respaldo  # categoría elegida para toda la factura
-        )
+        categoria_id, etiqueta_id = pago.de_linea(linea)
         transaccion = Transaccion(
             usuario_id=user.id,
             tipo=TipoTransaccion.GASTO,
             monto=linea.valor_total,
             moneda=user.moneda_principal,
-            fecha=fecha,
+            fecha=pago.fecha,
             descripcion=linea.descripcion,
             categoria_id=categoria_id,
-            etiqueta_id=etiqueta.id if etiqueta else None,
-            cuenta_id=cuenta_id,
-            tarjeta_id=tarjeta.id if tarjeta else None,
+            etiqueta_id=etiqueta_id,
+            cuenta_id=pago.cuenta_id,
+            tarjeta_id=pago.tarjeta.id if pago.tarjeta else None,
         )
         db.add(transaccion)
         db.flush()
         linea.transaccion_id = transaccion.id
         if factura.transaccion_id is None:
             factura.transaccion_id = transaccion.id  # compatibilidad con el flujo de 1 gasto
+
+    db.commit()
+    db.refresh(factura)
+    return _detalle(db, factura)
+
+
+@router.post("/{id}/confirmar-total", response_model=FacturaDetalleOut)
+def confirmar_total(
+    id: uuid.UUID,
+    data: ConfirmarTotalIn | None = None,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Cierra el recibo como **una sola** transacción con el total.
+
+    Para una compra de dos o tres cosas, dos o tres movimientos ensucian el listado
+    y los reportes. Aquí se crea un único gasto con el total y las líneas quedan
+    como **detalle** suyo (todas apuntan a esa transacción), así que se conserva qué
+    se compró sin multiplicar los movimientos.
+
+    La categoría y la etiqueta salen del respaldo (`etiqueta_id` o `categoria_id`):
+    al ser un solo gasto no hay una etiqueta por línea que heredar. Si no se indica
+    `monto`, se usa la suma de las líneas pendientes.
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    pago = _contexto_de_pago(db, user, factura, data)
+
+    pendientes = [li for li in _lineas(db, factura.id) if li.transaccion_id is None]
+    if not pendientes:
+        raise HTTPException(status_code=400, detail="No hay líneas pendientes de confirmar")
+
+    total = data.monto if data and data.monto is not None else sum(
+        (li.valor_total for li in pendientes), Decimal("0")
+    )
+    if total <= 0:
+        raise HTTPException(status_code=400, detail="El total del recibo debe ser mayor que cero")
+
+    if data and data.descripcion and data.descripcion.strip():
+        descripcion = data.descripcion.strip()
+    elif len(pendientes) == 1:
+        descripcion = pendientes[0].descripcion
+    else:
+        descripcion = f"Compra de {len(pendientes)} artículos"
+
+    # Un solo gasto: su categoría sale del respaldo (o de la etiqueta elegida)
+    categoria_id = pago.categoria_respaldo
+    etiqueta_id = None
+    if pago.respaldo is not None:
+        etiqueta_id = pago.respaldo.id
+        categoria_id = pago.respaldo.categoria_id
+
+    transaccion = Transaccion(
+        usuario_id=user.id,
+        tipo=TipoTransaccion.GASTO,
+        monto=total,
+        moneda=user.moneda_principal,
+        fecha=pago.fecha,
+        descripcion=descripcion,
+        categoria_id=categoria_id,
+        etiqueta_id=etiqueta_id,
+        cuenta_id=pago.cuenta_id,
+        tarjeta_id=pago.tarjeta.id if pago.tarjeta else None,
+    )
+    db.add(transaccion)
+    db.flush()
+
+    # Las líneas no se pierden: quedan como detalle de ese único gasto
+    for linea in pendientes:
+        linea.transaccion_id = transaccion.id
+    factura.transaccion_id = transaccion.id
 
     db.commit()
     db.refresh(factura)
