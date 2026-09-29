@@ -196,6 +196,9 @@ class ExtractoCrudo:
     pago_minimo: Decimal | None = None
     cupo_total: Decimal | None = None
     cupo_disponible: Decimal | None = None
+    # Lo que el banco dice que está usado (`Has utilizado:`), que no siempre es
+    # `cupo_total - cupo_disponible`: sirve para comprobarlo
+    cupo_utilizado: Decimal | None = None
     # La tasa que declara el corte (fracción), si la declara
     tasa_mv: Decimal | None = None
     tasa_ea: Decimal | None = None
@@ -223,6 +226,7 @@ _ETIQUETAS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("pago_minimo", ("TU PAGO MINIMO ES", "PAGO MINIMO")),
     ("cupo_disponible", ("TIENES DISPONIBLE", "CUPO DISPONIBLE")),
     ("cupo_total", ("CUPO TOTAL DE TU TARJETA", "CUPO TOTAL DE TU TARJETA CMR", "CUPO TOTAL")),
+    ("cupo_utilizado", ("HAS UTILIZADO", "CUPO UTILIZADO", "SALDO UTILIZADO")),
     ("saldo_anterior", ("SALDO PERIODO ANTERIOR", "SALDO ANTERIOR")),
     ("compras", ("CONSUMOS DEL MES FACTURADOS", "CONSUMOS DEL MES", "COMPRAS DEL MES")),
     ("compras_periodo", ("CONSUMOS DEL PERIODO", "CONSUMOS DEL PERIODO FACTURADO")),
@@ -237,7 +241,11 @@ _ETIQUETAS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 # Una etiqueta puede aparecer antes de otra muy parecida: `Capital facturado consumos del
 # mes` **no** es el `Consumos del mes` del pago total.
-_EVITAR: dict[str, tuple[str, ...]] = {"compras": ("CAPITAL FACTURADO", "SALDO ANTERIOR")}
+_EVITAR: dict[str, tuple[str, ...]] = {
+    "compras": ("CAPITAL FACTURADO", "SALDO ANTERIOR"),
+    # «Cupo utilizado de avances» es otra cosa (el cupo de avances, no la deuda)
+    "cupo_utilizado": ("AVANCES",),
+}
 
 _BANCOS = (
     ("Davivienda", ("DAVIVIENDA",)),
@@ -263,9 +271,15 @@ def metadatos(texto: str, extracto: ExtractoCrudo) -> None:
         for clave in claves:
             elegido = None
             for m in patron_tolerante(clave).finditer(base):
+                # La palabra que descalifica puede ir antes (`Capital facturado consumos…`)
+                # o después (`Cupo utilizado **de avances**`): se miran las dos.
                 antes = _plano(base[max(0, m.start() - 30) : m.start()])
-                if any(_plano(e) in antes for e in _EVITAR.get(campo, ())):
-                    continue  # es otra etiqueta parecida (p.ej. `Capital facturado consumos…`)
+                despues = _plano(base[m.end() : m.end() + 30])
+                if any(
+                    _plano(e) in antes or _plano(e) in despues
+                    for e in _EVITAR.get(campo, ())
+                ):
+                    continue  # es otra etiqueta parecida
                 elegido = m
                 break
             if elegido is None:
@@ -1157,7 +1171,14 @@ def conciliar(extracto: ExtractoCrudo) -> list[dict]:
         checks.append(_check("pago total", esperado, extracto.pago_total))
 
     if extracto.cupo_total is not None and extracto.cupo_disponible is not None:
-        checks.append(_check("cupo utilizado", extracto.cupo_total - extracto.cupo_disponible, None))
+        # Si el corte declara cuánto está usado, se comprueba; si no, queda como dato
+        checks.append(
+            _check(
+                "cupo utilizado",
+                extracto.cupo_total - extracto.cupo_disponible,
+                extracto.cupo_utilizado,
+            )
+        )
 
     filas_dudosas = []
     validadas = 0

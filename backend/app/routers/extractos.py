@@ -405,7 +405,12 @@ def analizar_extracto(
 
     cupo_utilizado = None
     if extracto.cupo_total is not None and extracto.cupo_disponible is not None:
-        cupo_utilizado = extracto.cupo_total - extracto.cupo_disponible
+        # El declarado manda: `total - disponible` es la comprobación, no la fuente
+        cupo_utilizado = (
+            extracto.cupo_utilizado
+            if extracto.cupo_utilizado is not None
+            else extracto.cupo_total - extracto.cupo_disponible
+        )
 
     sin_tasa = [
         {

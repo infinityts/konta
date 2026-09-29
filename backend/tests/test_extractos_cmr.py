@@ -124,6 +124,7 @@ def test_la_conciliacion_del_cmr_cuadra_con_el_capital_facturado():
         pago_total=Decimal("2771831.16"),
         cupo_total=Decimal("5660000.00"),
         cupo_disponible=Decimal("2888168.84"),
+        cupo_utilizado=Decimal("2771831.16"),  # «Has utilizado»
         compras_es_capital=True,
     )
     # Tres compras pendientes: sus cuotas del mes suman el capital facturado
@@ -152,4 +153,23 @@ def test_la_conciliacion_del_cmr_cuadra_con_el_capital_facturado():
     assert por_nombre["capital facturado del mes"]["ok"] is True, por_nombre["capital facturado del mes"]
     assert por_nombre["pagos y abonos"]["ok"] is True
     assert por_nombre["pago total"]["ok"] is True
+    assert por_nombre["cupo utilizado"]["ok"] is True, "el usado que declara el corte"
     assert conciliacion_ok(checks) is True
+
+
+def test_el_cupo_utilizado_sale_de_has_utilizado_y_no_de_los_avances():
+    """«Cupo utilizado de avances» es otra cosa: no puede ganarle a «Has utilizado»."""
+    from app.extractos import ExtractoCrudo, metadatos
+
+    extracto = ExtractoCrudo()
+    metadatos(
+        "Cupo total de tu Tarjeta: $ 5.660.000,00\n"
+        "Has utilizado: $ 2.771.831,16\n"
+        "Cupo utilizado de avances $0,00\n",
+        extracto,
+    )
+    assert extracto.cupo_utilizado == Decimal("2771831.16")
+
+    solo_avances = ExtractoCrudo()
+    metadatos("Cupo utilizado de avances $0,00\n", solo_avances)
+    assert solo_avances.cupo_utilizado is None, "el de avances no es la deuda de la tarjeta"

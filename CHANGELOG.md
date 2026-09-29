@@ -1496,3 +1496,15 @@ De paso, el parser por coordenadas estrena tests (fragmentos sintéticos): era l
 cobertura, y por eso estos bugs pasaron.
 
 Tests: **216 en verde** (antes 212).
+
+### v1.52.1 — El «cupo utilizado» ahora se comprueba de verdad
+
+El control salía en `--` porque el corte declara «Has utilizado: $2.771.831,16» y el parser
+no lo leía: solo se calculaba `cupo_total − cupo_disponible`. Ahora ese valor declarado se
+lee (y se **comprueba** contra el calculado) → `5.660.000,00 − 2.888.168,84 = 2.771.831,16`,
+que es exactamente lo que dice el corte. Con el cuidado de no confundirlo con «Cupo utilizado
+**de avances**», que es otra cosa: la palabra que descalifica una etiqueta puede ir antes
+(`Capital facturado consumos…`) o después (`Cupo utilizado de avances`), así que ahora se
+miran las dos.
+
+Tests: **217 en verde**.
