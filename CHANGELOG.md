@@ -81,7 +81,23 @@ Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de 
   monto mal tecleado obliga a borrar la meta entera— y **editar o borrar un producto** del
   mercado.
 - **Quitar un valor de un ENUM**: `periodicidad.semestral` se queda aunque se baje la
-  migración `0019` (PostgreSQL no lo permite sin recrear el tipo).
+  migración `0019`. No es que PostgreSQL lo prohíba: **no existe la sentencia**
+  (`ALTER TYPE ... DROP VALUE` da error de sintaxis; comprobado). La única vía es
+  recrear el tipo, y tiene dos trampas verificadas:
+  1. hay que **quitar antes el `DEFAULT`** de las dos columnas (`suscripciones`,
+     `polizas`) o la conversión falla con `DatatypeMismatch`;
+  2. hay que **migrar antes las filas** que usen el valor o el `CAST` falla con
+     `InvalidTextRepresentation` — y ahí la decisión no es técnica sino de datos:
+     ¿una póliza semestral pasa a mensual (y el flujo de caja cambia) o a anual?
+  Después: `CREATE TYPE` nuevo → `ALTER COLUMN ... TYPE ... USING ::text::` → `DROP TYPE`
+  viejo → `RENAME` → restaurar el `DEFAULT`. Además habría que quitar
+  `Periodicidad.SEMESTRAL` del código y sus entradas en `recurrencia` y `flujo`.
+  Mientras tanto es inofensivo: `ADD VALUE IF NOT EXISTS` hace que el ciclo
+  `upgrade`/`downgrade`/`upgrade` siga funcionando (verificado), y una revisión
+  anterior del código no puede usar el valor porque su enum no lo tiene.
+  **Ojo**: `alembic check` **no** compara las etiquetas del ENUM (comprobado: con el
+  tipo recreado sin `semestral` sigue diciendo que no hay deriva), así que esa deriva
+  no la detecta el CI.
 
 ## v1.1.1 — Correcciones tras validar con datos reales
 
