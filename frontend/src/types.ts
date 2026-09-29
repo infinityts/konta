@@ -614,3 +614,28 @@ export interface ImportarResultado extends ImportarResumen {
   diferencia_pago_minimo: string | null
   nota_pago_minimo: string | null
 }
+
+export interface CandidatoRecurrente {
+  clave: string
+  nombre: string
+  descripcion: string
+  monto: string
+  moneda: string
+  periodicidad: string
+  ultima_fecha: string | null
+  proximo_pago: string | null
+  apariciones: number
+  fechas: string[]
+  montos: string[]
+  confianza: 'alta' | 'media' | 'baja'
+  senales: string[]
+  ya_es_suscripcion: boolean
+  categoria_id: string | null
+  etiqueta_id: string | null
+  en_este_extracto: boolean
+}
+
+export interface CrearRecurrentesResultado {
+  creadas: Suscripcion[]
+  omitidas: string[]
+}

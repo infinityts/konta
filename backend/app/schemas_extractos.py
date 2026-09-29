@@ -8,6 +8,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
+from .schemas import SuscripcionOut
+
 
 class MovimientoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -163,3 +165,41 @@ class ImportarResultadoOut(BaseModel):
     pago_minimo: Decimal | None = None
     diferencia_pago_minimo: Decimal | None = None
     nota_pago_minimo: str | None = None
+
+
+class CandidatoRecurrenteOut(BaseModel):
+    """Un posible recurrente detectado en los extractos, con su evidencia."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    clave: str
+    nombre: str
+    descripcion: str
+    monto: Decimal
+    moneda: str
+    periodicidad: str
+    ultima_fecha: date | None
+    proximo_pago: date | None
+    apariciones: int
+    fechas: list[str]
+    montos: list[str]
+    confianza: str
+    senales: list[str]
+    ya_es_suscripcion: bool
+    categoria_id: uuid.UUID | None
+    etiqueta_id: uuid.UUID | None
+    en_este_extracto: bool
+
+
+class CrearRecurrentesIn(BaseModel):
+    # Se eligen por su clave: el servidor vuelve a detectar y crea desde **sus** datos,
+    # nunca desde importes que mande el cliente
+    claves: list[str]
+    cuenta_id: uuid.UUID | None = None
+    categoria_id: uuid.UUID | None = None
+    etiqueta_id: uuid.UUID | None = None
+
+
+class CrearRecurrentesOut(BaseModel):
+    creadas: list[SuscripcionOut]
+    omitidas: list[str]

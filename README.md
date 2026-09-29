@@ -358,7 +358,7 @@ FINANZAS_TEST_DATABASE_URL=postgresql+psycopg://finanzas:finanzas@localhost:5433
 ```
 
 Cobertura: **lectura de extractos bancarios** (PDF por coordenadas, Excel multi-hoja,
-API y conciliación),
+API, conciliación, importación y detección de recurrentes),
 **parseo de dinero** (formatos colombiano, US y mixto, con los casos
 reales de extractos de banco), auth, CRUD core, aislamiento multi-usuario, ingresos recurrentes,
 suscripciones que generan su gasto, pólizas (generación del gasto, beneficiarios y
@@ -369,7 +369,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**156 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
+**165 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 **Antes de subir cambios**, los mismos tres pasos que corre el CI:

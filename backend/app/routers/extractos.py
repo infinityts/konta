@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -33,11 +34,16 @@ from ..models import (
     Extracto,
     ExtractoMovimiento,
     Moneda,
+    Suscripcion,
     Tarjeta,
     Usuario,
 )
+from ..recurrentes_extractos import detectar as detectar_recurrentes
 from ..schemas_extractos import (
     AnalisisOut,
+    CandidatoRecurrenteOut,
+    CrearRecurrentesIn,
+    CrearRecurrentesOut,
     ExtractoDetalleOut,
     ExtractoOut,
     ImportarIn,
@@ -388,6 +394,91 @@ def _movimientos(db: Session, extracto_id: uuid.UUID) -> list[ExtractoMovimiento
             .order_by(ExtractoMovimiento.orden)
         ).all()
     )
+
+
+@router.get("/{extracto_id}/recurrentes", response_model=list[CandidatoRecurrenteOut])
+def detectar_recurrentes_del_extracto(
+    extracto_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+) -> list[CandidatoRecurrenteOut]:
+    """Posibles suscripciones y gastos recurrentes, con la evidencia de cada uno.
+
+    Mira **todos** tus extractos (la repetición entre cortes es la señal fuerte) y también
+    tus movimientos, así que sirve aunque solo tengas un extracto leído. Una compra a
+    cuotas nunca se propone: es un pago troceado, no una suscripción.
+    """
+    extracto = get_owned(db, Extracto, extracto_id, user.id)
+    return [
+        CandidatoRecurrenteOut.model_validate(c)
+        for c in detectar_recurrentes(db, user.id, extracto.id)
+    ]
+
+
+@router.post("/{extracto_id}/recurrentes", response_model=CrearRecurrentesOut)
+def crear_recurrentes_del_extracto(
+    extracto_id: uuid.UUID,
+    data: CrearRecurrentesIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+) -> CrearRecurrentesOut:
+    """Crea los recurrentes elegidos de la lista de candidatos.
+
+    Se eligen por **clave**: el servidor vuelve a detectar y crea desde sus propios datos.
+    Las que ya existían con ese nombre se omiten, para no duplicar.
+    """
+    extracto = get_owned(db, Extracto, extracto_id, user.id)
+    if data.cuenta_id is not None:
+        get_owned(db, Cuenta, data.cuenta_id, user.id)
+    if data.categoria_id is not None:
+        get_owned(db, Categoria, data.categoria_id, user.id)
+    if data.etiqueta_id is not None:
+        get_owned(db, Etiqueta, data.etiqueta_id, user.id)
+
+    candidatos = {
+        c.clave: c for c in detectar_recurrentes(db, user.id, extracto.id)
+    }
+    existentes = {
+        s.nombre.strip().lower()
+        for s in db.scalars(select(Suscripcion).where(Suscripcion.usuario_id == user.id)).all()
+    }
+
+    creadas: list[Suscripcion] = []
+    omitidas: list[str] = []
+    for clave in data.claves:
+        candidato = candidatos.get(clave)
+        if candidato is None:
+            omitidas.append(f"{clave}: ya no está entre los candidatos")
+            continue
+        if candidato.nombre.strip().lower() in existentes:
+            omitidas.append(f"{candidato.nombre}: ya estaba en tus recurrentes")
+            continue
+        suscripcion = Suscripcion(
+            usuario_id=user.id,
+            nombre=candidato.nombre[:120],
+            monto=candidato.monto,
+            moneda=candidato.moneda,
+            periodicidad=candidato.periodicidad,
+            fecha_inicio=(
+                date.fromisoformat(candidato.fechas[0]) if candidato.fechas else candidato.ultima_fecha
+            ),
+            proximo_pago=candidato.proximo_pago,
+            categoria_id=data.categoria_id or candidato.categoria_id,
+            etiqueta_id=data.etiqueta_id or candidato.etiqueta_id,
+            cuenta_id=data.cuenta_id or extracto.cuenta_id,
+            tarjeta_id=extracto.tarjeta_id,
+            notas=(
+                f"Detectado en el extracto «{extracto.nombre_archivo}». "
+                + " · ".join(candidato.senales)
+            )[:2000],
+        )
+        db.add(suscripcion)
+        creadas.append(suscripcion)
+        existentes.add(candidato.nombre.strip().lower())
+    db.commit()
+    for s in creadas:
+        db.refresh(s)
+    return CrearRecurrentesOut(creadas=creadas, omitidas=omitidas)
 
 
 @router.get("/{extracto_id}/importar", response_model=ImportarPreviewOut)

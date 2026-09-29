@@ -392,6 +392,23 @@ Al importar, el **cupo utilizado** del corte queda registrado como deuda de la t
 > Nada entra en tus cuentas sin que lo hayas visto: primero el análisis, después la
 > previsualización con lo que se omite y por qué, y solo entonces el botón.
 
+### Recurrentes detectados
+
+Debajo del análisis, Konta propone lo que **se repite todos los meses** y lo explica:
+
+| Señal | Qué significa |
+|---|---|
+| **Repetición entre extractos** | El mismo comercio en dos cortes, a ~1 mes y con el mismo monto → confianza **alta** |
+| **Ya estaba en tus movimientos** | Lo llevabas pagando de antes, aunque solo tengas un extracto leído |
+| **Diccionario de servicios** | Netflix, Spotify, Prime Video, iCloud, ChatGPT… Un servicio **nuevo** aparece una sola vez en su primer extracto, así que sin esta señal no se vería |
+| **A cuotas no** | Una compra a 24 cuotas **nunca** es una suscripción (RAPPI aparece 7 veces en un extracto real y no lo es) |
+| **Diferida, con la cuota** | Si el banco difiere una suscripción a cuotas (Amex difiere Audible a 36), se propone con **la cuota** como monto |
+
+Los candidatos vienen marcados con su confianza, con las fechas de los cargos y con el
+**próximo pago calculado**. Se eligen con una casilla y se crean en *Gastos recurrentes*; los
+que ya existían se omiten en vez de duplicarse. Dos cargos del mismo servicio el mismo día
+(Prime Video 17.999 y 4.999) se proponen como **dos planes**, no como uno doble.
+
 - **Lo anterior al periodo no es un gasto nuevo**: los extractos listan el capital de compras de
   meses atrás. Esas filas se marcan *informativas* y se pueden ocultar (casilla de la tabla).
 - **Una compra a cuotas no es una suscripción**: `7 de 24` significa que ya la estabas pagando.

@@ -1092,3 +1092,31 @@ reglas son las que decidiste, y cada una tiene su test.
 - Tests: **156 en verde** (antes 142), con las reglas una por una y la importación de punta a
   punta: importar, no duplicar al pulsar otra vez, la deuda registrada y la alerta con el pago
   total del extracto.
+
+## v1.40 — Extractos, Fase 3: detectar recurrentes y suscripciones
+
+Debajo del análisis, Konta propone lo que **se repite todos los meses**, con la evidencia de
+cada uno y su confianza. Cinco señales, de la más fuerte a la más débil:
+
+| Señal | Confianza | Por qué |
+|---|---|---|
+| **Repetición entre cortes** (mismo comercio, ~1 mes, monto parecido) | **alta** | Es lo que define una suscripción |
+| **Ya estaba en tus movimientos** | alta/media | Lo llevabas pagando de antes: sirve aunque solo tengas un extracto leído |
+| **Diccionario de servicios** (Netflix, Spotify, Prime Video, iCloud, ChatGPT…) | media | Un servicio **nuevo** aparece **una sola vez** en su primer extracto: sin esta señal no se vería nunca |
+| **Compra a cuotas** | — | **Nunca** se propone. En un extracto real RAPPI aparece 7 veces y no es una suscripción: es una compra a 24 cuotas |
+| **Diferida por el banco** | media | Amex difiere AUDIBLE a 36 cuotas de 0,29 USD: se propone **con la cuota** como monto y diciendo por qué |
+
+- **Dos cargos del mismo servicio el mismo día son dos planes**: PRIME VIDEO 17.999 y 4.999
+  salen como dos candidatos, no como una suscripción de 22.998. Los montos que difieren más de
+  un 20 % se separan.
+- **Nada se inventa**: ni pagos, ni intereses, ni comisiones, ni impuestos. El próximo pago se
+  calcula con la periodicidad deducida de los cargos reales (semanal/mensual/trimestral…).
+- **Crear es idempotente**: se eligen candidatos por su clave, el servidor los crea **desde sus
+  propios datos** (nunca desde importes que mande el cliente), hereda la tarjeta o la cuenta del
+  extracto y **omite** los que ya existían con ese nombre.
+- **Comprobado con los extractos reales**: de Davivienda sale Netflix (44.900); de Amex salen
+  Microsoft 365 (45.999), Seguro Cardif (29.900), dos planes de Prime Video y Audible (0,29 USD
+  al mes, con el aviso de que está diferido). Netflix se detectó **cruzando los dos extractos**.
+  Y RAPPI, con sus 7 apariciones a 24 cuotas, **no** aparece entre los candidatos.
+- Tests: **165 en verde** (antes 156), con cada señal por separado, la creación y que no se
+  duplique.

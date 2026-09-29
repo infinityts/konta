@@ -83,6 +83,7 @@ relacionan las piezas.
 | `facturas.py` | Extracción de texto (pypdf + OCR tesseract con preprocesado) y heurísticas monto/fecha |
 | `routers/extractos.py` | **API de extractos**: subida (con contraseña), listado, detalle, borrado y análisis |
 | `schemas_extractos.py` | Esquemas de extracto, movimiento, control de conciliación y análisis |
+| `recurrentes_extractos.py` | **Detectar recurrentes**: repetición entre extractos, historial, diccionario de servicios y la regla de las cuotas |
 | `importacion_extractos.py` | **Importar un extracto**: la cuota del mes como gasto, qué se omite y por qué, y la deuda del corte |
 | `extractos.py` | **Lectura de extractos** (PDF por coordenadas y Excel multi-hoja): metadatos, movimientos, cuotas, multi-moneda y conciliación |
 | `dinero.py` | **Parseo de dinero**: un solo parser para formato colombiano, US y mixto (signos, paréntesis, espacios internos, valores duplicados) y detección del formato del documento |

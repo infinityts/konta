@@ -8,6 +8,8 @@ import {
   type Cuenta,
   type Extracto,
   type ExtractoDetalle,
+  type CandidatoRecurrente,
+  type CrearRecurrentesResultado,
   type ImportarPreview,
   type ImportarResultado,
   type Tarjeta,
@@ -103,6 +105,11 @@ export default function Extractos() {
   // Las cuotas de compras de meses anteriores se pagan este mes (es lo que hace que
   // cuadre con el pago mínimo), así que por defecto entran
   const [incluirAnteriores, setIncluirAnteriores] = useState(true)
+  // Fase 3: recurrentes detectados
+  const [recurrentes, setRecurrentes] = useState<CandidatoRecurrente[]>([])
+  const [elegidos, setElegidos] = useState<Record<string, boolean>>({})
+  const [creando, setCreando] = useState(false)
+  const [avisoRecurrentes, setAvisoRecurrentes] = useState('')
 
   async function cargar() {
     setItems(await api<Extracto[]>('/extractos'))
@@ -122,15 +129,25 @@ export default function Extractos() {
     setAnalisis(null)
     setPrevia(null)
     setResultado(null)
+    setRecurrentes([])
     try {
-      const [d, a, p] = await Promise.all([
+      const [d, a, p, rec] = await Promise.all([
         api<ExtractoDetalle>(`/extractos/${id}`),
         api<AnalisisExtracto>(`/extractos/${id}/analisis?moneda=${moneda}`),
         api<ImportarPreview>(`/extractos/${id}/importar?incluir_cuotas_anteriores=${incluirAnteriores}`),
+        api<CandidatoRecurrente[]>(`/extractos/${id}/recurrentes`),
       ])
       setDetalle(d)
       setAnalisis(a)
       setPrevia(p)
+      setRecurrentes(rec)
+      // Se preseleccionan los de confianza alta y media que no estén ya creados
+      setElegidos(
+        Object.fromEntries(
+          rec.filter((c) => c.confianza !== 'baja' && !c.ya_es_suscripcion).map((c) => [c.clave, true])
+        )
+      )
+      setAvisoRecurrentes('')
       if (d.tarjeta_id) setDestinoTarjeta(d.tarjeta_id)
       if (d.cuenta_id) setDestinoCuenta(d.cuenta_id)
     } catch (e) {
@@ -162,6 +179,34 @@ export default function Extractos() {
       setError(err instanceof Error ? err.message : 'No se pudo leer el extracto')
     } finally {
       setSubiendo(false)
+    }
+  }
+
+  async function crearRecurrentes() {
+    if (!detalle) return
+    const claves = Object.entries(elegidos)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+    if (claves.length === 0) return
+    setCreando(true)
+    setError('')
+    try {
+      const r = await api<CrearRecurrentesResultado>(
+        `/extractos/${detalle.id}/recurrentes`,
+        { method: 'POST', body: JSON.stringify({ claves }) }
+      )
+      setAvisoRecurrentes(
+        r.creadas.length > 0
+          ? `Se crearon ${r.creadas.length}: ${r.creadas.map((s) => s.nombre).join(', ')}${
+              r.omitidas.length > 0 ? ` · ${r.omitidas.join(' · ')}` : ''
+            }`
+          : r.omitidas.join(' · ')
+      )
+      setRecurrentes(await api<CandidatoRecurrente[]>(`/extractos/${detalle.id}/recurrentes`))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudieron crear los recurrentes')
+    } finally {
+      setCreando(false)
     }
   }
 
@@ -527,6 +572,99 @@ export default function Extractos() {
               </div>
             </div>
           </div>
+
+          {recurrentes.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-700">
+                Recurrentes detectados ({recurrentes.length})
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Lo que se repite todos los meses. Se detecta por la repetición entre extractos,
+                por lo que ya estaba en tus movimientos y por un diccionario de servicios. Una
+                compra <strong>a cuotas no es una suscripción</strong>: se queda fuera.
+              </p>
+
+              <ul className="mt-3 space-y-2">
+                {recurrentes.map((c) => (
+                  <li
+                    key={c.clave}
+                    className={`rounded-lg border p-3 ${
+                      c.ya_es_suscripcion ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!c.ya_es_suscripcion ? (
+                        <input
+                          type="checkbox"
+                          checked={Boolean(elegidos[c.clave])}
+                          onChange={(e) =>
+                            setElegidos((prev) => ({ ...prev, [c.clave]: e.target.checked }))
+                          }
+                        />
+                      ) : (
+                        <span className="text-emerald-700">✓</span>
+                      )}
+                      <span className="text-sm font-medium text-slate-800">{c.nombre}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs ${
+                          c.confianza === 'alta'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : c.confianza === 'media'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {c.confianza}
+                      </span>
+                      <span className="text-sm text-slate-700">
+                        {fmtMoney(c.monto)} <span className="text-xs">{c.moneda}</span> ·{' '}
+                        {c.periodicidad}
+                      </span>
+                      {c.proximo_pago && (
+                        <span className="text-xs text-slate-500">
+                          próximo {c.proximo_pago}
+                        </span>
+                      )}
+                      {c.ya_es_suscripcion && (
+                        <span className="text-xs text-emerald-700">ya está en tus recurrentes</span>
+                      )}
+                      {!c.en_este_extracto && (
+                        <span className="text-xs text-slate-400">de otro extracto</span>
+                      )}
+                    </div>
+                    <ul className="mt-1 pl-6 text-xs text-slate-500">
+                      {c.senales.map((s) => (
+                        <li key={s}>· {s}</li>
+                      ))}
+                      {c.fechas.length > 0 && (
+                        <li>· cargos: {c.fechas.join(', ')}</li>
+                      )}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={crearRecurrentes}
+                  disabled={creando || Object.values(elegidos).every((v) => !v)}
+                  className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                >
+                  {creando
+                    ? 'Creando…'
+                    : `Crear ${Object.values(elegidos).filter(Boolean).length} recurrente(s)`}
+                </button>
+                <span className="text-xs text-slate-500">
+                  Se crean en <strong>Gastos recurrentes</strong>, con su próximo pago calculado.
+                </span>
+              </div>
+              {avisoRecurrentes && (
+                <p className="mt-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
+                  {avisoRecurrentes}
+                </p>
+              )}
+            </div>
+          )}
 
           {previa && (
             <div className="rounded-xl border border-slate-200 bg-white p-4">
