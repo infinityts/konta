@@ -338,6 +338,123 @@ class Etiqueta(Base):
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 
+class Extracto(Base):
+    """Extracto de tarjeta de crédito o de cuenta, leído de un PDF o un Excel.
+
+    Guarda **los números que el propio extracto declara** (periodo, corte, pago,
+    cupo, desglose) y, en `extracto_movimientos`, el detalle. Esos números son la
+    fuente de verdad para conciliar: si el detalle no cuadra con ellos, algo se leyó
+    mal y hay que revisarlo **antes** de importar nada.
+
+    `tipo` y `formato` son texto validado en Python y no un ENUM de PostgreSQL a
+    propósito: son listas que crecerán (más bancos, más formatos) y añadir un valor a
+    un ENUM es fácil pero quitarlo no existe (ver la nota del `0019`).
+    """
+
+    __tablename__ = "extractos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # A qué cuenta o tarjeta pertenece (puede quedar sin asignar hasta que el usuario la elija)
+    cuenta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cuentas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    tarjeta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tarjetas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    tipo: Mapped[str] = mapped_column(String(10), nullable=False, default="tarjeta")  # tarjeta | cuenta
+    formato: Mapped[str] = mapped_column(String(10), nullable=False, default="pdf")  # pdf | xlsx | csv
+    banco: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    nombre_archivo: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Moneda del extracto; sus movimientos pueden estar en otras (`moneda` por fila)
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+
+    # Periodo y fechas que declara el extracto
+    periodo_desde: Mapped[date | None] = mapped_column(Date, nullable=True)
+    periodo_hasta: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fecha_corte: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fecha_pago: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Desglose del corte (lo que dice el extracto, no lo que calculamos)
+    saldo_anterior: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    compras: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    intereses: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    intereses_mora: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    otros_cargos: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    abonos: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    pago_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    pago_minimo: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    cupo_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    cupo_disponible: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+
+    # Resultado de la conciliación: si no cuadra, se revisa antes de importar
+    conciliacion_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Texto extraído (o el volcado del Excel) para poder re-parsear sin volver a subir
+    texto_extraido: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Avisos y comprobaciones en JSON (lista de {nombre, calculado, declarado, ok, diferencia})
+    conciliacion: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    creado_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class ExtractoMovimiento(Base):
+    """Un renglón del extracto, tal como lo declara el banco.
+
+    Guarda también el **monto original y la tasa de cambio** cuando la compra fue en
+    otra moneda: el extracto trae los dos (`$108.515,31` y `25,87 USD` a `4.193,84`), y
+    esa es la tasa que se pagó de verdad, no la de hoy.
+    """
+
+    __tablename__ = "extracto_movimientos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    extracto_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("extractos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    fecha: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    descripcion: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    # Con signo: negativo = plata que entra o se abona a la tarjeta
+    valor: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    moneda: Mapped[str] = mapped_column(ForeignKey("monedas.codigo"), nullable=False, default="COP")
+    saldo: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+
+    # Compra en otra moneda: los dos importes y la tasa que aplicó el banco
+    monto_original: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    moneda_original: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    tasa_cambio: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), nullable=True)
+
+    # Cuotas (una compra diferida no es una suscripción: `cuotas_total > 1` lo delata)
+    cuotas_n: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cuotas_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cuota_mes: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    valor_pendiente: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    titular: Mapped[str | None] = mapped_column(String(2), nullable=True)  # T titular, A adicional
+
+    # Clasificación (Fase 1 la deduce; Fase 2 la usa para importar)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, default="otro")
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("categorias.id", ondelete="SET NULL"), nullable=True
+    )
+    etiqueta_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("etiquetas.id", ondelete="SET NULL"), nullable=True
+    )
+    origen: Mapped[str] = mapped_column(String(20), nullable=False, default="sin_clasificar")
+    # Un renglón informativo (cuotas anteriores al periodo) no se importa como gasto nuevo
+    es_informativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Lo rellena la Fase 2 al importarlo
+    transaccion_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("transacciones.id", ondelete="SET NULL"), nullable=True
+    )
+
+
 class Factura(Base):
     """Factura en PDF subida por el usuario, con datos extraídos (texto/monto/fecha)."""
 
