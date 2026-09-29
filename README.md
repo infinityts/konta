@@ -369,7 +369,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**142 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
+**156 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 **Antes de subir cambios**, los mismos tres pasos que corre el CI:

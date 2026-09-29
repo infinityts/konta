@@ -8,6 +8,8 @@ import {
   type Cuenta,
   type Extracto,
   type ExtractoDetalle,
+  type ImportarPreview,
+  type ImportarResultado,
   type Tarjeta,
 } from '../types'
 import { Cargando } from '../components/loading-ui/cargando'
@@ -92,6 +94,15 @@ export default function Extractos() {
   const [subiendo, setSubiendo] = useState(false)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+  // Fase 2: qué se importaría, a dónde y el resultado
+  const [previa, setPrevia] = useState<ImportarPreview | null>(null)
+  const [resultado, setResultado] = useState<ImportarResultado | null>(null)
+  const [destinoCuenta, setDestinoCuenta] = useState('')
+  const [destinoTarjeta, setDestinoTarjeta] = useState('')
+  const [importando, setImportando] = useState(false)
+  // Las cuotas de compras de meses anteriores se pagan este mes (es lo que hace que
+  // cuadre con el pago mínimo), así que por defecto entran
+  const [incluirAnteriores, setIncluirAnteriores] = useState(true)
 
   async function cargar() {
     setItems(await api<Extracto[]>('/extractos'))
@@ -109,13 +120,19 @@ export default function Extractos() {
     setError('')
     setDetalle(null)
     setAnalisis(null)
+    setPrevia(null)
+    setResultado(null)
     try {
-      const [d, a] = await Promise.all([
+      const [d, a, p] = await Promise.all([
         api<ExtractoDetalle>(`/extractos/${id}`),
         api<AnalisisExtracto>(`/extractos/${id}/analisis?moneda=${moneda}`),
+        api<ImportarPreview>(`/extractos/${id}/importar?incluir_cuotas_anteriores=${incluirAnteriores}`),
       ])
       setDetalle(d)
       setAnalisis(a)
+      setPrevia(p)
+      if (d.tarjeta_id) setDestinoTarjeta(d.tarjeta_id)
+      if (d.cuenta_id) setDestinoCuenta(d.cuenta_id)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo abrir el extracto')
     }
@@ -145,6 +162,37 @@ export default function Extractos() {
       setError(err instanceof Error ? err.message : 'No se pudo leer el extracto')
     } finally {
       setSubiendo(false)
+    }
+  }
+
+  async function importar() {
+    if (!detalle) return
+    setImportando(true)
+    setError('')
+    try {
+      const r = await api<ImportarResultado>(`/extractos/${detalle.id}/importar`, {
+        method: 'POST',
+        body: JSON.stringify({
+          cuenta_id: destinoCuenta || null,
+          tarjeta_id: destinoTarjeta || null,
+          incluir_cuotas_anteriores: incluirAnteriores,
+        }),
+      })
+      setResultado(r)
+      await cargar()
+      // Se recarga el detalle: los movimientos importados ya traen su transacción
+      const [d, p] = await Promise.all([
+        api<ExtractoDetalle>(`/extractos/${detalle.id}`),
+        api<ImportarPreview>(
+          `/extractos/${detalle.id}/importar?incluir_cuotas_anteriores=${incluirAnteriores}`
+        ),
+      ])
+      setDetalle(d)
+      setPrevia(p)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo importar')
+    } finally {
+      setImportando(false)
     }
   }
 
@@ -480,6 +528,127 @@ export default function Extractos() {
             </div>
           </div>
 
+          {previa && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-700">Importar a Konta</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Se importan los movimientos del periodo y se salta lo demás, con su motivo:
+                las compras a cuotas entran por la <strong>cuota del mes</strong>, los ajustes
+                no entran y lo de meses anteriores tampoco (ya estaba contado).
+              </p>
+
+              <ul className="mt-2 space-y-1 text-sm">
+                <li className="text-slate-700">
+                  ✅ Se importan <strong>{previa.resumen.se_importan}</strong>
+                  {Object.entries(previa.resumen.gastos_por_moneda).map(([m, v]) => (
+                    <span key={m} className="ml-2 text-slate-500">
+                      {m} {fmtMoney(v)}
+                    </span>
+                  ))}
+                </li>
+                {Number(previa.resumen.de_meses_anteriores) > 0 && (
+                  <li className="text-slate-500">
+                    de eso, {fmtMoney(previa.resumen.de_meses_anteriores)} son las cuotas de
+                    este mes de compras de meses anteriores
+                  </li>
+                )}
+                {Object.entries(previa.resumen.motivos).map(([motivo, n]) => (
+                  <li key={motivo} className="text-slate-500">
+                    ➖ {n} · {motivo}
+                  </li>
+                ))}
+              </ul>
+
+              {previa.nota_pago_minimo && (
+                <p
+                  className={`mt-2 rounded-lg p-3 text-xs ${
+                    Number(previa.diferencia_pago_minimo ?? 1) === 0
+                      ? 'bg-emerald-50 text-emerald-800'
+                      : 'bg-amber-50 text-amber-800'
+                  }`}
+                >
+                  {previa.nota_pago_minimo}
+                </p>
+              )}
+
+              <label className="mt-3 flex items-start gap-2 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={incluirAnteriores}
+                  onChange={(e) => {
+                    setIncluirAnteriores(e.target.checked)
+                    if (detalle) void abrir(detalle.id)
+                  }}
+                  className="mt-0.5"
+                />
+                Incluir también las cuotas de este mes de compras de meses anteriores. Es lo
+                que estás pagando ahora; si lo desmarcas, el mes no cuadrará con el pago
+                mínimo.
+              </label>
+
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <label className="text-xs text-slate-600">
+                  Sale de
+                  <select
+                    value={destinoCuenta}
+                    onChange={(e) => setDestinoCuenta(e.target.value)}
+                    className="ml-1 rounded border border-slate-300 px-2 py-1 text-xs"
+                  >
+                    <option value="">— sin cuenta —</option>
+                    {cuentas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs text-slate-600">
+                  Tarjeta
+                  <select
+                    value={destinoTarjeta}
+                    onChange={(e) => setDestinoTarjeta(e.target.value)}
+                    className="ml-1 rounded border border-slate-300 px-2 py-1 text-xs"
+                  >
+                    <option value="">— sin tarjeta —</option>
+                    {tarjetas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  onClick={importar}
+                  disabled={importando || previa.resumen.se_importan === 0}
+                  className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                >
+                  {importando
+                    ? 'Importando…'
+                    : `Importar ${previa.resumen.se_importan} movimiento(s)`}
+                </button>
+              </div>
+
+              {previa.resumen.se_importan === 0 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  No queda nada por importar de este extracto.
+                </p>
+              )}
+
+              {resultado && (
+                <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
+                  Se crearon <strong>{resultado.creadas}</strong> transacciones.
+                  {resultado.deuda_registrada && (
+                    <>
+                      {' '}
+                      Deuda de la tarjeta actualizada con el cupo utilizado del corte (
+                      {fmtMoney(resultado.deuda_registrada)}).
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="rounded-xl border border-slate-200 bg-white">
             <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
               <h3 className="text-sm font-semibold text-slate-700">
@@ -518,6 +687,11 @@ export default function Extractos() {
                         {m.descripcion || '—'}
                         {m.es_informativo && (
                           <span className="ml-2 rounded bg-slate-100 px-1 text-xs">informativo</span>
+                        )}
+                        {m.transaccion_id && (
+                          <span className="ml-2 rounded bg-emerald-100 px-1 text-xs text-emerald-700">
+                            importado
+                          </span>
                         )}
                         {m.moneda_original && (
                           <span className="ml-2 text-xs text-slate-400">

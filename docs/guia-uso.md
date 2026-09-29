@@ -369,9 +369,28 @@ si te pasas.
 | 4. Miras el análisis | Compras, pagos, **costo del dinero** (intereses + comisiones), cupo usado, a dónde se fue la plata y el **compromiso futuro** de las compras a cuotas |
 | 5. Revisas el detalle | La tabla de movimientos, con su tipo (compra, pago, interés, comisión…) y las compras en dólares con su tasa |
 
-> **Konta todavía no crea transacciones al leer un extracto.** Primero enseña el análisis y
-> comprueba que los números cuadren con los del banco; importar los movimientos es el paso
-> siguiente. Así nada entra en tus cuentas sin que lo hayas visto.
+### Importar los movimientos a Konta
+
+Cuando el análisis te convenza, la misma página trae **Importar a Konta**:
+
+| Qué | Cómo se decide |
+|---|---|
+| Se importa | Lo que te facturan **este** mes: cada compra (a cuotas, **por la cuota del mes**), los intereses y las comisiones |
+| También entra | La **cuota de este mes** de las compras de meses anteriores: es plata que sale ahora y es lo que hace que cuadre con el pago mínimo |
+| No se importa | El **valor completo** de una compra de meses anteriores (ya se contó cuando la compraste), los **ajustes** (suman y restan lo mismo) y los **pagos** (pagar lo tuyo no es un gasto) |
+| Si falta la cuota | La fila **no** se importa y se dice por qué: ni el valor completo (inflaría el mes) ni la mitad |
+| Dos veces | Nada se duplica: un movimiento ya importado se salta y lo dice |
+
+La previsualización te dice **cuánto suma** lo que se va a importar y lo compara con el
+**pago mínimo del corte**. Cuando coincide, es que el mes está bien: en los extractos reales
+probados, Davivienda importa **353.076,89** (su pago mínimo exacto) y Amex **956.314,13**
+frente a 956.315,00 (el banco redondea).
+
+Al importar, el **cupo utilizado** del corte queda registrado como deuda de la tarjeta, y el
+**pago total** aparece en las alertas con la fecha límite que dice el extracto.
+
+> Nada entra en tus cuentas sin que lo hayas visto: primero el análisis, después la
+> previsualización con lo que se omite y por qué, y solo entonces el botón.
 
 - **Lo anterior al periodo no es un gasto nuevo**: los extractos listan el capital de compras de
   meses atrás. Esas filas se marcan *informativas* y se pueden ocultar (casilla de la tabla).

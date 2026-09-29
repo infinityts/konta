@@ -5,6 +5,9 @@ Genera avisos a partir de:
 - pólizas de seguro activas: la prima (`proximo_pago`) y el fin de vigencia
   (`fecha_fin`, para avisar de la renovación)
 - tarjetas activas con `dia_pago` o `dia_corte`
+- el **extracto** de una tarjeta: si ya se leyó, la obligación de pago es el **pago
+  total** con la **fecha límite que dice el propio extracto**, no una fecha estimada a
+  partir del día de pago configurado.
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import EstadoSuscripcion, Poliza, Suscripcion, Tarjeta
+from .models import EstadoSuscripcion, Extracto, Poliza, Suscripcion, Tarjeta
 from .recurrencia import hoy
 
 
@@ -96,7 +99,32 @@ def calcular_alertas(db: Session, usuario_id, dias: int = 15) -> list[dict]:
         select(Tarjeta).where(Tarjeta.usuario_id == usuario_id, Tarjeta.activa.is_(True))
     ).all()
     for t in tarjetas:
-        if t.dia_pago:
+        # Si hay un extracto leído con fecha límite de pago, esa manda: es el dato real
+        # (el pago total del corte), no una estimación por el día de pago configurado
+        extracto = db.scalars(
+            select(Extracto)
+            .where(
+                Extracto.tarjeta_id == t.id,
+                Extracto.fecha_pago.is_not(None),
+                Extracto.pago_total.is_not(None),
+            )
+            .order_by(Extracto.fecha_corte.desc().nullslast(), Extracto.creado_en.desc())
+        ).first()
+        if extracto is not None and extracto.fecha_pago is not None:
+            dr = (extracto.fecha_pago - hoy_).days
+            if dr <= dias:
+                alertas.append(
+                    {
+                        "tipo": "tarjeta_pago",
+                        "titulo": f"Pago tarjeta {t.nombre} (extracto del corte)",
+                        "fecha": extracto.fecha_pago,
+                        "dias_restantes": dr,
+                        "monto": extracto.pago_total,
+                        "moneda": extracto.moneda,
+                        "origen": "extracto",
+                    }
+                )
+        elif t.dia_pago:
             f = proxima_fecha_dia_mes(t.dia_pago)
             dr = (f - hoy_).days
             if dr <= dias:

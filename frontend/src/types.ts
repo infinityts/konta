@@ -495,6 +495,7 @@ export interface ExtractoMovimiento {
   etiqueta_id: string | null
   origen: string
   es_informativo: boolean
+  transaccion_id: string | null
 }
 
 export interface ControlConciliacion {
@@ -570,4 +571,46 @@ export interface AnalisisExtracto {
   intereses_declarados: string | null
   avisos: string[]
   sin_tasa: Array<Record<string, string>>
+}
+
+export interface ImportarLinea {
+  movimiento_id: string
+  fecha: string | null
+  descripcion: string
+  moneda: string
+  monto: string
+  valor_compra: string
+  tipo: string
+  incluir: boolean
+  motivo: string | null
+  ya_importado: boolean
+  es_gasto: boolean
+}
+
+export interface ImportarPreview {
+  extracto_id: string
+  lineas: ImportarLinea[]
+  resumen: ImportarResumen
+  pago_minimo: string | null
+  diferencia_pago_minimo: string | null
+  nota_pago_minimo: string | null
+}
+
+export interface ImportarResumen {
+  total: number
+  se_importan: number
+  se_omiten: number
+  gastos_por_moneda: Record<string, string>
+  ingresos_por_moneda: Record<string, string>
+  motivos: Record<string, number>
+  de_meses_anteriores: string
+}
+
+export interface ImportarResultado extends ImportarResumen {
+  extracto_id: string
+  creadas: number
+  deuda_registrada: string | null
+  pago_minimo: string | null
+  diferencia_pago_minimo: string | null
+  nota_pago_minimo: string | null
 }

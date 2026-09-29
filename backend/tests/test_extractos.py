@@ -141,9 +141,9 @@ def _excel_amex() -> bytes:
     import openpyxl
 
     libro = openpyxl.Workbook()
-    for nombre, moneda, compra, cuota, abono in (
-        ("PESOS", "COP", "24.900,00", "24.900,00", "-974.993,00"),
-        ("DOLARES", "USD", "10,54", "10,54", "-4,77"),
+    for nombre, moneda, compra, cuota, abono, ant_valor, ant_cuota, ant_pend in (
+        ("PESOS", "COP", "24.900,00", "24.900,00", "-974.993,00", "1.095.653,00", "73.043,53", "821.739,74"),
+        ("DOLARES", "USD", "10,54", "10,54", "-4,77", "156,42", "26,07", "104,28"),
     ):
         hoja = libro.create_sheet(nombre) if nombre != "Sheet" else libro.active
         hoja.title = nombre
@@ -152,6 +152,9 @@ def _excel_amex() -> bytes:
         hoja.append(["Pago mínimo", "1.000,00"])
         hoja.append(["Pago total", "5.000,00"])
         hoja.append(["Periodo facturado", "17 ago", "15 sep. 2026"])
+        hoja.append(["Pagar antes de", "30 sep. 2026"])
+        hoja.append(["Cupo total", "1.000.000,00"])
+        hoja.append(["Tienes disponible", "750.000,00"])
         hoja.append([])
         hoja.append(["Movimientos durante el periodo"])
         hoja.append(
@@ -166,7 +169,7 @@ def _excel_amex() -> bytes:
             ["Número de autorización", "Fecha", "Movimientos", "Valor Movimiento",
              "Número de cuotas", "Valor cuota/abono", "Saldo pendiente"]
         )
-        hoja.append(["333", "18/03/2026", "AMAZON.COM", "1.095.653,00", "6/24", "73.043,53", "821.739,74"])
+        hoja.append(["333", "18/03/2026", "AMAZON.COM", ant_valor, "6/24", ant_cuota, ant_pend])
     if "Sheet" in libro.sheetnames:
         del libro["Sheet"]
     buffer = io.BytesIO()

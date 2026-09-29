@@ -559,6 +559,8 @@ class AlertaOut(BaseModel):
     dias_restantes: int  # negativo = ya vencido
     monto: Decimal | None = None
     moneda: str | None = None
+    # 'extracto' cuando el monto y la fecha salen de un extracto leído, no del día de pago
+    origen: str | None = None
 
 
 # --- reportes ---

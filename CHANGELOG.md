@@ -1052,3 +1052,43 @@ números cuadran y leer el análisis.
   cuadran todos los controles**; el CMR (PDF) lee sus 30 movimientos pero su conciliación todavía
   no cuadra: imprime los pagos en positivo y llama «consumos del mes» al capital facturado. Queda
   como tarea propia.
+
+## v1.39 — Extractos, Fase 2: importar los movimientos
+
+Ya se puede pasar del análisis a las cuentas: **Importar a Konta** desde la misma página. Las
+reglas son las que decidiste, y cada una tiene su test.
+
+| Qué | Cómo se decide |
+|---|---|
+| Se importa | Lo que te facturan **este** mes: cada compra (**por la cuota del mes** si es a cuotas), intereses y comisiones |
+| También entra | La **cuota de este mes** de las compras de meses anteriores: es plata que sale ahora |
+| No se importa | El **valor completo** de una compra de meses anteriores (ya se contó al comprarla), los **ajustes** y los **pagos** |
+| Si falta la cuota del mes | La fila **no** se importa y se dice por qué: ni el valor completo (inflaría el mes) ni la mitad |
+| Si se importa dos veces | Nada se duplica: el movimiento ya importado se salta y lo dice |
+
+- **La prueba de que la semántica es la correcta**: lo que se importa **cuadra con el pago
+  mínimo del corte** en los dos extractos reales.
+  - **Davivienda**: 84.877,19 (cuotas de las compras del periodo) + 170.575,21 (cuotas de
+    compras anteriores) + 97.624,49 (intereses del corte) = **353.076,89, el pago mínimo
+    exacto**. Y los intereses de Davivienda **no** vienen en su tabla de movimientos: se añaden
+    desde la cifra que declara el corte (si vinieran como movimiento, como en Amex, no se
+    añadirían para no contarlos dos veces).
+  - **Amex**: **956.314,13** frente al pago mínimo declarado 956.315,00 (el banco redondea).
+- **Dos errores de clasificación que aparecieron al cuadrar el mes** (y que costaban dinero):
+  - `MERCADO PAGO*ROMEOKIDS` se clasificaba como **pago** por llevar «PAGO» dentro: es un
+    comercio. Seis filas así se saltaban **20.206,28** de cuotas del mes. Ahora las pasarelas
+    (`MERCADO PAGO`, `PAGOSEPAYCO`, `PAYU`, `WOMPI`, `EPAYCO`…) son compras, y «pago» solo
+    cuando lo es de verdad (`PAGO TARJETA`, `PAGOS POR PSE`, `ABONO`, `CANCELACION`…).
+  - Los patrones buscaban en el texto **con espacios**, y el extracto de CMR escribe
+    `PAG O TARJETA C MR`: ahora se buscan las dos formas (con espacios y sin ellos).
+- **La decisión del corte, aplicada**: el **cupo utilizado** se registra como **deuda** de la
+  tarjeta (es un nivel por moneda, justo lo que ya modelaba `DeudaTarjeta`) y el **pago total**
+  pasa a las **alertas** con la **fecha límite que dice el extracto**, en vez de la fecha
+  estimada por el día de pago configurado.
+- **En la interfaz**: previsualización con lo que se importa, lo que se omite y el porqué, la
+  comparación con el pago mínimo, una casilla para incluir o no las cuotas anteriores
+  (por defecto sí, que es lo que pagas), el semáforo de «importado» en cada fila y el aviso de
+  cuántas transacciones se crearon.
+- Tests: **156 en verde** (antes 142), con las reglas una por una y la importación de punta a
+  punta: importar, no duplicar al pulsar otra vez, la deuda registrada y la alerta con el pago
+  total del extracto.

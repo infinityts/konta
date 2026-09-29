@@ -20,6 +20,12 @@ from ..extractos import (
     marcar_informativos,
     parsear,
 )
+from ..importacion_extractos import (
+    comparar_con_el_pago_minimo,
+    ejecutar_importacion,
+    plan_de_importacion,
+    resumen_del_plan,
+)
 from ..models import (
     Categoria,
     Cuenta,
@@ -34,6 +40,9 @@ from ..schemas_extractos import (
     AnalisisOut,
     ExtractoDetalleOut,
     ExtractoOut,
+    ImportarIn,
+    ImportarPreviewOut,
+    ImportarResultadoOut,
     MovimientoOut,
 )
 
@@ -81,13 +90,7 @@ def _clasificar_movimientos(
 
 
 def _detalle(db: Session, extracto: Extracto) -> ExtractoDetalleOut:
-    movimientos = list(
-        db.scalars(
-            select(ExtractoMovimiento)
-            .where(ExtractoMovimiento.extracto_id == extracto.id)
-            .order_by(ExtractoMovimiento.orden)
-        ).all()
-    )
+    movimientos = _movimientos(db, extracto.id)
     # `conciliacion` se guarda como texto JSON en la base (una lista de controles) y el
     # esquema la devuelve ya como lista, así que se arma a mano en vez de validar el ORM
     datos = {
@@ -375,6 +378,83 @@ def analizar_extracto(
         avisos=avisos,
         sin_tasa=sin_tasa,
     )
+
+
+def _movimientos(db: Session, extracto_id: uuid.UUID) -> list[ExtractoMovimiento]:
+    return list(
+        db.scalars(
+            select(ExtractoMovimiento)
+            .where(ExtractoMovimiento.extracto_id == extracto_id)
+            .order_by(ExtractoMovimiento.orden)
+        ).all()
+    )
+
+
+@router.get("/{extracto_id}/importar", response_model=ImportarPreviewOut)
+def previsualizar_importacion(
+    extracto_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+    incluir_cuotas_anteriores: bool = Query(
+        True, description="Incluir la cuota de este mes de compras de meses anteriores"
+    ),
+) -> ImportarPreviewOut:
+    """Qué se importaría: la **cuota del mes** como gasto y lo que se omite, con el porqué.
+
+    La previsualización y la importación usan **el mismo plan**, así que lo que ves es
+    exactamente lo que se crea.
+    """
+    extracto = get_owned(db, Extracto, extracto_id, user.id)
+    lineas = plan_de_importacion(
+        _movimientos(db, extracto.id), extracto, incluir_cuotas_anteriores
+    )
+    resumen = resumen_del_plan(lineas)
+    diferencia, nota = comparar_con_el_pago_minimo(resumen, extracto)
+    return ImportarPreviewOut(
+        extracto_id=extracto.id,
+        lineas=lineas,  # type: ignore[arg-type]
+        resumen=resumen,
+        pago_minimo=extracto.pago_minimo,
+        diferencia_pago_minimo=diferencia,
+        nota_pago_minimo=nota,
+    )
+
+
+@router.post("/{extracto_id}/importar", response_model=ImportarResultadoOut)
+def importar_extracto(
+    extracto_id: uuid.UUID,
+    data: ImportarIn | None = None,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+) -> ImportarResultadoOut:
+    """Crea las transacciones del periodo del extracto.
+
+    Se le dice **de dónde sale el dinero** (`tarjeta_id` y/o `cuenta_id`). Si la tarjeta
+    es de débito, la transacción hereda su cuenta. Los movimientos ya importados no se
+    repiten: se puede pulsar dos veces sin duplicar nada.
+    """
+    extracto = get_owned(db, Extracto, extracto_id, user.id)
+    cuenta_id = data.cuenta_id if data else None
+    tarjeta_id = data.tarjeta_id if data else None
+    if cuenta_id is not None:
+        get_owned(db, Cuenta, cuenta_id, user.id)
+    tarjeta = None
+    if tarjeta_id is not None:
+        tarjeta = get_owned(db, Tarjeta, tarjeta_id, user.id)
+        if tarjeta.tipo == "debito" and cuenta_id is None:
+            cuenta_id = tarjeta.cuenta_id
+
+    resultado = ejecutar_importacion(
+        db,
+        user.id,
+        extracto,
+        _movimientos(db, extracto.id),
+        cuenta_id=cuenta_id,
+        tarjeta_id=tarjeta_id,
+        incluir_cuotas_anteriores=(data.incluir_cuotas_anteriores if data else True),
+    )
+    db.commit()
+    return ImportarResultadoOut(extracto_id=extracto.id, **resultado)
 
 
 def _avisos(extracto: Extracto, movimientos: list[ExtractoMovimiento]) -> list[str]:

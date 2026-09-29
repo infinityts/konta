@@ -63,10 +63,29 @@ _PISTAS_TIPO: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("impuesto", (r"\bGMF\b", r"4X1000", r"IMPUESTO", r"\bIVA\b")),
     ("comision", (r"CUOTA DE MANEJO", r"COMISION", r"SEGURO", r"COBRO")),
     ("nomina", (r"NOMINA", r"SALARIO")),
-    ("pago", (r"\bPAGOS?\b", r"ABONO", r"CANCELACION", r"\bPSE\b")),
+    # OJO: «pago» solo cuando es un pago **de tu deuda**. `PAGO TARJETA`, `PAGOS POR
+    # PSE`, `ABONO`… Un comercio que se llama «MERCADO PAGO» no es un pago tuyo (ver
+    # `_PROCESADORES`): clasificarlo como pago se saltaba 20.206,28 de cuotas del mes.
+    (
+        "pago",
+        (
+            r"PAGOTARJETA",
+            r"PAGOSPORPSE",
+            r"PAGOSUCURSAL",
+            r"PAGOEFECTIVO",
+            r"PAGONACIONAL",
+            r"ABONO",
+            r"CANCELACION",
+            r"RECIBIDO",
+        ),
+    ),
     ("retiro", (r"RETIRO", r"CAJERO", r"AVANCE")),
     ("transferencia", (r"TRANSFERENCIA", r"TRASLADO")),
 )
+
+
+# Pasarelas y comercios cuyo nombre lleva «pago» dentro: son compras, no pagos
+_PROCESADORES = ("MERCADOPAGO", "PAGOSEPAYCO", "PAYU", "WOMPI", "EPAYCO", "GPAY", "APPLEPAY")
 
 
 def _plano(texto: str) -> str:
@@ -103,8 +122,15 @@ def patron_tolerante(clave: str) -> re.Pattern[str]:
 def tipo_de_movimiento(descripcion: str, valor: Decimal, cuotas_total: int | None) -> str:
     """Deduce qué es el renglón: compra, pago, interés, comisión, impuesto, ajuste…"""
     legible = _legible(descripcion)
+    plano = _plano(descripcion)
+    es_procesador = any(p in plano for p in _PROCESADORES)
     for tipo, pistas in _PISTAS_TIPO:
-        if any(re.search(p, legible) for p in pistas):
+        if tipo == "pago" and es_procesador and valor > 0:
+            continue  # «MERCADO PAGO» es el comercio, no un pago de tu deuda
+        # Se busca en las dos formas: con espacios (`PAGO TARJETA`) y sin ellos. Los PDF
+        # de banco parten las palabras (`PAG O TARJETA C MR`), así que la forma sin
+        # espacios también tiene que casar.
+        if any(re.search(p, legible) or re.search(p, plano) for p in pistas):
             return tipo
     if valor < 0:
         return "pago"  # negativo en un extracto de tarjeta es plata que entra
