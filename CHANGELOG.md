@@ -80,6 +80,9 @@ Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de 
 - **Dos huecos de UI** (el backend ya lo permite): **borrar un aporte** a una meta —hoy un
   monto mal tecleado obliga a borrar la meta entera— y **editar o borrar un producto** del
   mercado.
+- **Dos huecos de UI** (el backend ya lo permite): **borrar un aporte** a una meta —hoy un
+  monto mal tecleado obliga a borrar la meta entera— y **editar o borrar un producto** del
+  mercado.
 - **Quitar un valor de un ENUM**: `periodicidad.semestral` se queda aunque se baje la
   migración `0019`. No es que PostgreSQL lo prohíba: **no existe la sentencia**
   (`ALTER TYPE ... DROP VALUE` da error de sintaxis; comprobado). La única vía es
@@ -890,3 +893,50 @@ cerrarlo.
 - Tests: 72 en verde (antes 70). El nuevo comprueba que sea **una** transacción con el total,
   que las tres líneas apunten a ella, el monto forzado, la descripción propuesta, el aislamiento
   y que la cuenta se descuente **una sola vez**.
+
+## v1.35 — Limpieza de datos y el ENUM, resuelto (no era un resto)
+
+Antes de dar el proyecto por cerrado, una revisión de **qué datos hay de verdad** y de si
+queda algo sucio que sea mejor arreglar ahora que con datos reales dentro.
+
+### Los datos: solo había basura mía
+
+En el servidor de desarrollo había **16 bases**: las dos del Sistema de Contexto (`contexto`,
+`contexto_test`) y **14 `konta_*` que fui creando yo** en las rondas de verificación (una por
+prueba: migraciones, transferencias, pagos, linter, 0012, CI…). Ninguna la referencia el
+proyecto —la app apunta a `localhost:5433/finanzas` (el PostgreSQL de `docker-compose`) y el
+RAG a `contexto`— y ninguna tenía datos que no fueran de prueba. **Borradas las 14.** Queda una
+sola `konta_test` para poder correr la suite.
+
+Y de los valores «dudosos» en toda la base: **1 póliza semestral** (de prueba) y **0
+transferencias**.
+
+### El ENUM no era un resto, era una función
+
+La nota decía que `periodicidad.semestral` «se queda aunque se baje la `0019`». Al ir a
+quitarlo apareció lo importante: **`semestral` es una función viva**. Lo cubren cuatro tests
+(el peso mensual de una prima semestral es 1/6, «dos primas en 12 meses, no doce»), está en las
+opciones de *Pólizas* y de los recurrentes en *Transacciones*, y se explica en *Reportes*.
+Quitarlo habría sido borrar las pólizas y suscripciones semestrales —que en Colombia son de lo
+más común— a cambio de una simetría cosmética en el camino de rollback.
+
+**Decisión: se queda**, y ahora está escrito donde toca:
+- el `downgrade` de `0019` lleva la **receta verificada** por si algún día hace falta (quitar
+  los `DEFAULT` primero, migrar las filas después, recrear el tipo…), con sus dos trampas
+  reales y el aviso de que la conversión de datos es una decisión **de datos**, no técnica;
+- `0022` remite a esa receta (el mismo caso con `transferencia`).
+
+### Lo que sí era un hueco: nadie vigilaba la deriva de los ENUM
+
+Al probar la receta se descubrió que **`alembic check` no compara las etiquetas de un ENUM**
+(con el tipo recreado sin `semestral`, seguía diciendo que no había deriva). Es decir: un valor
+que exista en el código y no en la base —o al revés— pasaba el CI y fallaba en producción, al
+insertar justo esa fila.
+
+- **Nuevo test** `test_los_enums_de_la_base_coinciden_con_los_del_codigo`: compara las etiquetas
+  de los seis ENUM (`tipo_categoria`, `periodicidad`, `estado_suscripcion`, `tipo_tarjeta`,
+  `tipo_transaccion`, `periodicidad_ingreso`) entre la base y los enums de Python, y dice cuál
+  sobra y de qué lado. Comprobado que **detecta** una deriva real (`solo en el código
+  ['semestral']`), no solo que pasa cuando todo está bien.
+- Con esto, la sección *Pendiente / ideas* se queda con **una** entrada: los dos huecos de UI.
+- Tests: 73 en verde (antes 72).

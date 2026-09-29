@@ -9,9 +9,11 @@ ingreso del mismo monto (que ensuciaba reportes y flujo de caja): ahora hay un
 tipo `transferencia` con cuenta de origen (`cuenta_id`) y de destino
 (`cuenta_destino_id`).
 
-Nota de downgrade: PostgreSQL no permite **quitar** un valor de un ENUM, así que
-`transferencia` se queda en el tipo (inofensivo: sin la columna de destino no hay
-forma de crear una transferencia válida).
+Nota de downgrade: PostgreSQL no permite **quitar** un valor de un ENUM (`ALTER TYPE
+... DROP VALUE` no existe), así que `transferencia` se queda en el tipo. Es
+inofensivo: sin `cuenta_destino_id` no hay forma de crear una transferencia válida, y
+el valor es una función viva (mover dinero entre cuentas propias). La receta completa
+para recrear el tipo, con sus dos trampas, está comentada en `0019_polizas.py`.
 """
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql

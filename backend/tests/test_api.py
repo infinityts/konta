@@ -2571,3 +2571,55 @@ def test_solo_gasto_con_monto_del_recibo_y_sin_descripcion(client, engine):
     assert client.post(f"/facturas/{fid2}/confirmar-total", headers=h, json={
         "cuenta_id": cta_id,
     }).status_code == 404
+
+
+# --- los ENUM de la base y los del código no se separan -------------------- #
+
+
+def test_los_enums_de_la_base_coinciden_con_los_del_codigo(engine):
+    """Guarda contra una deriva que `alembic check` **no** ve.
+
+    Comprobado al recrear un tipo a mano: `alembic check` compara tablas, columnas,
+    índices y tipos, pero **no las etiquetas de un ENUM**. Si un valor existe en el
+    código y no en la base (o al revés), el check sigue diciendo que no hay deriva y
+    el fallo aparece en producción, al insertar justo esa fila. Esto lo cierra.
+    """
+    from sqlalchemy import text
+
+    from app.models import (
+        EstadoSuscripcion,
+        Periodicidad,
+        PeriodicidadIngreso,
+        TipoCategoria,
+        TipoTarjeta,
+        TipoTransaccion,
+    )
+
+    esperados = {
+        "tipo_categoria": TipoCategoria,
+        "periodicidad": Periodicidad,
+        "estado_suscripcion": EstadoSuscripcion,
+        "tipo_tarjeta": TipoTarjeta,
+        "tipo_transaccion": TipoTransaccion,
+        "periodicidad_ingreso": PeriodicidadIngreso,
+    }
+
+    with engine.connect() as conn:
+        for tipo, enum_py in esperados.items():
+            en_bd = {
+                fila[0]
+                for fila in conn.execute(
+                    text(
+                        "select enumlabel from pg_enum e "
+                        "join pg_type t on t.oid = e.enumtypid "
+                        "where t.typname = :tipo"
+                    ),
+                    {"tipo": tipo},
+                )
+            }
+            en_codigo = {m.value for m in enum_py}
+            assert en_bd, f"el tipo {tipo} no existe en la base"
+            assert en_bd == en_codigo, (
+                f"{tipo}: solo en la base {sorted(en_bd - en_codigo)}, "
+                f"solo en el código {sorted(en_codigo - en_bd)}"
+            )

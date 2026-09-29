@@ -177,4 +177,27 @@ def downgrade() -> None:
     op.drop_index("ix_polizas_proximo_pago", table_name="polizas")
     op.drop_index("ix_polizas_usuario_id", table_name="polizas")
     op.drop_table("polizas")
-    # `semestral` se queda en el ENUM: PostgreSQL no permite quitarlo.
+    # `semestral` se queda en el ENUM, y es **deliberado**:
+    #
+    # 1. No hay forma de quitarlo: `ALTER TYPE ... DROP VALUE` no existe (da error
+    #    de sintaxis; la única vía es recrear el tipo).
+    # 2. Aunque se pudiera, no se debe: `semestral` es una función viva (una póliza
+    #    o una suscripción que se paga cada 6 meses), con su matemática en
+    #    `recurrencia.factor_mensual` (1/6), sus opciones en la UI y sus tests.
+    #    Quitarlo sería borrar la función, no limpiar un resto.
+    #
+    # Si algún día hay que quitarlo de verdad, esta es la receta **verificada**:
+    #   1. `ALTER TABLE {suscripciones,polizas} ALTER COLUMN periodicidad DROP DEFAULT`
+    #      (sin esto: `DatatypeMismatch: default for column ... cannot be cast`);
+    #   2. migrar antes las filas con el valor (si no:
+    #      `InvalidTextRepresentation: invalid input value for enum ...`), y ojo:
+    #      decidir a qué pasan es una decisión **de datos**, no técnica (una póliza
+    #      semestral hecha mensual duplica su peso en el flujo de caja);
+    #   3. `CREATE TYPE periodicidad_nueva AS ENUM (los que queden)`;
+    #   4. `ALTER TABLE ... ALTER COLUMN periodicidad TYPE periodicidad_nueva
+    #      USING periodicidad::text::periodicidad_nueva` en las dos tablas;
+    #   5. `DROP TYPE periodicidad; ALTER TYPE periodicidad_nueva RENAME TO periodicidad`;
+    #   6. restaurar el `DEFAULT` y quitar `Periodicidad.SEMESTRAL` del código.
+    #
+    # Y recuerda: `alembic check` **no** compara las etiquetas del ENUM. De eso se
+    # encarga `test_los_enums_de_la_base_coinciden_con_los_del_codigo`.
