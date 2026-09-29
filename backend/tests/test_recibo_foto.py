@@ -102,9 +102,9 @@ def test_la_subida_le_pasa_el_nombre_y_el_tipo_al_extractor(client, monkeypatch)
     llamadas: list[tuple[str, str | None]] = []
     real = R.extraer_texto
 
-    def espia(contenido, nombre="", content_type=None):
+    def espia(contenido, nombre="", content_type=None, password=None):
         llamadas.append((nombre, content_type))
-        return real(contenido, nombre, content_type)
+        return real(contenido, nombre, content_type, password)
 
     monkeypatch.setattr(R, "extraer_texto", espia)
     _, h = _registrar(client)
