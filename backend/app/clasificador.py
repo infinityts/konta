@@ -41,9 +41,13 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
         "PEPINO RES", "LENGUA", "RABO", "OSOBUCO",
     ),
     "Lácteos y huevos": (
-        "LECHE", "QUESO", "HUEVO", "YOGUR", "YOGURT", "MANTEQUILLA", "MARGARINA", "CREMA", "KUMIS",
-        "CUAJADA", "AREQUIPE", "PARMESANO", "MOZAREL", "CREMOSINO", "CAMPESINO",
-        "ALQUERIA", "COLANTA", "ALPINA",
+        "LECHE", "QUESO", "HUEVO", "YOGUR", "YOGURT", "MANTEQUILLA", "MARGARINA", "CREMA",
+        "KUMIS", "CUAJADA", "AREQUIPE", "PARMESANO", "MOZAREL", "CREMOSINO", "CAMPESINO",
+        "ALQUERIA", "COLANTA", "ALPINA", "BONYURT", "VITAD", "PARMALAT", "YOPLAIT",
+        "DOBLE CREMA", "QUESO PERA", "CRIOLLO", "CREMA DE LECHE",
+        # La **avena líquida** es de nevera, así que va aquí. Las hojuelas de avena se
+        # quedan en Despensa por la palabra `HOJUELAS`, que es más larga y gana.
+        "AVENA",
     ),
     "Cuidado personal": (
         "SHAMPOO", "CREMA DENTAL", "SEDA DENT", "HILO DENTAL", "CEPILLO DE DIENTES",
@@ -60,10 +64,15 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
     "Despensa": (
         "ARROZ", "ACEITE", "PANELA", "PASTA", "AZUCAR", "CAFE", "HARINA", "ATUN",
         "SARDINA", "GALLETA", "CHOCOLATE", "SALSA", "CONDIMENTO", "FRIJOL",
-        "LENTEJA", "MAIZ", "AVENA", "CEREAL", "ESPAGUETI", "VINAGRE", "MAYONESA",
-        "MIEL", "GELATINA", "PAN ", "PANTAJADO", "SAL ", "SALSA DE TOMATE",
+        "LENTEJA", "MAIZ", "CEREAL", "ESPAGUETI", "VINAGRE", "MAYONESA",
+        "MIEL", "GELATINA", "PAN ", "PANTAJADO", "SAL ", "SALSA DE TOMATE", "HOJUELAS",
+        # `TOSTAOS BIMBO` es una galleta: sin la frase completa, `MANTEQUILLA` (más corta
+        # pero de Lácteos) se la llevaría a lácteos.
+        "TOSTAOS BIMBO",
         "SALSA NAPOLITANA", "SOPA", "CALDO", "LEVADURA", "AREPA", "TOSTADA",
         "TORTILLA", "SAZONADOR", "OREGANO", "TOMILLO", "COLOR MAC", "ACEITUNA",
+        # `AREPAS ... QUESO` es una arepa, no un lácteo: `AREPAS` (6) gana a `QUESO` (5)
+        "AREPAS", "AREPA DE",
         # «de tomate» y «en polvo» son más largas que TOMATE y CEBOLLA, así que ganan:
         # una salsa de tomate es despensa y una cebolla en polvo también
         "DE TOMATE", "EN POLVO", "TOSTADITA",

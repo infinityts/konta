@@ -41,6 +41,10 @@ IGNORAR = (
     "CUF", "CUFE", "AUTORIZACION", "VENCE", "WWW", "HTTP",
 )
 
+# Se busca por **palabra completa**, no por subcadena: con `in`, `PARMESANO` contenía
+# `MESA` y el queso parmesano se caía de la factura como si fuera una línea de restaurante.
+IGNORAR_RE = re.compile(r"\b(?:" + "|".join(re.escape(p) for p in IGNORAR) + r")\b")
+
 # "2 UN X 2.500" / "1.234 KG X 12.900" / "3 x 4.000"
 PATRON_CANT_X_UNIT = re.compile(
     rf"(\d+(?:[.,]\d+)?)\s*({UNIDADES})?\s*[Xx*]\s*\$?\s*(\d[\d.,]*)"
@@ -203,7 +207,7 @@ def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
         t = cruda.strip()
         if len(t) < 3:
             continue
-        if any(p in sin_acentos(t).upper() for p in IGNORAR):
+        if IGNORAR_RE.search(sin_acentos(t).upper()):
             pendiente = ""
             continue
 

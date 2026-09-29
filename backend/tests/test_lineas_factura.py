@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from app.clasificador import _por_diccionario, normalizar
+from app.clasificador import DICCIONARIO, _por_diccionario, normalizar, sin_acentos_upper
 from app.dinero import Formato, detectar_formato, parsear_monto
 from app.facturas import detectar_monto
 from app.lineas import cantidad, detectar_tipo, parsear_lineas
@@ -158,3 +158,109 @@ def test_un_articulo_desconocido_queda_sin_clasificar_y_el_usuario_decide():
     """Lo que el diccionario no sabe **no se inventa**: queda para que lo elija el usuario."""
     etiquetas = {"CARNES": "carnes", "DESPENSA": "despensa"}
     assert _etiqueta("PRODUCTO RARO SIN PISTAS", etiquetas) is None
+
+
+# --------------------------------------------------------------------------- #
+# Los productos reales de una cuenta que salían sin clasificar
+# --------------------------------------------------------------------------- #
+
+# Estas son las 16 descripciones que quedaron «sin clasificar» en una cuenta real, más
+# las que estaban mal puestas. La causa no era el diccionario: a esa cuenta le faltaban
+# las etiquetas `Lácteos y huevos` y `Cuidado personal`, y el diccionario empareja contra
+# **nombres de etiquetas**. Con las etiquetas completas, todas caen donde deben.
+PRODUCTOS_REALES: tuple[tuple[str, str], ...] = (
+    ("CEP COLGATE*4und SUPER FLEXI", "Cuidado personal"),
+    ("CREMA DE LECH ALQUERIA*170g CULINARIA", "Lácteos y huevos"),
+    ("CREMA DE LECH ALQUERIA*180g SEMIENTER", "Lácteos y huevos"),
+    ("DESOD REXONA*150ml*2und CLIN EXPERT W", "Cuidado personal"),
+    ("HUEVO ORO AA*30und ROSADO CAMPESINO T", "Lácteos y huevos"),
+    ("LECHE ALPINA*1000ml*4und DESLAC TETRA", "Lácteos y huevos"),
+    ("QUESO ALPINA*200g CREMOSINO", "Lácteos y huevos"),
+    ("QUESO ALPINA*240g MOZAREL TAJADO", "Lácteos y huevos"),
+    ("QUESO ALPINA*250g PARMESANO", "Lácteos y huevos"),
+    ("QUESO COLANTA*500g CUAJADA", "Lácteos y huevos"),
+    ("SEDA DENT FCARDENT*35mt LL60mt LIMPIE", "Cuidado personal"),
+    ("T.H NOSOTRAS*24und EXTRA PROTEC TELA", "Cuidado personal"),
+    ("YOGURT VITAD*150g FRESA", "Lácteos y huevos"),
+    ("YOGURT VITAD*150g MELOCOTON", "Lácteos y huevos"),
+    ("YOGURT VITAD*150g MORA", "Lácteos y huevos"),
+    # Estas dos salían en Despensa porque, al no existir Lácteos, ganaba otra palabra
+    ("YOGURT ALPINA*106ml CEREAL C/SOBRECOP", "Lácteos y huevos"),
+    ("MARGARINA CAMPI*250g C/SAL", "Lácteos y huevos"),
+    # Una arepa con queso es una arepa, no un lácteo (por eso están `AREPAS` y `AREPA DE`)
+    ("AREPAS MAIZAL*80g*10und QUESO", "Despensa"),
+    ("JAMON PIETRAN*230g STANDAR", "Carnes"),
+    # Cracker de mantequilla: la frase completa gana a `MANTEQUILLA`
+    ("TOSTAOS BIMBO*15g*20und MANTEQUILLA", "Despensa"),
+    # La avena de hojuelas es despensa; la líquida, lácteos
+    ("AVENA QUAKER*400g HOJUELAS SIN GLUTEN", "Despensa"),
+    ("AVENA LIQUIDA ALPINA*1000ml", "Lácteos y huevos"),
+    ("BONYURT*200g FRESA", "Lácteos y huevos"),
+)
+
+
+def test_los_productos_reales_se_clasifican_bien():
+    """Cada producto real de esa cuenta, en su etiqueta. Es la red que evita reincidir."""
+    etiquetas = {
+        sin_acentos_upper(n): n
+        for n in (
+            "Carnes", "Frutas y verduras", "Lácteos y huevos", "Despensa",
+            "Aseo del hogar", "Cuidado personal", "Gasolina", "Ropa", "Calzado", "Tecnología",
+        )
+    }
+    fallos = []
+    for descripcion, esperada in PRODUCTOS_REALES:
+        resultado = _por_diccionario(normalizar(descripcion), etiquetas)
+        obtenida = resultado[0] if resultado else "SIN CLASIFICAR"
+        if obtenida != esperada:
+            fallos.append((descripcion, esperada, obtenida))
+    assert fallos == [], f"{len(fallos)} de {len(PRODUCTOS_REALES)} mal: {fallos}"
+
+
+def test_el_diccionario_solo_usa_etiquetas_que_la_app_siembra():
+    """Toda etiqueta del diccionario tiene que estar en la siembra por defecto.
+
+    Si alguien añade palabras para una etiqueta que la app no crea, esas palabras no
+    clasifican **nada**: el diccionario empareja contra nombres de etiquetas existentes.
+    """
+    from app.defaults import ETIQUETAS_DICCIONARIO
+
+    sembradas = {n for nombres in ETIQUETAS_DICCIONARIO.values() for n in nombres}
+    faltan = [n for n in DICCIONARIO if n not in sembradas]
+    assert faltan == [], f"el diccionario usa etiquetas que nadie crea: {faltan}"
+
+
+def test_las_etiquetas_del_diccionario_se_completan_solas(client):
+    """El caso de la cuenta real: le falta `Lácteos y huevos` y por eso no clasifica.
+
+    Al leer las líneas, la app completa sola las etiquetas que el diccionario necesita.
+    """
+    from test_api import _pdf_minimo, _registrar
+
+    _, h = _registrar(client)
+
+    # Se borra `Lácteos y huevos`, que es lo que le pasaba a esa cuenta
+    etiquetas = client.get("/etiquetas", headers=h).json()
+    lacteos = next(e for e in etiquetas if e["nombre"] == "Lácteos y huevos")
+    assert client.delete(f"/etiquetas/{lacteos['id']}", headers=h).status_code == 204
+    assert not any(e["nombre"] == "Lácteos y huevos" for e in client.get("/etiquetas", headers=h).json())
+
+    # Se sube una factura con productos de lácteos y se leen las líneas
+    factura = client.post(
+        "/facturas",
+        headers=h,
+        files={"archivo": ("f.pdf", _pdf_minimo("factura"), "application/pdf")},
+    ).json()
+    texto = "LECHE ALPINA*1000ml 30.900\nQUESO ALPINA*250g PARMESANO 32.700\nYOGURT VITAD*150g FRESA 3.350\n"
+    r = client.post(f"/facturas/{factura['id']}/lineas", headers=h, json={"texto": texto})
+    assert r.status_code == 200, r.text
+    lineas = r.json()["lineas"]
+    assert len(lineas) == 3
+
+    # La etiqueta volvió a crearse sola…
+    despues = client.get("/etiquetas", headers=h).json()
+    lacteos = next((e for e in despues if e["nombre"] == "Lácteos y huevos"), None)
+    assert lacteos is not None, "la etiqueta que el diccionario necesita se recrea sola"
+    # …y las tres líneas quedaron clasificadas con ella
+    assert [li["etiqueta_id"] for li in lineas] == [lacteos["id"]] * 3
+    assert all(li["origen"] == "diccionario" for li in lineas)

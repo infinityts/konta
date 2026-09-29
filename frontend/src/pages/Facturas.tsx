@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { api, apiUpload } from '../api'
+import SelectBuscable, { type Opcion } from '../components/SelectBuscable'
 import {
   fmtMoney,
   type Categoria,
@@ -242,6 +243,11 @@ export default function Facturas() {
     return ops
   }
 
+  /** Todas las etiquetas en una lista plana con su categoría, para el buscador. */
+  const opcionesEtiquetas: Opcion[] = categorias.flatMap((c) =>
+    opcionesDeCategoria(c).map((o) => ({ ...o, grupo: c.nombre }))
+  )
+
   const totalDe = (lineas: FacturaLinea[]) =>
     lineas.reduce((acc, l) => acc + Number(l.valor_total), 0)
 
@@ -392,19 +398,15 @@ export default function Facturas() {
                             <option key={c.id} value={c.id}>{c.nombre}</option>
                           ))}
                         </select>
-                        <select
+                        <SelectBuscable
+                          opciones={opcionesEtiquetas.filter((o) =>
+                            bulkCat[f.id] ? o.grupo === categorias.find((c) => c.id === bulkCat[f.id])?.nombre : true
+                          )}
                           value={bulkEtq[f.id] ?? ''}
-                          onChange={(e) => setBulkEtq((s) => ({ ...s, [f.id]: e.target.value }))}
-                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                        >
-                          <option value="">Etiqueta…</option>
-                          {categorias
-                            .filter((c) => c.id === (bulkCat[f.id] ?? ''))
-                            .flatMap((c) => opcionesDeCategoria(c))
-                            .map((o) => (
-                              <option key={o.id} value={o.id}>{o.label}</option>
-                            ))}
-                        </select>
+                          onChange={(id) => setBulkEtq((s) => ({ ...s, [f.id]: id }))}
+                          textoVacio="Etiqueta…"
+                          placeholder="Buscar etiqueta…"
+                        />
                         <button
                           onClick={() => asignarEnBloque(f.id)}
                           disabled={ocupado === f.id || !bulkEtq[f.id]}
@@ -522,27 +524,13 @@ export default function Facturas() {
                                 {fmtMoney(l.valor_total)}
                               </td>
                               <td className="py-2 pr-3">
-                                <select
+                                <SelectBuscable
+                                  opciones={opcionesEtiquetas}
                                   value={l.etiqueta_id ?? ''}
-                                  onChange={(e) => cambiarEtiqueta(f.id, l.id, e.target.value)}
+                                  onChange={(id) => cambiarEtiqueta(f.id, l.id, id)}
                                   disabled={!!l.transaccion_id}
-                                  className="max-w-[16rem] rounded-lg border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-500"
-                                >
-                                  <option value="">Sin etiqueta</option>
-                                  {categorias.map((c) => {
-                                    const ops = opcionesDeCategoria(c)
-                                    if (!ops.length) return null
-                                    return (
-                                      <optgroup key={c.id} label={c.nombre}>
-                                        {ops.map((o) => (
-                                          <option key={o.id} value={o.id}>
-                                            {o.label}
-                                          </option>
-                                        ))}
-                                      </optgroup>
-                                    )
-                                  })}
-                                </select>
+                                  className="max-w-[16rem]"
+                                />
                               </td>
                               <td className="py-2 pr-3">
                                 {l.transaccion_id ? (

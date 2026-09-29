@@ -1,5 +1,6 @@
 """Tests de la API: auth, CRUD y aislamiento multi-usuario."""
 
+import calendar
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
@@ -2075,8 +2076,15 @@ def test_transaccion_recurrente_crea_el_compromiso(client):
     assert sub["nombre"] == "Arriendo" and float(sub["monto"]) == 1500000.0
     assert sub["periodicidad"] == "mensual" and sub["estado"] == "activa"
     assert sub["categoria_id"] == cat["id"] and sub["etiqueta_id"] == etq["id"]
-    # El día sale de la fecha: el compromiso apunta al MISMO día del mes siguiente
-    esperado = date(hoy_.year + (1 if hoy_.month == 12 else 0), 1 if hoy_.month == 12 else hoy_.month + 1, min(hoy_.day, 28))
+    # El día sale de la fecha: el compromiso apunta al MISMO día del mes siguiente,
+    # recortado al último día de ese mes cuando no existe (31 de enero -> 28 de febrero).
+    # Antes el test fijaba el día 28 a mano y solo pasaba hasta el día 28 del mes.
+    mes_esperado = hoy_.month % 12 + 1
+    anio_esperado = hoy_.year + (1 if hoy_.month == 12 else 0)
+    esperado = date(
+        anio_esperado, mes_esperado,
+        min(hoy_.day, calendar.monthrange(anio_esperado, mes_esperado)[1]),
+    )
     assert sub["proximo_pago"] == esperado.isoformat()
     assert sub["cuenta_id"] == cuenta["id"], "sin cuenta, el gasto del mes que viene no movería el saldo"
 

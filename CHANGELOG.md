@@ -1222,3 +1222,40 @@ vista. Ahora:
 - se muestra el **texto completo**, en un recuadro con scroll;
 - el resumen dice **cuántos caracteres** trae (para que se vea que no falta nada);
 - botón **Copiar todo**, porque el texto se estaba copiando a mano.
+
+## v1.44 — Que las etiquetas se completen solas, y buscador en el desplegable
+
+Salió de una factura real en producción: quesos, leche y yogures salían **«sin clasificar»**.
+La causa no era el diccionario, y el diagnóstico costó mirar la base de datos del usuario.
+
+- **La causa real**: el clasificador empareja sus palabras clave contra **nombres de
+  etiquetas**, y a esa cuenta le faltaban `Lácteos y huevos` y `Cuidado personal` (se creó
+  antes de que existieran). Sin ellas, ninguna palabra de lácteos podía casar: **13 de sus 16
+  líneas sin etiqueta eran lácteos** y 3 de cuidado personal. Y de paso explicaba dos que
+  estaban **mal** puestas: `YOGURT ALPINA*106ml CEREAL` y `MARGARINA CAMPI*250g C/SAL` caían
+  en Despensa porque, al no existir Lácteos, ganaba otra palabra.
+- **Se completan solas**: al leer las líneas de una factura, la app crea las etiquetas del
+  diccionario que falten (idempotente: solo lo que no está, y respeta categorías renombradas
+  o borradas). Antes había un botón para hacerlo a mano y, si no lo pulsabas, no te enterabas:
+  eso era un fallo de diseño.
+- **Migración `0027`**: completa esas etiquetas en **todas** las cuentas que ya existen, sin
+  esperar a que el usuario abra nada.
+- **Diccionario ampliado con los productos reales**: `BONYURT`, marcas (`VITAD`, `PARMALAT`,
+  `YOPLAIT`, `ALQUERIA`, `COLANTA`, `ALPINA`), más quesos (`DOBLE CREMA`, `QUESO PERA`,
+  `CRIOLLO`, `CREMOSINO`), `CREMA DE LECHE`. La **avena líquida** pasa a Lácteos y las
+  **hojuelas** se quedan en Despensa por la palabra `HOJUELAS`, que es más larga y gana.
+- **Tres correcciones finas que salieron de probarlo con sus datos**:
+  - `TOSTAOS BIMBO*...MANTEQUILLA` es un paquete de galletas: la frase completa gana a
+    `MANTEQUILLA`, que se lo llevaba a Lácteos.
+  - `AREPAS ... QUESO` es una arepa: `AREPAS` y `AREPA DE` ganan a `QUESO`.
+  - **Un bug de verdad en el parser**: `IGNORAR` buscaba por **subcadena** y `PARMESANO`
+    contiene `MESA`, así que el queso parmesano **se caía de la factura** como si fuera una
+    línea de restaurante. Ahora se busca por palabra completa. También apareció un test
+    dependiente de la fecha (solo pasaba hasta el día 28) y se corrigió.
+- **Buscador en el desplegable de etiquetas** (`SelectBuscable`): con 40 etiquetas, recorrer
+  la lista con el ojo era tedioso. Ahora escribes y filtra al instante, buscando por etiqueta
+  **o por categoría**, sin importar acentos ni mayúsculas, con teclado (↑ ↓ Enter Esc) y en
+  los dos sitios donde se elige etiqueta (cada línea y «aplicar a todas»).
+- Tests: **185 en verde** (antes 182), con los **16 productos reales** de esa cuenta como
+  casos, el auto-sembrado (borrar la etiqueta y ver que se recrea y clasifica) y la coherencia
+  entre el diccionario y las etiquetas que la app siembra.

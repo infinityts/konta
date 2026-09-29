@@ -480,6 +480,11 @@ Despensa, Frutas y verduras, Aseo del hogar, Cuidado personal…). El diccionari
 los artículos que ves de verdad: `PERNIL`, `MARGARINA`, `UVA`, `SANDIA`, `REPOLLITA`, y aprende
 que `SALSA ... DE TOMATE` es despensa y no verdura, o que `PEPINO RES` es carne de res.
 
+> **Las etiquetas que el diccionario necesita se crean solas.** Si a tu cuenta le falta
+> alguna (porque se creó antes de que existiera, o porque la borraste), al leer las líneas se
+> vuelve a crear: el diccionario empareja contra **nombres de etiquetas**, así que sin
+> «Lácteos y huevos» no había forma de etiquetar la leche ni los quesos.
+
 > **Va a fallar en algo, y está bien.** Puede que un artículo quede mal etiquetado o sin
 > etiquetar: para eso está el paso 3-4, que es donde tú decides. **Antes de confirmar** puedes
 > cambiar la etiqueta, descartar la línea o añadir la que falte, y la app lo aprende para la
@@ -490,7 +495,7 @@ que `SALSA ... DE TOMATE` es despensa y no verdura, o que `PEPINO RES` es carne 
 | 1. Subes el archivo | Se extrae el texto (OCR si es una foto, con preprocesado) y se detectan monto y fecha |
 | 2. **Leer líneas** | Parte el recibo en artículos y **los etiqueta solo**: `historial` → `diccionario` → `embeddings` |
 | 3. Revisas la tabla | Cada línea trae su etiqueta sugerida y de dónde salió (el *badge* de la derecha) |
-| 4. Corriges lo que esté mal | Cambia la etiqueta en el desplegable: la app **lo aprende** y la próxima vez lo acierta |
+| 4. Corriges lo que esté mal | Escribes en el desplegable y **filtra al instante** (por etiqueta o por categoría, sin importar acentos): la app **lo aprende** y la próxima vez lo acierta |
 | 5. Dices de dónde sale el dinero | **Tarjeta** (💳) y/o **cuenta**, y la **fecha** si el recibo es de otro día |
 | 6. **Confirmar N línea(s)** | Se crea **una transacción por artículo**, con su categoría y etiqueta |
 | 6b. **O «Un solo gasto»** | Se crea **una** transacción con el total y las líneas quedan como detalle suyo |

@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from ..clasificador import clasificar, normalizar
 from ..crud_utils import get_owned
+from ..defaults import sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..embeddings import make_embedding
 from ..facturas import detectar_fecha, detectar_monto, extraer_texto
@@ -197,6 +198,14 @@ def parsear(
         if linea.transaccion_id is None:
             db.delete(linea)
     db.flush()
+
+    # El diccionario empareja contra **nombres de etiquetas**, así que si a la cuenta le
+    # falta alguna (creada antes de que existiera, o borrada), sus productos salían «sin
+    # clasificar»: sin `Lácteos y huevos` no había forma de etiquetar la leche. Se
+    # completan aquí, solas. Es idempotente: solo crea lo que falta.
+    creadas = sembrar_etiquetas_diccionario(db, user.id)
+    if creadas:
+        db.flush()
 
     etiquetas = list(
         db.scalars(select(Etiqueta).where(Etiqueta.usuario_id == user.id)).all()
