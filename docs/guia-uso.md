@@ -368,6 +368,14 @@ si te pasas.
 | 4. Corriges lo que esté mal | Cambia la etiqueta en el desplegable: la app **lo aprende** y la próxima vez lo acierta |
 | 5. Dices de dónde sale el dinero | **Tarjeta** (💳) y/o **cuenta**, y la **fecha** si el recibo es de otro día |
 | 6. **Confirmar N línea(s)** | Se crea **una transacción por artículo**, con su categoría y etiqueta |
+| 6b. **O «Un solo gasto»** | Se crea **una** transacción con el total y las líneas quedan como detalle suyo |
+
+**¿Por artículo o un solo gasto?** Para la tira del súper, **por artículo**: cada cosa cae en su
+etiqueta y los reportes por categoría dicen algo. Para una compra de dos o tres cosas (ropa,
+tecnología), **un solo gasto**: así el listado no se llena de movimientos sueltos y la cuenta se
+descuenta una vez. El bloque *«O registra todo como un solo gasto»* está en el mismo panel: toma
+la cuenta, la tarjeta y la fecha de arriba, y si el total del recibo no cuadra con la suma de las
+líneas te ofrece usarlo con un clic.
 
 **Si son muchas y no quieres ir una por una**: en el bloque *«Asignar a las N sin
 clasificar»* elige categoría y etiqueta y pulsa **Aplicar**. Se aplica a todas las que están

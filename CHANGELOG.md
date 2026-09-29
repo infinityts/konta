@@ -77,9 +77,6 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de Contexto
 (RAG); aquí queda el **porqué** de cada decisión, para que no se pierda.
 
-- **Confirmar un recibo como un solo gasto**: hoy cada línea confirmada crea su transacción,
-  así que una compra de dos ítems son dos movimientos. Falta la opción de registrarlo como
-  **un único gasto** con el total, dejando las líneas como detalle.
 - **Dos huecos de UI** (el backend ya lo permite): **borrar un aporte** a una meta —hoy un
   monto mal tecleado obliga a borrar la meta entera— y **editar o borrar un producto** del
   mercado.
@@ -846,3 +843,34 @@ contaminaba todas las facturas siguientes sin manera de arreglarlo desde la app.
   el recibo se clasifica por `historial` → **borrarla** → el mismo recibo deja de reconocerse;
   y corregirla → el mismo artículo cambia de etiqueta. Más duplicados, patrón vacío, etiquetas
   ajenas (404) y aislamiento entre usuarios.
+
+## v1.34 — Un recibo: un gasto o un gasto por artículo
+
+El OCR por línea crea **una transacción por artículo**, que es lo correcto para la tira del
+súper (30 líneas, 30 cosas, cada una a su etiqueta) y un estorbo para una compra de dos o tres
+cosas: el listado y los reportes se llenan de movimientos sueltos. Faltaba la otra forma de
+cerrarlo.
+
+- **`POST /facturas/{id}/confirmar-total`**: crea **una sola** transacción con el total y deja
+  las líneas como **detalle** (todas enlazadas a esa transacción, y `factura.transaccion_id`
+  apuntando a ella). El detalle no se pierde: sigue en la tabla y en la base.
+- **El total**: si no se indica `monto`, es la **suma de las líneas pendientes** —lo que ves en
+  la tabla, no lo que el OCR creyó leer—. Y `monto` permite forzar el total del recibo cuando
+  el detectado difiere (la UI ofrece «usar el total del recibo (X)» con un clic).
+- **Descripción**: `descripcion` si la das; si no, el nombre del artículo cuando es uno solo, o
+  «Compra de N artículos». Antes esto no existía y una compra de tres cosas quedaba como tres
+  movimientos sin relación entre sí.
+- La **categoría sale del respaldo** (`etiqueta_id` o `categoria_id`): al ser un solo gasto no
+  hay una etiqueta por línea que heredar. Sin respaldo el gasto queda sin categoría, así que la
+  UI ya lo pide en el mismo bloque.
+- Se conservan las reglas del flujo por línea: de dónde sale el dinero (tarjeta de **débito**
+  hereda su cuenta), la fecha, el aislamiento por usuario (404) y «no hay líneas pendientes»
+  (400) al repetirlo.
+- **De paso, un refactor con red**: el contexto de pago (cuenta, tarjeta, fecha y respaldo) se
+  factorizó en `_contexto_de_pago` para no duplicarlo entre las dos formas de confirmar. Al
+  hacerlo, el decorador `@router.post("/confirmar")` quedó pegado a la clase auxiliar y FastAPI
+  la registró como endpoint (pedía sus parámetros como *query*). **Lo cazaron cuatro tests que
+  ya existían**, no la revisión: por eso conviene refactorizar con la suite delante.
+- Tests: 72 en verde (antes 70). El nuevo comprueba que sea **una** transacción con el total,
+  que las tres líneas apunten a ella, el monto forzado, la descripción propuesta, el aislamiento
+  y que la cuenta se descuente **una sola vez**.

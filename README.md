@@ -177,6 +177,12 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   **fecha** de la compra (útil si el recibo es de otro día o no trae fecha legible). Si la
   tarjeta es de **débito**, la transacción hereda su cuenta; si es de **crédito**, el gasto
   no toca la cuenta. **Cada línea crea su propia transacción** con su categoría y etiqueta.
+- **Un recibo, un gasto o un gasto por artículo**: `POST /facturas/{id}/confirmar-total`
+  cierra el recibo como **una sola** transacción con el total (las líneas quedan como
+  **detalle** suyo, todas enlazadas a esa transacción y la factura asociada a ella), para una
+  compra de dos o tres cosas. El flujo por línea sigue igual, que es lo que quieres para una
+  tira de súper de 30 artículos. Si no se indica `monto`, se usa la suma de las líneas; el
+  total que trae el recibo se puede forzar con un clic cuando el OCR lo detectó distinto.
 - **Tiras largas sin corregir línea por línea**: se elige una etiqueta y se **aplica a todas
   las que están sin clasificar** de una vez (y se aprende cada una para la próxima). Lo que
   el diccionario ya acertó no se pisa salvo que se pida. Y si al confirmar queda alguna sin
@@ -290,7 +296,7 @@ aislados por usuario.
 | **Etiquetas** | `GET/POST /etiquetas`, `GET/PATCH/DELETE /etiquetas/{id}`, `POST /etiquetas/diccionario` |
 | **Alertas** | `GET /alertas?dias=15` |
 | **Reportes** | `GET /reportes/mensual?meses=6`, `GET /reportes/categorias?mes=YYYY-MM`, `GET /reportes/seguros` |
-| **Facturas** | `GET/POST /facturas`, `GET/DELETE /facturas/{id}`, `POST /facturas/{id}/asociar`, `POST /facturas/{id}/lineas`, `PATCH /facturas/{id}/lineas` (en bloque), `PATCH/DELETE /facturas/{id}/lineas/{linea_id}`, `POST /facturas/{id}/confirmar` |
+| **Facturas** | `GET/POST /facturas`, `GET/DELETE /facturas/{id}`, `POST /facturas/{id}/asociar`, `POST /facturas/{id}/lineas`, `PATCH /facturas/{id}/lineas` (en bloque), `PATCH/DELETE /facturas/{id}/lineas/{linea_id}`, `POST /facturas/{id}/confirmar` (una por línea) y `POST /facturas/{id}/confirmar-total` (un solo gasto) |
 | **Presupuestos** | `GET/POST /presupuestos`, `PATCH/DELETE /presupuestos/{id}` |
 | **Importar** | `POST /importar/csv` (previsualizar), `POST /importar/confirmar` |
 | **Mercado** | `GET/POST /productos`, `GET/PATCH/DELETE /productos/{id}`, `GET /productos/{id}/comparativo`, `GET/POST /productos/{id}/precios` |
@@ -357,7 +363,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**70 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
+**72 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 **Antes de subir cambios**, los mismos tres pasos que corre el CI:
@@ -396,9 +402,10 @@ pytest
 - [x] **`/health` que comprueba la base**: 503 si PostgreSQL no contesta, y el `healthcheck` de compose lo usa (el frontend espera a que el backend esté *healthy*)
 - [x] **Linter (`ruff`) en CI**, con config acotada en `pyproject.toml` y `ruff check .` limpio
 - [x] **Reglas de OCR con interfaz**: ver, corregir y borrar lo que el clasificador ha aprendido (y deshacer un aprendizaje equivocado)
+- [x] **Un recibo como un solo gasto**: con el total y las líneas como detalle, para compras de dos o tres cosas
 
 Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
 decisión, en el `CHANGELOG`):
 
-- [ ] **Confirmar un recibo como un solo gasto**, **borrar un aporte** a una meta y
-  **editar/borrar productos** (detalle en el `CHANGELOG`)
+- [ ] **Borrar un aporte** a una meta y **editar/borrar productos** del mercado (detalle en
+  el `CHANGELOG`)
