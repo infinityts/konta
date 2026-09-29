@@ -23,6 +23,8 @@ import re
 import unicodedata
 from decimal import Decimal, InvalidOperation
 
+from .dinero import Formato, parsear_monto
+
 # Orden importa: las alternativas largas van primero (GALONES antes que G).
 UNIDADES = r"(?:GALONES|GALON|GAL|KGS|KG|GRS|GR|LT|LTS|ML|UND|UNI|UN|PZ|DOC|BOLSA|PAQ|G|L)"
 
@@ -65,15 +67,8 @@ def _decimal(s: str) -> Decimal | None:
 
 
 def monto(s: str) -> Decimal | None:
-    """Formato colombiano de dinero: el punto separa miles, la coma es decimal."""
-    s = s.strip().replace("$", "").replace(" ", "")
-    if not s:
-        return None
-    if "," in s:
-        s = s.replace(".", "").replace(",", ".")
-    else:
-        s = s.replace(".", "")
-    return _decimal(s)
+    """Dinero de un recibo: formato colombiano (delega en `dinero.parsear_monto`)."""
+    return parsear_monto(s, Formato.CO)
 
 
 def cantidad(s: str, unidad: str | None) -> Decimal | None:

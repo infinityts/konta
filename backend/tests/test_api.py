@@ -228,6 +228,10 @@ def test_facturas_extraccion_y_subida(client):
 
     assert str(detectar_monto("Total a pagar: 123.45")) == "123.45"
     assert str(detectar_fecha("Fecha: 2026-09-27")) == "2026-09-27"
+    # Regresión: `SUBTOTAL` no es el total, y el formato colombiano se lee bien.
+    # Antes daba 22.616 (el subtotal, y encima como 22,6).
+    assert detectar_monto(RECIBO) == Decimal("25116")
+    assert detectar_monto("TOTAL A PAGAR $ 1.500.000,00") == Decimal("1500000.00")
 
     _, h = _registrar(client)
     pdf = _pdf_minimo("Factura Total: 250.00")
@@ -236,6 +240,8 @@ def test_facturas_extraccion_y_subida(client):
     f = r.json()
     assert f["nombre_archivo"] == "f.pdf"
     assert f["monto_detectado"] is not None
+    # El valor, no solo que exista: aquí es donde se colaba el error de escala
+    assert Decimal(str(f["monto_detectado"])) == Decimal("250")
     assert len(client.get("/facturas", headers=h).json()) == 1
 
 
@@ -276,6 +282,33 @@ def test_importar_csv(client):
     assert r.status_code == 200
     assert r.json()["creadas"] == 2
     assert len(client.get("/transacciones", headers=h).json()) == 2
+
+
+def test_importar_csv_colombiano_no_corrompe_montos(client):
+    """El formato colombiano (punto de miles) se importa entero y bien.
+
+    Antes: `44.900` entraba como **44,9** y `1.500.000` **descartaba la fila** en
+    silencio (dos puntos decimales no son un número válido).
+    """
+    _, h = _registrar(client)
+    csv_txt = (
+        "Fecha,Descripcion,Valor\n"
+        "05/09/2026,NETFLIX.COM,44.900\n"
+        "06/09/2026,ARRIENDO,1.500.000\n"
+        "07/09/2026,NOMINA,4.500.000\n"
+        "08/09/2026,4X1000 GMF,1.200\n"
+    )
+    r = client.post(
+        "/importar/csv", headers=h,
+        files={"archivo": ("banco.csv", csv_txt.encode("utf-8"), "text/csv")},
+    )
+    assert r.status_code == 200, r.text
+    datos = r.json()
+    assert datos["total"] == 4, "no se debe descartar ninguna fila"
+    montos = [Decimal(str(f["monto"])) for f in datos["filas"]]
+    assert montos == [
+        Decimal("44900"), Decimal("1500000"), Decimal("4500000"), Decimal("1200")
+    ]
 
 
 def test_mercado_comparativo_y_lista(client):

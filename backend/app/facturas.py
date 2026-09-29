@@ -16,7 +16,9 @@ from __future__ import annotations
 import io
 import re
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+
+from .dinero import detectar_formato, parsear_monto
 
 TIPOS_IMAGEN = ("image/jpeg", "image/jpg", "image/png", "image/webp")
 EXTENSIONES_IMAGEN = (".jpg", ".jpeg", ".png", ".webp")
@@ -83,34 +85,28 @@ def extraer_texto(contenido: bytes, nombre: str = "", content_type: str | None =
         return texto
 
 
-def _parse_monto(texto: str) -> Decimal | None:
-    s = texto.strip()
-    if "," in s and "." in s:
-        if s.rfind(",") > s.rfind("."):
-            s = s.replace(".", "").replace(",", ".")
-        else:
-            s = s.replace(",", "")
-    elif "," in s:
-        s = s.replace(",", ".")
-    try:
-        return Decimal(s)
-    except InvalidOperation:
-        return None
-
-
 def detectar_monto(texto: str) -> Decimal | None:
-    m = re.search(
-        r"(?:total|valor|monto|importe|a pagar)[^\d]{0,25}(\d[\d.,]*)",
-        texto,
-        re.IGNORECASE,
-    )
-    if m:
-        v = _parse_monto(m.group(1))
-        if v is not None:
-            return v
+    """Monto total del documento.
+
+    El patrón anterior buscaba `total` en cualquier parte, sin límite de palabra, así
+    que en un recibo con `SUBTOTAL 22.616` y `TOTAL 25.116` se quedaba con el
+    **subtotal** (y encima lo leía como 22,6). Con `\btotal\b` no casa dentro de
+    `SUBTOTAL`, pero sí en `Factura Total: 250.00`. Se toma el **último**: los recibos
+    ponen el total al final, después de subtotal e impuestos.
+    """
+    formato = detectar_formato([texto])
+    for patron in (
+        r"(?i)\btotal(?:\s+a\s+pagar|\s+general|\s+neto)?\b[^\d]{0,25}(\d[\d.,]*)",
+        r"(?i)\b(?:valor\s+total|importe\s+total|monto\s+total)\b[^\d]{0,25}(\d[\d.,]*)",
+    ):
+        encontrados = re.findall(patron, texto)
+        if encontrados:
+            valor = parsear_monto(encontrados[-1], formato)
+            if valor is not None:
+                return valor
     # Fallback: el número con formato de dinero más grande
     candidatos = re.findall(r"\d[\d.,]{2,}", texto)
-    valores = [v for v in (_parse_monto(c) for c in candidatos) if v is not None]
+    valores = [v for v in (parsear_monto(c, formato) for c in candidatos) if v is not None]
     return max(valores) if valores else None
 
 

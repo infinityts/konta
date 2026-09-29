@@ -10,7 +10,9 @@ import csv
 import io
 import re
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+
+from .dinero import detectar_formato, parsear_monto
 
 
 def _detectar_delimitador(texto: str) -> str:
@@ -20,26 +22,6 @@ def _detectar_delimitador(texto: str) -> str:
     except csv.Error:
         conteo = {d: muestra.count(d) for d in ",;\t|"}
         return max(conteo, key=conteo.get)
-
-
-def _parse_monto(texto: str) -> Decimal | None:
-    s = (texto or "").strip().replace("$", "").replace(" ", "")
-    if not s:
-        return None
-    negativo = s.startswith("-") or (s.startswith("(") and s.endswith(")"))
-    s = s.strip("-()")
-    if "," in s and "." in s:
-        if s.rfind(",") > s.rfind("."):
-            s = s.replace(".", "").replace(",", ".")
-        else:
-            s = s.replace(",", "")
-    elif "," in s:
-        s = s.replace(",", ".")
-    try:
-        v = Decimal(s)
-    except InvalidOperation:
-        return None
-    return -v if negativo else v
 
 
 def _parse_fecha(texto: str) -> date | None:
@@ -88,11 +70,14 @@ def parsear_csv(contenido: str, tipo_default: str = "gasto") -> list[dict]:
     if i_fecha is None or i_monto is None:
         return []
 
+    # El formato del dinero se infiere del archivo entero, no fila a fila
+    formato = detectar_formato(contenido.splitlines())
+
     crudos: list[tuple[date, str, Decimal]] = []
     for fila in datos:
         try:
             fecha = _parse_fecha(fila[i_fecha])
-            monto = _parse_monto(fila[i_monto])
+            monto = parsear_monto(fila[i_monto], formato)
         except IndexError:
             continue
         if fecha is None or monto is None:
