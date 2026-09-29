@@ -243,6 +243,33 @@ class SaludOut(BaseModel):
     error: str | None = None
 
 
+class ReglaOcrIn(BaseModel):
+    """Enseñar una regla: «este texto va siempre a esta etiqueta»."""
+
+    # Se normaliza igual que al aprender (mayúsculas, sin acentos ni códigos)
+    patron: str = Field(min_length=1, max_length=120)
+    etiqueta_id: uuid.UUID
+
+
+class ReglaOcrUpdate(BaseModel):
+    patron: str | None = Field(default=None, min_length=1, max_length=120)
+    etiqueta_id: uuid.UUID | None = None
+
+
+class ReglaOcrOut(BaseModel):
+    id: uuid.UUID
+    patron: str
+    etiqueta_id: uuid.UUID
+    # Dónde cae la regla, para que la interfaz muestre «Mercado › Carnes»
+    etiqueta_nombre: str | None = None
+    categoria_id: uuid.UUID | None = None
+    categoria_nombre: str | None = None
+    # Cuántas veces la ha usado el clasificador
+    veces_usada: int
+    creada_en: datetime
+    actualizada_en: datetime
+
+
 # --- transacciones ---
 
 

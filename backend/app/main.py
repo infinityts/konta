@@ -29,6 +29,7 @@ from .routers import (
     polizas,
     presupuestos,
     productos,
+    reglas_ocr,
     reportes,
     respaldo,
     saldos,
@@ -90,6 +91,7 @@ app.include_router(notificaciones.router)
 app.include_router(polizas.router)
 app.include_router(cuentas.router)
 app.include_router(saldos.router)
+app.include_router(reglas_ocr.router)
 
 
 @app.get("/health", response_model=SaludOut, responses={503: {"model": SaludOut}})

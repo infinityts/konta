@@ -71,6 +71,7 @@ export const GRUPOS: GrupoNav[] = [
     label: 'Herramientas',
     items: [
       { to: '/facturas', label: 'Facturas', icono: '🧾' },
+      { to: '/reglas-ocr', label: 'Reglas de OCR', icono: '🧠' },
       { to: '/importar', label: 'Importar', icono: '📥' },
       { to: '/mercado', label: 'Mercado', icono: '🛒' },
     ],

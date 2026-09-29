@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { api, apiUpload } from '../api'
 import {
   fmtMoney,
@@ -223,7 +224,12 @@ export default function Facturas() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold">Facturas (PDF)</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xl font-semibold">Facturas (PDF)</h2>
+        <Link to="/reglas-ocr" className="text-sm text-indigo-600 hover:underline">
+          Ver lo que el OCR ha aprendido →
+        </Link>
+      </div>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       {aviso && <p className="mt-2 text-sm text-emerald-700">{aviso}</p>}
 

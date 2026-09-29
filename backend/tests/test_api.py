@@ -2351,3 +2351,119 @@ def test_health_no_pide_token(client):
     """Lo consulta el orquestador, que no tiene credenciales de usuario."""
     assert client.get("/health").status_code == 200
     assert client.get("/transacciones").status_code == 401
+
+
+# --- reglas de OCR aprendidas: verlas, corregirlas y borrarlas -------------- #
+
+
+def _factura_con(client, engine, h, texto):
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Factura
+
+    usuario_id = client.get("/auth/me", headers=h).json()["id"]
+    Session = sessionmaker(bind=engine)
+    with Session.begin() as s:
+        f = Factura(usuario_id=usuario_id, nombre_archivo="r.txt", texto_extraido=texto)
+        s.add(f)
+        s.flush()
+        return str(f.id)
+
+
+def test_reglas_ocr_crud_y_deshacer_el_aprendizaje(client, engine):
+    """Lo que el clasificador aprende se puede ver, corregir y deshacer."""
+    _, h = _registrar(client)
+    etqs = {e["nombre"]: e for e in client.get("/etiquetas", headers=h).json()}
+
+    # Al principio no sabe nada
+    assert client.get("/reglas-ocr", headers=h).json() == []
+
+    # 1) Crear una regla a mano (sin esperar a corregir una línea)
+    r = client.post("/reglas-ocr", headers=h, json={
+        "patron": "  panela  cuadrada ", "etiqueta_id": etqs["Despensa"]["id"],
+    })
+    assert r.status_code == 201, r.text
+    regla = r.json()
+    # El patrón se normaliza igual que al aprender
+    assert regla["patron"] == "PANELA CUADRADA"
+    assert regla["etiqueta_nombre"] == "Despensa" and regla["categoria_nombre"] == "Mercado"
+    assert regla["veces_usada"] == 1
+    assert client.get("/reglas-ocr", headers=h).json()[0]["id"] == regla["id"]
+
+    # Y sirve: un recibo con ese artículo se clasifica por historial
+    fid = _factura_con(client, engine, h, "PANELA CUADRADA 500G        3.500\n")
+    lineas = client.post(f"/facturas/{fid}/lineas", headers=h, json={}).json()["lineas"]
+    assert lineas[0]["origen"] == "historial"
+    assert lineas[0]["etiqueta_id"] == etqs["Despensa"]["id"]
+
+    # 2) Corregirla: el mismo artículo ahora va a otra etiqueta
+    r = client.patch(f"/reglas-ocr/{regla['id']}", headers=h, json={
+        "etiqueta_id": etqs["Frutas y verduras"]["id"],
+    })
+    assert r.status_code == 200, r.text
+    assert r.json()["etiqueta_nombre"] == "Frutas y verduras"
+    fid = _factura_con(client, engine, h, "PANELA CUADRADA 500G        3.500\n")
+    lineas = client.post(f"/facturas/{fid}/lineas", headers=h, json={}).json()["lineas"]
+    assert lineas[0]["etiqueta_id"] == etqs["Frutas y verduras"]["id"]
+
+    # 3) Deshacer el aprendizaje: vuelve a no saber nada
+    assert client.delete(f"/reglas-ocr/{regla['id']}", headers=h).status_code == 204
+    assert client.get("/reglas-ocr", headers=h).json() == []
+    fid = _factura_con(client, engine, h, "PANELA CUADRADA 500G        3.500\n")
+    lineas = client.post(f"/facturas/{fid}/lineas", headers=h, json={}).json()["lineas"]
+    assert lineas[0]["origen"] != "historial", "sin regla, el artículo ya no se reconoce de memoria"
+
+    # 4) El flujo normal sigue aprendiendo (corregir una línea crea la regla)
+    fid = _factura_con(client, engine, h, "COSA RARA DEL SUPER       9.900\n")
+    linea = client.post(f"/facturas/{fid}/lineas", headers=h, json={}).json()["lineas"][0]
+    client.patch(f"/facturas/{fid}/lineas/{linea['id']}", headers=h, json={
+        "etiqueta_id": etqs["Carnes"]["id"],
+    })
+    aprendidas = client.get("/reglas-ocr", headers=h).json()
+    assert len(aprendidas) == 1
+    assert aprendidas[0]["patron"] == "COSA RARA DEL SUPER"
+    assert aprendidas[0]["etiqueta_nombre"] == "Carnes"
+    assert aprendidas[0]["veces_usada"] == 1
+
+
+def test_reglas_ocr_validaciones_y_aislamiento(client):
+    """Patrones duplicados o vacíos, etiquetas ajenas y reglas de otro usuario."""
+    _, h = _registrar(client)
+    etq = next(e for e in client.get("/etiquetas", headers=h).json() if e["nombre"] == "Carnes")
+    base = {"patron": "PECHUGA POLLO", "etiqueta_id": etq["id"]}
+
+    r = client.post("/reglas-ocr", headers=h, json=base)
+    assert r.status_code == 201, r.text
+    regla_id = r.json()["id"]
+
+    # Duplicado (aunque cambie el formato del texto, el patrón normalizado es el mismo)
+    r = client.post("/reglas-ocr", headers=h, json={**base, "patron": "pechuga  pollo"})
+    assert r.status_code == 400 and "Ya existe" in r.json()["detail"]
+    # Patrón que queda vacío al normalizar (solo códigos y símbolos)
+    assert client.post("/reglas-ocr", headers=h, json={
+        "patron": "  12.345  ", "etiqueta_id": etq["id"],
+    }).status_code == 422
+    # Etiqueta de otro usuario
+    _, h2 = _registrar(client)
+    etq2 = next(e for e in client.get("/etiquetas", headers=h2).json() if e["nombre"] == "Carnes")
+    assert client.post("/reglas-ocr", headers=h, json={
+        "patron": "OTRA COSA", "etiqueta_id": etq2["id"],
+    }).status_code == 404
+    # Y no puedo tocar ni ver las reglas del otro
+    assert client.get(f"/reglas-ocr/{regla_id}", headers=h2).status_code == 404
+    assert client.patch(f"/reglas-ocr/{regla_id}", headers=h2, json={
+        "etiqueta_id": etq2["id"],
+    }).status_code == 404
+    assert client.delete(f"/reglas-ocr/{regla_id}", headers=h2).status_code == 404
+
+    # Cambiar el patrón a uno que ya tengo da 400
+    otra = client.post("/reglas-ocr", headers=h, json={
+        "patron": "ARROZ DIANA", "etiqueta_id": etq["id"],
+    }).json()
+    assert client.patch(f"/reglas-ocr/{otra['id']}", headers=h, json={
+        "patron": "PECHUGA POLLO",
+    }).status_code == 400
+    # Y renombrarlo a algo libre funciona
+    assert client.patch(f"/reglas-ocr/{otra['id']}", headers=h, json={
+        "patron": "ARROZ DIANA 500G",
+    }).status_code == 200

@@ -88,6 +88,19 @@ export interface Transaccion {
   notas: string | null
 }
 
+export interface ReglaOcr {
+  id: string
+  patron: string
+  etiqueta_id: string
+  etiqueta_nombre: string | null
+  categoria_id: string | null
+  categoria_nombre: string | null
+  /** Cuántas veces la ha usado el clasificador */
+  veces_usada: number
+  creada_en: string
+  actualizada_en: string
+}
+
 export interface CopiarEtiquetas {
   previsualizar: boolean
   creadas: Etiqueta[]
