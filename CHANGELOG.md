@@ -1403,3 +1403,13 @@ Tests: **199 en verde** (antes 198).
   Se arregla con la marca completa y queda en **Despensa**.
 - Tests: **204 en verde** (antes 199), con el texto OCR **real** de la foto como fixture
   (sin depender de tesseract en CI).
+
+### v1.49.1 — «Transporte público» y «Uber / DiDi» no clasificaban nada
+
+La auditoría de tus etiquetas destapó el mismo problema que tenían Lácteos y Cuidado
+personal: **existían en la cuenta pero sin ninguna palabra** en el diccionario, así que un
+pasaje de Transmilenio o un viaje de Uber no se etiquetaban nunca. Ahora
+«Transporte público» reconoce Transmilenio, SITP, metro, buseta… y «Uber / DiDi» reconoce
+Uber, DiDi, Cabify, InDrive, Beat y taxi. Con su test.
+
+Tests: **205 en verde**.

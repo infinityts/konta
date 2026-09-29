@@ -44,7 +44,7 @@ ETIQUETAS_DICCIONARIO: dict[str, list[str]] = {
         "Cuidado personal",
     ],
     "Mascotas": ["Alimento", "Veterinario"],
-    "Transporte": ["Gasolina", "Parqueadero", "Peajes"],
+    "Transporte": ["Gasolina", "Parqueadero", "Peajes", "Transporte público", "Uber / DiDi"],
     # El diccionario también reconoce ropa, calzado y tecnología, y no hay una
     # categoría propia para ellos: «Otros gastos» es el cajón correcto.
     "Otros gastos": ["Ropa", "Calzado", "Tecnología"],

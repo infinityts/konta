@@ -123,6 +123,9 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
     "Veterinario": ("VETERINARIA", "VETERINARIO"),
     "Parqueadero": ("PARKING", "PARQUEADERO", "PARQUEADEROS", "ESTACIONAMIENTO"),
     "Peajes": ("PEAJE", "PEAJES", "TELEPEAJE"),
+    # Estas dos existían en la cuenta **sin ninguna palabra**: no clasificaban nada.
+    "Transporte público": ("TRANSMILENIO", "SITP", "METRO", "BUSETA", "COLECTIVO", "BUS"),
+    "Uber / DiDi": ("UBER", "DIDI", "CABIFY", "INDRIVE", "BEAT", "TAXI"),
     "Gasolina": (
         "GASOLINA", "COMBUSTIBLE", "DIESEL", "TERPEL", "PRIMAX", "TEXACO",
         "GALONES", "BIODIESEL", "EDS",

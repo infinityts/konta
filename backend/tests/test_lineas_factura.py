@@ -375,3 +375,29 @@ def test_las_etiquetas_de_transporte_y_la_salsa_fruco():
         if obtenida != esperada:
             fallos.append((descripcion, esperada, obtenida))
     assert fallos == [], fallos
+
+
+def test_las_etiquetas_de_transporte_que_estaban_sin_palabras():
+    """«Transporte público» y «Uber / DiDi» existían en la cuenta pero sin palabras."""
+    from app.defaults import ETIQUETAS_DICCIONARIO
+
+    etiquetas = {
+        sin_acentos_upper(n): n
+        for nombres in ETIQUETAS_DICCIONARIO.values()
+        for n in nombres
+    }
+    casos = (
+        ("PASAJE TRANSMILENIO", "Transporte público"),
+        ("RECARGA SITP", "Transporte público"),
+        ("UBER TRIP 29 SEP", "Uber / DiDi"),
+        ("DIDI RIDE", "Uber / DiDi"),
+        ("CABIFY VIAJE", "Uber / DiDi"),
+        ("TAXI RADIOTAXI", "Uber / DiDi"),
+    )
+    fallos = []
+    for descripcion, esperada in casos:
+        resultado = _por_diccionario(normalizar(descripcion), etiquetas)
+        obtenida = resultado[0] if resultado else "SIN CLASIFICAR"
+        if obtenida != esperada:
+            fallos.append((descripcion, esperada, obtenida))
+    assert fallos == [], fallos
