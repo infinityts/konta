@@ -81,11 +81,12 @@ relacionan las piezas.
 | `alertas.py` | Pagos próximos: suscripciones, **primas y vencimiento de pólizas** y corte/pago de tarjetas |
 | `reportes.py` | Agregación mensual y por categoría |
 | `facturas.py` | Extracción de texto (pypdf + OCR tesseract con preprocesado) y heurísticas monto/fecha |
+| `dinero.py` | **Parseo de dinero**: un solo parser para formato colombiano, US y mixto (signos, paréntesis, espacios internos, valores duplicados) y detección del formato del documento |
 | `lineas.py` | Parser de recibos: parte un texto OCR en líneas de artículo (descripción, cantidad, valor) y detecta el tipo de documento |
 | `clasificador.py` | Clasifica un artículo en cascada: historial (`reglas_ocr`) → diccionario → embeddings |
 | `embeddings.py` | Embeddings **opcionales** (Ollama) para el tercer nivel del clasificador; sin `FINANZAS_OLLAMA_URL` no sale a la red |
 | `presupuestos.py` | Límite mensual por categoría vs gasto real |
-| `importacion.py` | Parser CSV flexible (delimitador, columnas, signos, formatos de monto) |
+| `importacion.py` | Parser CSV flexible (delimitador, columnas, signos, formatos de monto; delega el dinero en `dinero.py`) |
 | `mercado.py` | Comparativo de precios por tienda |
 | `tasas.py` | Tasas de cambio: consulta, conversión y descarga desde internet |
 | `intereses.py` | Simulador de pago de deuda y conversión **E.A. ↔ mensual** |

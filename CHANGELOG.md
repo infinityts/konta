@@ -919,3 +919,48 @@ insertar justo esa fila.
   ['semestral']`), no solo que pasa cuando todo está bien.
 - Con esto, la sección *Pendiente / ideas* se queda con **una** entrada: los dos huecos de UI.
 - Tests: 73 en verde (antes 72).
+
+## v1.36 — El parseo de dinero estaba corrompiendo datos (Fase 0 de extractos)
+
+Antes de construir la lectura de extractos revisé el parseo de dinero, porque todo el valor
+de esa función depende de leer bien cada cifra. Había **tres copias** del parser (en
+`facturas`, `importacion` y `lineas`) y **solo la de `lineas`** entendía el formato
+colombiano. Las otras dos, que son las que usan el importador de CSV y la detección del total
+de una factura, estaban corrompiendo datos **en silencio**:
+
+| Entrada | Antes | Ahora |
+|---|---|---|
+| `44.900` | **44,9** | 44.900 |
+| `1.500.000` | **`None` → la fila se descartaba** | 1.500.000 |
+| `450.000` | **450** | 450.000 |
+| `(120.000)` | **-120** | -120.000 |
+| `44.900-` (signo al final) | **44,9** (perdía el signo) | -44.900 |
+| `$ 5.32 2 ,2 0` (espacios dentro) | fallaba | 5.322,20 |
+| `$9.568,71$9.568,71` (duplicado) | fallaba | 9.568,71 |
+
+Y en una factura con `SUBTOTAL 22.616` y `TOTAL 25.116`, el **total detectado** salía
+`22.616`: la expresión regular buscaba `total` sin límite de palabra, así que casaba con
+**«SUBTOTAL»**. Sobrevivió porque ningún test comprobaba el *valor* de `monto_detectado`,
+solo que no fuera `None`.
+
+- **`dinero.py`**: un solo parser, con `parsear_monto` (valor estricto), `buscar_montos`
+  (extraer valores de una línea), `detectar_formato` y `quitar_duplicado`.
+  - **Formato del documento inferido**: `44.900` es ambiguo (44.900 en Colombia, 44,9 en
+    EE. UU.) y lo decide el conjunto de cifras del archivo. Las tres hojas reales
+    (Davivienda, Amex en pesos y CMR) se detectan como colombianas, que es lo correcto.
+  - Regla de los dos separadores: **el último es el decimal** (`956,315.00` → 956.315;
+    `8.780.590,00` → 8.780.590), así conviven los dos formatos en el mismo archivo.
+  - Signos en las tres formas que usan los bancos (delante, detrás y paréntesis).
+- **Los tres sitios ahora usan el mismo parser** (`facturas`, `importacion` y `lineas`
+  delegan en `dinero.py`): se borran dos copias del parser roto.
+- **`detectar_monto` arreglado**: `\btotal\b` no casa dentro de `SUBTOTAL`, y se toma el
+  último total (el de después de subtotal e impuestos). Comprobado con el recibo de prueba:
+  **25.116** en vez de 22.616.
+- **Un límite que se dice en voz alta**: cuando el PDF **pega** dos valores sin separador
+  (`$108.515,3125,87` = pesos + dólares), no hay forma de partirlos por texto. `buscar_montos`
+  es conservador (nunca inventa céntimos partiendo un número pegado) y el aviso de que eso se
+  resuelve **parseando por columnas** está en el código y en un test.
+- Tests: **113 en verde** (antes 72). `tests/test_dinero.py` es una tabla con los formatos
+  reales de los tres extractos y del recibo, incluidos los tres pagos cuadrados al centavo
+  (Davivienda 5.195.786,83 · Amex 8.780.589,32 · CMR 571.527,30). Y dos tests de regresión en
+  los puntos de uso: el CSV colombiano (que ya no pierde filas) y el valor de `monto_detectado`.
