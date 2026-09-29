@@ -13,6 +13,7 @@ transacción por línea**.
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -27,6 +28,7 @@ from ..defaults import sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..embeddings import make_embedding
 from ..facturas import detectar_fecha, detectar_monto, extraer_texto, nombre_factura
+from ..impuestos import a_json, detectar_impuestos
 from ..lineas import detectar_tipo, parsear_lineas
 from ..models import (
     Categoria,
@@ -46,6 +48,7 @@ from ..schemas import (
     ArticuloDetalleOut,
     AsignarEtiquetaIn,
     AsociarFacturaIn,
+    AsociarOut,
     ConfirmarLineasIn,
     ConfirmarTotalIn,
     DetalleFacturaOut,
@@ -80,6 +83,15 @@ def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
     detalle.lineas = [FacturaLineaOut.model_validate(li) for li in lineas]
     if factura.texto_extraido or lineas:
         detalle.tipo_documento = detectar_tipo(factura.texto_extraido or "", lineas)
+    # Auditoría: ¿cuadra con la transacción asociada?
+    if factura.transaccion_id:
+        tx = db.get(Transaccion, factura.transaccion_id)
+        detalle.transaccion_monto = tx.monto if tx else None
+        detalle.descuadre = (
+            tx.monto - factura.monto_detectado
+            if tx is not None and factura.monto_detectado is not None
+            else None
+        )
     return detalle
 
 
@@ -135,12 +147,21 @@ async def subir(
         raise HTTPException(status_code=413, detail="El archivo supera 10 MB")
 
     texto = extraer_texto(contenido)
+    impuestos = detectar_impuestos(texto) if texto else None
     factura = Factura(
         usuario_id=user.id,
         nombre_archivo=archivo.filename or "factura.pdf",
         texto_extraido=texto[:20000] if texto else None,
         monto_detectado=detectar_monto(texto) if texto else None,
         fecha_detectada=detectar_fecha(texto) if texto else None,
+        impuestos_total=impuestos["impuestos_total"] if impuestos else None,
+        iva_valor=(
+            sum((d["valor"] for d in impuestos["detalle"] if d["nombre"] == "IVA"), Decimal("0"))
+            if impuestos
+            else None
+        ),
+        descuento=impuestos["descuento"] if impuestos else None,
+        impuestos_detalle=json.dumps(a_json(impuestos)) if impuestos else None,
     )
     db.add(factura)
     db.commit()
@@ -153,7 +174,7 @@ def obtener(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depend
     return _detalle(db, get_owned(db, Factura, id, user.id))
 
 
-@router.post("/{id}/asociar", response_model=FacturaOut)
+@router.post("/{id}/asociar", response_model=AsociarOut)
 def asociar(
     id: uuid.UUID,
     data: AsociarFacturaIn,
@@ -161,11 +182,30 @@ def asociar(
     user: Usuario = Depends(get_current_user),
 ):
     factura = get_owned(db, Factura, id, user.id)
-    get_owned(db, Transaccion, data.transaccion_id, user.id)  # valida que sea del usuario
-    factura.transaccion_id = data.transaccion_id
+    tx = get_owned(db, Transaccion, data.transaccion_id, user.id)
+    factura.transaccion_id = tx.id
     db.commit()
     db.refresh(factura)
-    return factura
+
+    # Auditoría: avisar si no cuadra o si huele a duplicado
+    aviso: str | None = None
+    descuadre: Decimal | None = None
+    if factura.monto_detectado is not None:
+        descuadre = tx.monto - factura.monto_detectado
+        if descuadre != 0:
+            aviso = (
+                f"La factura es {factura.monto_detectado:,.0f} y esa transacción es "
+                f"{tx.monto:,.0f}: no cuadra."
+            )
+        confirmadas = [
+            li.transaccion_id for li in _lineas(db, factura.id) if li.transaccion_id
+        ]
+        if confirmadas and tx.id not in confirmadas and descuadre == 0:
+            aviso = (
+                "Esta factura ya tiene artículos confirmados y esa transacción es del mismo "
+                "valor: parece un duplicado del gasto."
+            )
+    return AsociarOut(aviso=aviso, descuadre=descuadre)
 
 
 @router.delete("/{id}", status_code=204)
@@ -230,6 +270,7 @@ def parsear(
                 etiqueta_id=etiqueta_id,
                 origen=origen,
                 confianza=confianza,
+                iva_tipo=articulo.get("iva_tipo"),
             )
         )
     db.commit()

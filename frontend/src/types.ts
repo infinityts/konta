@@ -267,6 +267,9 @@ export interface Factura {
   monto_detectado: number | string | null
   fecha_detectada: string | null
   transaccion_id: string | null
+  impuestos_total: number | string | null
+  iva_valor: number | string | null
+  descuento: number | string | null
   creada_en: string
 }
 
@@ -283,11 +286,14 @@ export interface FacturaLinea {
   confianza: number | string | null
   orden: number
   transaccion_id: string | null
+  iva_tipo: 'gravado' | 'exento' | 'excluido' | null
 }
 
 export interface FacturaDetalle extends Factura {
   lineas: FacturaLinea[]
   tipo_documento: string | null
+  transaccion_monto: number | string | null
+  descuadre: number | string | null
 }
 
 export interface Presupuesto {

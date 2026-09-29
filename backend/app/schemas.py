@@ -593,11 +593,22 @@ class FacturaOut(BaseModel):
     monto_detectado: Decimal | None
     fecha_detectada: date | None
     transaccion_id: uuid.UUID | None
+    impuestos_total: Decimal | None = None
+    iva_valor: Decimal | None = None
+    descuento: Decimal | None = None
+    impuestos_detalle: str | None = None
     creada_en: datetime
 
 
 class AsociarFacturaIn(BaseModel):
     transaccion_id: uuid.UUID
+
+
+class AsociarOut(BaseModel):
+    """Resultado de asociar: `aviso` avisa de descuadre o de un posible duplicado."""
+
+    aviso: str | None = None
+    descuadre: Decimal | None = None
 
 
 # --- líneas de factura (OCR por línea) ---
@@ -617,6 +628,7 @@ class FacturaLineaOut(BaseModel):
     confianza: Decimal | None
     orden: int
     transaccion_id: uuid.UUID | None
+    iva_tipo: str | None = None
 
 
 class FacturaDetalleOut(FacturaOut):
@@ -624,6 +636,9 @@ class FacturaDetalleOut(FacturaOut):
 
     lineas: list[FacturaLineaOut] = []
     tipo_documento: str | None = None  # mercado | gasolina | servicios | restaurante | otro
+    # Comparación con la transacción asociada (auditoría): None si no hay asociada
+    transaccion_monto: Decimal | None = None
+    descuadre: Decimal | None = None  # transacción - factura (0 = cuadra)
 
 
 class MovimientoOut(BaseModel):

@@ -240,10 +240,13 @@ export default function Facturas() {
   async function asociar(facturaId: string) {
     const txId = sel[facturaId]
     if (!txId) return
-    await api(`/facturas/${facturaId}/asociar`, {
+    const r = await api<{ aviso: string | null }>(`/facturas/${facturaId}/asociar`, {
       method: 'POST',
       body: JSON.stringify({ transaccion_id: txId }),
     })
+    setAviso(r.aviso ?? '')
+    const d = await api<FacturaDetalle>(`/facturas/${facturaId}`)
+    setDetalles((prev) => ({ ...prev, [facturaId]: d }))
     cargar()
   }
 
@@ -335,7 +338,16 @@ export default function Facturas() {
                     {' · '}Fecha: {f.fecha_detectada ?? '—'}
                   </p>
                   {f.transaccion_id ? (
-                    <p className="mt-1 text-xs text-emerald-600">✓ Asociada a una transacción</p>
+                    detalle && detalle.descuadre != null && Number(detalle.descuadre) !== 0 ? (
+                      <p className="mt-1 text-xs text-red-600">
+                        ✗ No cuadra: factura {fmtMoney(f.monto_detectado)} vs transacción{' '}
+                        {fmtMoney(detalle.transaccion_monto)}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-emerald-600">
+                        ✓ Asociada{detalle?.transaccion_monto != null ? ` y cuadra con ${fmtMoney(detalle.transaccion_monto)}` : ''}
+                      </p>
+                    )
                   ) : (
                     <p className="mt-1 text-xs text-amber-600">Sin asociar</p>
                   )}

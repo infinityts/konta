@@ -117,7 +117,7 @@ PATRON_ITEM_NUMERADO = re.compile(r"^\s*(\d{1,3})\s+(\S.{2,})$")
 # (y combinaciones: `6,375* D`).
 PATRON_VALORES = re.compile(
     rf"^\s*(?P<ref>\S+)\s+(?P<cant>\d+(?:[.,]\d+)?)\s+(?P<um>{UNIDADES})\s+"
-    rf"(?P<vu>[\d.,]+)\s+(?P<total>[\d.,]+)[\sD*]*$",
+    rf"(?P<vu>[\d.,]+)\s+(?P<total>[\d.,]+)(?P<marca>[\sD*]*)$",
     re.IGNORECASE,
 )
 FIN_TABLA = re.compile(r"(?i)^\s*[-\s]*T\s?O\s?T\s?A\s?L\b")
@@ -167,12 +167,15 @@ def _parsear_factura_numerada(texto: str, formato: Formato) -> list[dict] | None
         if valores and pendiente:
             total = monto(valores.group("total"), formato)
             if total is not None and total > 0 and _es_articulo(pendiente):
+                estrellas = (valores.group("marca") or "").count("*")
+                iva_tipo = "exento" if estrellas >= 2 else "gravado" if estrellas == 1 else "excluido"
                 articulos.append(
                     {
                         "descripcion": pendiente[:200],
                         "cantidad": cantidad(valores.group("cant"), valores.group("um")),
                         "valor_unitario": monto(valores.group("vu"), formato),
                         "valor_total": total,
+                        "iva_tipo": iva_tipo,
                     }
                 )
             pendiente = None

@@ -1344,3 +1344,19 @@ opción de un solo movimiento estaba escondida y con el texto al revés.
   si ya confirmaste por línea, aparece «Unificar en un solo movimiento».
 - Tests: **192 en verde** (antes 188): el agrupado, el detalle por etiqueta, el unificar
   idempotente y el error claro si no hay nada confirmado.
+
+## v1.47 — IVA de las facturas y auditoría factura ↔ transacción
+
+- **IVA**: al subir una factura se lee su bloque tributario (IVA por tarifa, ICO, descuento,
+  ventas gravada/exenta/excluida) y se **concilia** contra el «Impuestos» que declara el
+  documento. Se guarda el total de impuestos, el IVA (sin el ICO), el descuento y el desglose
+  en JSON (migración `0029`). Además cada línea queda marcada con su tratamiento fiscal
+  (`*` gravado, `**` exento, sin marca excluido) para poder decir «el X % de tu mercado no
+  paga IVA». En la factura real de Cañaveral cuadra al peso: 2.148 + 75.443 + 1.022 = 78.613.
+- **Auditoría factura ↔ transacción**: la ficha de la factura muestra ahora la comparación con
+  la transacción asociada (✓ cuadra / ✗ no cuadra, con la diferencia). Y al asociar, si el
+  monto no cuadra avisa («la factura es 1.188.248 y esa transacción es 1.888.248: no cuadra»)
+  y si la factura ya tiene artículos confirmados y asocias otra del mismo valor, avisa
+  «parece un duplicado del gasto». Justo el typo que te pasó a ti se habría visto al instante.
+- Tests: **198 en verde** (antes 196): el bloque real que concilia, el guardado al subir, la
+  marca de IVA por línea, el caso «sin dato» y los dos avisos de auditoría.

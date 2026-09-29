@@ -477,6 +477,11 @@ class Factura(Base):
     transaccion_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("transacciones.id", ondelete="SET NULL"), nullable=True
     )
+    # Bloque tributario de la factura (migración 0029)
+    impuestos_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    iva_valor: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    descuento: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    impuestos_detalle: Mapped[str | None] = mapped_column(Text, nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 
@@ -506,6 +511,9 @@ class FacturaLinea(Base):
     transaccion_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("transacciones.id", ondelete="SET NULL"), nullable=True
     )
+    # Tratamiento fiscal del artículo según la marca de la factura (migración 0029):
+    # `*` gravado, `**` exento, sin marca excluido
+    iva_tipo: Mapped[str | None] = mapped_column(String(10), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 
