@@ -1300,3 +1300,24 @@ arregla con la frase completa (`AGUILA ROJA` → Despensa), que es más larga y 
 el café vuelve a Despensa y la cerveza sigue en Bebidas. Con su test.
 
 Tests: **188 en verde**.
+
+### v1.45.2 — El 502 al desplegar: nginx se quedaba con la IP vieja del backend
+
+Después de un despliegue, el portal cargaba (el HTML es estático) pero **toda la API devolvía
+502** y parecía que el servicio estaba caído. En el log del frontend estaba la pista:
+
+```
+connect() failed (113: Host is unreachable) while connecting to upstream,
+upstream: "http://10.89.3.76:8000/facturas"   ← una IP que ya no existía
+```
+
+**Causa**: nginx resuelve el nombre `backend` **una sola vez, al arrancar**, y se queda con esa
+IP. Al recrear el contenedor del backend (cada despliegue) cambia de IP → nginx apunta a un
+contenedor muerto. Yo recreé el frontend *antes* que el backend, así que quedó con la IP
+anterior.
+
+**Arreglo**: nginx ahora **re-resuelve** el backend cada 10 segundos (`resolver` + variable en
+`proxy_pass`), así que recrear el backend ya no rompe nada. **Verificado de verdad**: recreé el
+backend (IP nueva) y el proxy siguió respondiendo 200 sin tocar el frontend.
+
+De paso, el orden correcto de un despliegue es **backend primero y frontend después**.
