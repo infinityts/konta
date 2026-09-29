@@ -1379,3 +1379,27 @@ La pestaña de Reportes se rehizo por completo, con recharts y comparación entr
   ambiguo `D/M/Y`. Ahora se reconoce el año de 4 cifras primero.
 
 Tests: **199 en verde** (antes 198).
+
+## v1.49 — Leer la foto de un recibo (parqueadero) y afinar etiquetas
+
+- **La foto ya se leía**: `extraer_texto` hace OCR con tesseract (español) desde antes.
+  Lo que fallaba era el **tratamiento**: la foto de un parqueadero producía **seis
+  «artículos»** que en realidad eran la cabecera (NIT, dirección, correo, número de
+  resolución) y el documento se clasificaba como **mercado**.
+  - **Filtro de ruido de fotos**: se descartan correos y URLs, descripciones que son casi
+    todo números, números gigantes (una resolución de 18 billones no es un precio) y
+    etiquetas de documento (`No:`, `Ref.`, `CUFE`…). Además `IGNORAR` ganó las palabras de
+    cabecera que salen en las fotos (`AVENIDA`, `INGRESO`, `MATRICULA`, `DURACION`,
+    `OPERARIO`, `POLIZA`, `SOFTWARE`…).
+  - **Tipo de documento `parqueadero`**: un recibo con `PARKING` ya no se confunde con un
+    mercado (antes, «muchas líneas ⇒ mercado»).
+  - **Recibo sin artículos**: `confirmar-total` ahora funciona con **cero líneas** y usa el
+    monto detectado; en la ficha aparece «Registrar el gasto» con la categoría y la
+    etiqueta ya propuestas (**Transporte › Parqueadero**). Validado con la foto real:
+    TOTAL **4.100**, fecha **2026-09-29**, **0 artículos** inventados.
+- **Etiquetas nuevas**: `Parqueadero` y `Peajes` en Transporte (migración `0030`).
+- **Auditoría de las 120 líneas reales** (lo que pediste): correcta salvo **una** —
+  `SALSA FRUCO*165ml CARNES` caía en **Carnes** porque la palabra CARNES le ganaba a SALSA.
+  Se arregla con la marca completa y queda en **Despensa**.
+- Tests: **204 en verde** (antes 199), con el texto OCR **real** de la foto como fixture
+  (sin depender de tesseract en CI).

@@ -344,3 +344,34 @@ def test_el_cafe_de_marca_no_se_confunde_con_la_cerveza():
     assert cafe and cafe[0] == "Despensa", cafe
     cerveza = _por_diccionario(normalizar("CERVEZA AGUILA LATA 330ml"), etiquetas)
     assert cerveza and cerveza[0] == "Bebidas", cerveza
+
+
+def test_las_etiquetas_de_transporte_y_la_salsa_fruco():
+    """Parqueadero y Peajes (Transporte), y `SALSA FRUCO ... CARNES` es salsa, no carne.
+
+    La salsa se colaba en Carnes porque la palabra CARNES es más larga que SALSA y gana;
+    con la marca completa (`SALSA FRUCO`) vuelve a Despensa. Lo encontró la auditoría de
+    los 120 productos reales de la factura.
+    """
+    from app.defaults import ETIQUETAS_DICCIONARIO
+
+    etiquetas = {
+        sin_acentos_upper(n): n
+        for nombres in ETIQUETAS_DICCIONARIO.values()
+        for n in nombres
+    }
+    casos = (
+        ("SALSA FRUCO*165ml CARNES", "Despensa"),
+        ("SALSA FRUCO*165ml SOYA", "Despensa"),
+        ("PARQUEADERO CENTRO", "Parqueadero"),
+        ("PARKING MIDAS", "Parqueadero"),
+        ("PEAJE SALIDA BOGOTA", "Peajes"),
+        ("TELEPEAJE", "Peajes"),
+    )
+    fallos = []
+    for descripcion, esperada in casos:
+        resultado = _por_diccionario(normalizar(descripcion), etiquetas)
+        obtenida = resultado[0] if resultado else "SIN CLASIFICAR"
+        if obtenida != esperada:
+            fallos.append((descripcion, esperada, obtenida))
+    assert fallos == [], fallos

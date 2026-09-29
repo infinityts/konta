@@ -199,6 +199,37 @@ export default function Facturas() {
       await cargar()
     })
 
+  /** Categoría/etiqueta que se proponen para un recibo de servicio (parqueadero). */
+  function sugeridas(detalle: FacturaDetalle) {
+    if (detalle.tipo_documento === 'parqueadero') {
+      return {
+        categoria: categorias.find((c) => c.nombre === 'Transporte')?.id ?? '',
+        etiqueta: etiquetas.find((e) => e.nombre === 'Parqueadero')?.id ?? '',
+      }
+    }
+    return { categoria: '', etiqueta: '' }
+  }
+
+  /** Un recibo **sin artículos** (parqueadero, factura de servicios): un solo gasto. */
+  const registrarServicio = (facturaId: string, detalle: FacturaDetalle) => {
+    const sug = sugeridas(detalle)
+    return conOcupado(facturaId, async () => {
+      const d = await api<FacturaDetalle>(`/facturas/${facturaId}/confirmar-total`, {
+        method: 'POST',
+        body: JSON.stringify({
+          cuenta_id: cuentaSel[facturaId] || null,
+          tarjeta_id: tarjetaSel[facturaId] || null,
+          fecha: fechaSel[facturaId] || null,
+          categoria_id: respaldoCat[facturaId] ?? sug.categoria ?? null,
+          etiqueta_id: bulkEtq[facturaId] ?? sug.etiqueta ?? null,
+        }),
+      })
+      setDetalles((prev) => ({ ...prev, [facturaId]: d }))
+      setAviso('Gasto registrado desde el recibo.')
+      await cargar()
+    })
+  }
+
   /** Junta una factura confirmada línea por línea en **un** movimiento. */
   const unificar = (facturaId: string) =>
     conOcupado(facturaId, async () => {
@@ -388,7 +419,7 @@ export default function Facturas() {
                           : ''
                       })()}
                     </p>
-                    {pendientes.length > 0 && (
+                    {(pendientes.length > 0 || (detalle.lineas.length === 0 && !detalle.transaccion_id)) && (
                       <div className="flex flex-wrap items-center gap-2">
                         <select
                           value={tarjetaSel[f.id] ?? ''}
@@ -421,21 +452,64 @@ export default function Facturas() {
                           title="Fecha de la compra"
                           className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
                         />
-                        <button
-                          onClick={() => confirmarTotal(f.id)}
-                          disabled={ocupado === f.id}
-                          title="Un solo movimiento con los artículos como detalle (recomendado para el mercado)"
-                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                        >
-                          Registrar la compra
-                        </button>
-                        <button
-                          onClick={() => confirmar(f.id)}
-                          disabled={ocupado === f.id}
-                          className="text-xs text-slate-500 underline hover:text-slate-700"
-                        >
-                          o separar en {pendientes.length} movimientos
-                        </button>
+                        {detalle.lineas.length === 0 ? (
+                          <>
+                            <select
+                              value={respaldoCat[f.id] ?? sugeridas(detalle).categoria}
+                              onChange={(e) => setRespaldoCat((s) => ({ ...s, [f.id]: e.target.value }))}
+                              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                            >
+                              <option value="">Categoría…</option>
+                              {categorias
+                                .filter((c) => c.tipo === 'gasto')
+                                .map((c) => (
+                                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                                ))}
+                            </select>
+                            <SelectBuscable
+                              opciones={opcionesEtiquetas.filter(
+                                (o) =>
+                                  o.grupo ===
+                                  (categorias.find(
+                                    (c) => c.id === (respaldoCat[f.id] ?? sugeridas(detalle).categoria)
+                                  )?.nombre ?? '')
+                              )}
+                              value={bulkEtq[f.id] ?? sugeridas(detalle).etiqueta}
+                              onChange={(id) => setBulkEtq((s) => ({ ...s, [f.id]: id }))}
+                              textoVacio="Etiqueta…"
+                            />
+                            <button
+                              onClick={() => registrarServicio(f.id, detalle)}
+                              disabled={ocupado === f.id}
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              Registrar el gasto
+                            </button>
+                            <span className="text-xs text-slate-500">
+                              Recibo sin artículos
+                              {detalle.tipo_documento ? ` (${detalle.tipo_documento})` : ''}: un solo
+                              gasto de {fmtMoney(f.monto_detectado)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => confirmarTotal(f.id)}
+                              disabled={ocupado === f.id}
+                              title="Un solo movimiento con los artículos como detalle (recomendado para el mercado)"
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              Registrar la compra
+                            </button>
+                            <button
+                              onClick={() => confirmar(f.id)}
+                              disabled={ocupado === f.id}
+                              className="text-xs text-slate-500 underline hover:text-slate-700"
+                            >
+                              o separar en {pendientes.length} movimientos
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                     {pendientes.length === 0 &&

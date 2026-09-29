@@ -39,6 +39,10 @@ IGNORAR = (
     "REDENCION", "REGIMEN", "TELEFONO", "DIRECCION", "SUCURSAL", "DESCUENTO",
     "VUELTAS", "RECIBIDO", "COTIZACION", "PEDIDO", "MESA", "DOMICILIO",
     "CUF", "CUFE", "AUTORIZACION", "VENCE", "WWW", "HTTP",
+    # Cabeceras y pies típicos de un recibo **fotografiado** (parqueaderos, servicios)
+    "AVENIDA", "CARRERA", "CALLE", "DIAGONAL", "TRANSVERSAL", "INGRESO",
+    "MATRICULA", "DURACION", "OPERARIO", "METODO", "PREFIJO", "POLIZA",
+    "SOFTWARE", "FABRICANTE", "CONSUMIDOR", "EQUIVALENTE", "DOCUMENTO",
 )
 
 # Se busca por **palabra completa**, no por subcadena: con `in`, `PARMESANO` contenía
@@ -190,6 +194,33 @@ def _parsear_factura_numerada(texto: str, formato: Formato) -> list[dict] | None
     return articulos if len(articulos) >= 3 else None
 
 
+def _linea_plausible(descripcion: str, total: Decimal | None) -> bool:
+    """Descarta el ruido típico de una **foto**: NIT, direcciones, correos, resoluciones.
+
+    El OCR de una foto mete la cabecera y el pie del recibo (NIT, dirección, teléfono,
+    número de resolución). Sin este filtro, un recibo de parqueadero produce seis
+    «artículos» que en realidad son la cabecera.
+    """
+    d = (descripcion or "").strip()
+    if len(d) < 3:
+        return False
+    bajo = sin_acentos(d).lower()
+    if "@" in d or ".com" in bajo or "www" in bajo:
+        return False
+    letras = sum(1 for c in d if c.isalpha())
+    if letras < len(d) * 0.4:
+        return False
+    # Etiquetas de documento («No: POSE-85701», «Ref. 123»), no productos
+    primera = re.split(r"[\s:.\-]+", bajo)[0] if bajo else ""
+    if primera in {
+        "no", "n", "num", "nro", "numero", "doc", "documento", "consec",
+        "consecutivo", "ref", "referencia", "cude", "cufe", "pose", "radicado",
+    }:
+        return False
+    # Un número de resolución (18.764.116.142.437) no es un precio
+    return not (total is not None and total > Decimal("50000000"))
+
+
 def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
     """Devuelve los artículos detectados, en orden.
 
@@ -248,7 +279,7 @@ def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
             texto_desc = pendiente
         pendiente = ""
 
-        if not _es_articulo(texto_desc):
+        if not _es_articulo(texto_desc) or not _linea_plausible(texto_desc, total):
             continue
 
         articulos.append(
@@ -268,6 +299,9 @@ def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
 # --------------------------------------------------------------------------- #
 
 CLAVES_TIPO: list[tuple[str, tuple[str, ...]]] = [
+    # El parqueadero va primero: su recibo trae «PARKING» en el pie y, si no, el
+    # heurístico de «muchas líneas» lo tomaría por un mercado.
+    ("parqueadero", ("PARKING", "PARQUEADERO", "ESTACIONAMIENTO", "MATRICULA:", "DURACION:")),
     ("gasolina", ("GASOLINA", "COMBUSTIBLE", "DIESEL", "TERPEL", "PRIMAX", "TEXACO", "EDS ", "GALONES", "BIODIESEL")),
     ("servicios", ("ENERGIA", "ELECTRICIDAD", "ACUEDUCTO", "ALCANTARILLADO", "GAS NATURAL", "EPM", "ENEL", "CODENSA", "VANTI", "ETB", "CLARO", "MOVISTAR", "TIGO")),
     ("restaurante", ("RESTAURANTE", "CORRIENTAZO", "COCINA", "PARRILLA", "PIZZERIA", "CAFETERIA")),
@@ -276,7 +310,7 @@ CLAVES_TIPO: list[tuple[str, tuple[str, ...]]] = [
 
 
 def detectar_tipo(texto: str, lineas: list[dict] | None = None) -> str:
-    """Clasifica el documento: mercado, gasolina, servicios, restaurante u otro."""
+    """Clasifica el documento: parqueadero, gasolina, servicios, restaurante, mercado u otro."""
     norm = sin_acentos(texto).upper()
     for tipo, claves in CLAVES_TIPO:
         if any(c in norm for c in claves):

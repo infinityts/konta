@@ -91,6 +91,9 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
         "SARDINA", "GALLETA", "CHOCOLATE", "SALSA", "CONDIMENTO", "FRIJOL",
         "LENTEJA", "MAIZ", "CEREAL", "ESPAGUETI", "VINAGRE", "MAYONESA",
         "MIEL", "GELATINA", "PANTAJADO", "SAL ", "SALSA DE TOMATE", "HOJUELAS",
+        # `SALSA FRUCO*165ml CARNES` es una **salsa** para carnes: sin la marca, la
+        # palabra CARNES (más larga que SALSA) se la llevaba a la etiqueta Carnes.
+        "SALSA FRUCO",
         # `TOSTAOS BIMBO` es una galleta: sin la frase completa, `MANTEQUILLA` (más corta
         # pero de Lácteos) se la llevaría a lácteos.
         "TOSTAOS BIMBO",
@@ -118,6 +121,8 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
         "CAT CHOW", "CONCENTRADO PARA", "ALIMENTO PARA", "ARENA PARA GATO",
     ),
     "Veterinario": ("VETERINARIA", "VETERINARIO"),
+    "Parqueadero": ("PARKING", "PARQUEADERO", "PARQUEADEROS", "ESTACIONAMIENTO"),
+    "Peajes": ("PEAJE", "PEAJES", "TELEPEAJE"),
     "Gasolina": (
         "GASOLINA", "COMBUSTIBLE", "DIESEL", "TERPEL", "PRIMAX", "TEXACO",
         "GALONES", "BIODIESEL", "EDS",

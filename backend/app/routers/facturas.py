@@ -511,7 +511,40 @@ def confirmar_total(
     factura = get_owned(db, Factura, id, user.id)
     pago = _contexto_de_pago(db, user, factura, data)
 
-    pendientes = [li for li in _lineas(db, factura.id) if li.transaccion_id is None]
+    todas = _lineas(db, factura.id)
+    pendientes = [li for li in todas if li.transaccion_id is None]
+
+    # Un recibo de **servicio** (parqueadero, factura de servicios) no tiene artículos: se
+    # registra un único gasto con el total detectado.
+    if not todas:
+        total_sin_lineas = (data.monto if data and data.monto is not None else None) or factura.monto_detectado
+        if total_sin_lineas is None or total_sin_lineas <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="El recibo no tiene artículos ni un monto legible; corrige el total a mano",
+            )
+        descripcion_sin_lineas = ((data.descripcion or "").strip() if data else "") or nombre_factura(
+            factura.nombre_archivo
+        )
+        unico = Transaccion(
+            usuario_id=user.id,
+            tipo=TipoTransaccion.GASTO,
+            monto=total_sin_lineas,
+            moneda=user.moneda_principal,
+            fecha=pago.fecha,
+            descripcion=descripcion_sin_lineas,
+            categoria_id=pago.categoria_respaldo,
+            etiqueta_id=pago.respaldo.id if pago.respaldo is not None else None,
+            cuenta_id=pago.cuenta_id,
+            tarjeta_id=pago.tarjeta.id if pago.tarjeta else None,
+        )
+        db.add(unico)
+        db.flush()
+        factura.transaccion_id = unico.id
+        db.commit()
+        db.refresh(factura)
+        return _detalle(db, factura)
+
     if not pendientes:
         raise HTTPException(status_code=400, detail="No hay líneas pendientes de confirmar")
 

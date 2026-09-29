@@ -202,8 +202,13 @@ def test_reportes(client):
 
 
 def _pdf_minimo(texto: str) -> bytes:
-    """Construye un PDF mínimo válido con un texto (para probar la extracción)."""
-    contenido = f"BT /F1 24 Tf 72 720 Td ({texto}) Tj ET".encode()
+    """Construye un PDF mínimo válido con un texto (para probar la extracción).
+
+    Los paréntesis y la barra invertida se escapan: dentro de un literal de PDF
+    (…) sin escapar, un `)` cierra la cadena y el PDF queda inválido.
+    """
+    seguro = texto.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+    contenido = f"BT /F1 24 Tf 72 720 Td ({seguro}) Tj ET".encode()
     objetos = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
