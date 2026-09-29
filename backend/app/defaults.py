@@ -36,9 +36,14 @@ ETIQUETAS_DICCIONARIO: dict[str, list[str]] = {
         "Frutas y verduras",
         "Lácteos y huevos",
         "Despensa",
+        "Bebidas",
+        "Panadería",
+        "Snacks",
+        "Congelados",
         "Aseo del hogar",
         "Cuidado personal",
     ],
+    "Mascotas": ["Alimento", "Veterinario"],
     "Transporte": ["Gasolina"],
     # El diccionario también reconoce ropa, calzado y tecnología, y no hay una
     # categoría propia para ellos: «Otros gastos» es el cajón correcto.

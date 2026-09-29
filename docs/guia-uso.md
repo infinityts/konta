@@ -476,7 +476,9 @@ la suma de las líneas cuadra con el `TOTAL`**.
 ### El etiquetado es automático
 
 Cada artículo cae en su **Categoría › Etiqueta** sin que toques nada (Carnes, Lácteos y huevos,
-Despensa, Frutas y verduras, Aseo del hogar, Cuidado personal…). El diccionario se amplía con
+Despensa, **Bebidas**, **Panadería**, **Snacks**, **Congelados**, Frutas y verduras, Aseo del
+hogar, Cuidado personal, y **Mascotas** con Alimento y Veterinario). Las etiquetas que faltan
+en tu cuenta se crean solas la primera vez que lees una factura. El diccionario se amplía con
 los artículos que ves de verdad: `PERNIL`, `MARGARINA`, `UVA`, `SANDIA`, `REPOLLITA`, y aprende
 que `SALSA ... DE TOMATE` es despensa y no verdura, o que `PEPINO RES` es carne de res.
 

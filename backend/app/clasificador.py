@@ -61,18 +61,38 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
         "QUITAMANCHAS", "VANISH", "TC FAMILIA", "ACOLCHAMAX", "TOALLA DE COCINA",
         "PAPEL DE COCINA", "FAB", "AXION", "SUAVITEL", "BLANQUITA",
     ),
+    # Bebidas, panadería, snacks y congelados: estaban todas mezcladas en Despensa.
+    # Las palabras van **largas y específicas** a propósito (`PAPA FRITA`, no `PAPAS`),
+    # porque gana la más larga: con `PAPAS` a secas, las papas del mercado caerían aquí.
+    "Bebidas": (
+        "JUGO DE", "JUGO", "GASEOSA", "COCA COLA", "COCACOLA", "POSTOBON", "PEPSI",
+        "AGUA MINERAL", "AGUA", "REFRESCO", "MALTA", "PONY", "HIT", "CERVEZA",
+        "AGUILA", "POKER", "CLUB COLOMBIA", "VINO", "GATORADE", "POWERADE",
+        # `AROMATICA` a secas **no** va aquí: una «VELA AROMATICA» se iría a bebidas. El
+        # té se cubre con `TE ` y `TE VERDE`, que no chocan con nada.
+        "ENERGIZANTE", "TE ", "TE VERDE", "TE HINDU", "INFUSION", "SODA",
+    ),
+    "Panadería": (
+        "PAN ", "PANADERIA", "BOLLO", "BUÑUELO", "BUNUELO", "ALMOJABANA", "PANDEBONO",
+        "CROISSANT", "PONQUE", "TORTA", "BROWNIE", "BAGUETTE", "AREPAS", "AREPA DE",
+    ),
+    "Snacks": (
+        "MECATO", "DETODITO", "MARGARITA", "CHITOS", "PLATANITOS", "CHOCOLATINA",
+        "CHICLE", "MANI", "PAPA FRITA", "PAPAS FRITAS", "SNACK", "JET", "TOSTADITAS",
+    ),
+    "Congelados": (
+        "CONGELADO", "NUGGETS", "HELADO", "PIZZA CONGELADA", "HAMBURGUESA CONGELADA",
+    ),
     "Despensa": (
         "ARROZ", "ACEITE", "PANELA", "PASTA", "AZUCAR", "CAFE", "HARINA", "ATUN",
         "SARDINA", "GALLETA", "CHOCOLATE", "SALSA", "CONDIMENTO", "FRIJOL",
         "LENTEJA", "MAIZ", "CEREAL", "ESPAGUETI", "VINAGRE", "MAYONESA",
-        "MIEL", "GELATINA", "PAN ", "PANTAJADO", "SAL ", "SALSA DE TOMATE", "HOJUELAS",
+        "MIEL", "GELATINA", "PANTAJADO", "SAL ", "SALSA DE TOMATE", "HOJUELAS",
         # `TOSTAOS BIMBO` es una galleta: sin la frase completa, `MANTEQUILLA` (más corta
         # pero de Lácteos) se la llevaría a lácteos.
         "TOSTAOS BIMBO",
         "SALSA NAPOLITANA", "SOPA", "CALDO", "LEVADURA", "AREPA", "TOSTADA",
         "TORTILLA", "SAZONADOR", "OREGANO", "TOMILLO", "COLOR MAC", "ACEITUNA",
-        # `AREPAS ... QUESO` es una arepa, no un lácteo: `AREPAS` (6) gana a `QUESO` (5)
-        "AREPAS", "AREPA DE",
         # «de tomate» y «en polvo» son más largas que TOMATE y CEBOLLA, así que ganan:
         # una salsa de tomate es despensa y una cebolla en polvo también
         "DE TOMATE", "EN POLVO", "TOSTADITA",
@@ -88,6 +108,13 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
         "CHAMPINON", "MANDARINA", "PAPAYA", "GUAYABA", "LULO", "CURUBA", "MELON",
         "PERA", "GRANADA", "TOMATE DE ARBOL", "KIWI", "REPOLLITA", "PINA ORO",
     ),
+    # Mascotas: la categoría y sus etiquetas ya existen, pero sin palabras el diccionario
+    # no podía clasificar ni un concentrado.
+    "Alimento": (
+        "PURINA", "DOGOURMET", "PEDIGREE", "WHISKAS", "PRO PLAN", "DOG CHOW",
+        "CAT CHOW", "CONCENTRADO PARA", "ALIMENTO PARA", "ARENA PARA GATO",
+    ),
+    "Veterinario": ("VETERINARIA", "VETERINARIO"),
     "Gasolina": (
         "GASOLINA", "COMBUSTIBLE", "DIESEL", "TERPEL", "PRIMAX", "TEXACO",
         "GALONES", "BIODIESEL", "EDS",

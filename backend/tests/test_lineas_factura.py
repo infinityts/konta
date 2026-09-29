@@ -187,8 +187,8 @@ PRODUCTOS_REALES: tuple[tuple[str, str], ...] = (
     # Estas dos salían en Despensa porque, al no existir Lácteos, ganaba otra palabra
     ("YOGURT ALPINA*106ml CEREAL C/SOBRECOP", "Lácteos y huevos"),
     ("MARGARINA CAMPI*250g C/SAL", "Lácteos y huevos"),
-    # Una arepa con queso es una arepa, no un lácteo (por eso están `AREPAS` y `AREPA DE`)
-    ("AREPAS MAIZAL*80g*10und QUESO", "Despensa"),
+    # Una arepa con queso es una arepa, no un lácteo
+    ("AREPAS MAIZAL*80g*10und QUESO", "Panadería"),
     ("JAMON PIETRAN*230g STANDAR", "Carnes"),
     # Cracker de mantequilla: la frase completa gana a `MANTEQUILLA`
     ("TOSTAOS BIMBO*15g*20und MANTEQUILLA", "Despensa"),
@@ -201,12 +201,12 @@ PRODUCTOS_REALES: tuple[tuple[str, str], ...] = (
 
 def test_los_productos_reales_se_clasifican_bien():
     """Cada producto real de esa cuenta, en su etiqueta. Es la red que evita reincidir."""
+    from app.defaults import ETIQUETAS_DICCIONARIO
+
     etiquetas = {
         sin_acentos_upper(n): n
-        for n in (
-            "Carnes", "Frutas y verduras", "Lácteos y huevos", "Despensa",
-            "Aseo del hogar", "Cuidado personal", "Gasolina", "Ropa", "Calzado", "Tecnología",
-        )
+        for nombres in ETIQUETAS_DICCIONARIO.values()
+        for n in nombres
     }
     fallos = []
     for descripcion, esperada in PRODUCTOS_REALES:
@@ -264,3 +264,65 @@ def test_las_etiquetas_del_diccionario_se_completan_solas(client):
     # …y las tres líneas quedaron clasificadas con ella
     assert [li["etiqueta_id"] for li in lineas] == [lacteos["id"]] * 3
     assert all(li["origen"] == "diccionario" for li in lineas)
+
+
+def test_las_etiquetas_nuevas_clasifican_y_no_roban_productos():
+    """Bebidas, panadería, snacks, congelados y mascotas: nuevas etiquetas con sus palabras.
+
+    Lo importante aquí son las dos últimas: las palabras van **específicas** (`PAPA FRITA`)
+    para que no se lleven por delante productos que son de otra etiqueta (`PAPAS A GRANEL`
+    es mercado, no snack).
+    """
+    from app.defaults import ETIQUETAS_DICCIONARIO
+
+    etiquetas = {
+        sin_acentos_upper(n): n
+        for nombres in ETIQUETAS_DICCIONARIO.values()
+        for n in nombres
+    }
+    casos = (
+        ("JUGO DE NARANJA HIT", "Bebidas"),
+        ("GASEOSA COCA COLA 400ml", "Bebidas"),
+        ("AGUA MINERAL 600ml", "Bebidas"),
+        ("CERVEZA AGUILA LATA", "Bebidas"),
+        ("PAN BIMBO*90g*4und DORADO HAMBURGUES", "Panadería"),
+        ("BUÑUELO", "Panadería"),
+        ("ALMOJABANA", "Panadería"),
+        ("MECATO DETODITO", "Snacks"),
+        ("PAPA FRITA MARGARITA", "Snacks"),
+        ("HELADO CORONA", "Congelados"),
+        ("NUGGETS CONGELADOS", "Congelados"),
+        ("PURINA DOG CHOW 2kg", "Alimento"),
+        ("CONCENTRADO PARA PERRO", "Alimento"),
+        ("VETERINARIA CENTRAL", "Veterinario"),
+        # Y los que NO se pueden robar
+        ("PAPAS A GRANEL", "Frutas y verduras"),
+        ("PAPA AMARILLA A GRANEL", "Frutas y verduras"),
+        ("NARANJA DULCE A GRANEL", "Frutas y verduras"),
+    )
+    fallos = []
+    for descripcion, esperada in casos:
+        resultado = _por_diccionario(normalizar(descripcion), etiquetas)
+        obtenida = resultado[0] if resultado else "SIN CLASIFICAR"
+        if obtenida != esperada:
+            fallos.append((descripcion, esperada, obtenida))
+    assert fallos == [], f"{len(fallos)} de {len(casos)} mal: {fallos}"
+
+
+def test_un_producto_que_no_es_bebida_no_cae_en_bebidas():
+    """`AROMATICA` sola se llevaba la «VELA AROMATICA» a Bebidas: por eso no está.
+
+    Es el tipo de choque que aparece solo al probar con productos reales: la palabra
+    tiene dos sentidos y el diccionario se queda con el que no debe.
+    """
+    from app.defaults import ETIQUETAS_DICCIONARIO
+
+    etiquetas = {
+        sin_acentos_upper(n): n
+        for nombres in ETIQUETAS_DICCIONARIO.values()
+        for n in nombres
+    }
+    for descripcion in ("VELA AROMATICA VAINILLA", "PILAS AA DURACEL 4 UN"):
+        resultado = _por_diccionario(normalizar(descripcion), etiquetas)
+        obtenida = resultado[0] if resultado else "SIN CLASIFICAR"
+        assert obtenida != "Bebidas", f"{descripcion} no es una bebida (dio {obtenida})"

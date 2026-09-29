@@ -95,6 +95,22 @@ export default function Facturas() {
     }
   }
 
+  /**
+   * Recarga etiquetas y categorías.
+   *
+   * Hace falta después de leer líneas: el servidor **crea solo** las etiquetas del
+   * diccionario que le falten, y si la lista de la página no se recarga, el selector no
+   * encuentra la etiqueta recién asignada y una línea clasificada parece «Sin etiqueta».
+   */
+  async function recargarEtiquetas() {
+    const [cs, es] = await Promise.all([
+      api<Categoria[]>('/categorias'),
+      api<Etiqueta[]>('/etiquetas'),
+    ])
+    setCategorias(cs)
+    setEtiquetas(es)
+  }
+
   /** Parte el texto en líneas, las clasifica y las guarda. */
   const leerLineas = (id: string) =>
     conOcupado(id, async () => {
@@ -104,6 +120,7 @@ export default function Facturas() {
       })
       setDetalles((d) => ({ ...d, [id]: detalle }))
       await cargar()
+      await recargarEtiquetas()
     })
 
   /** Muestra las líneas ya guardadas de una factura. */
@@ -200,6 +217,7 @@ export default function Facturas() {
   const prepararDiccionario = (facturaId: string) =>
     conOcupado(facturaId, async () => {
       const r = await api<SembradoDiccionario>('/etiquetas/diccionario', { method: 'POST' })
+      await recargarEtiquetas()
       setEtiquetas(await api<Etiqueta[]>('/etiquetas'))
       await leerLineas(facturaId)
       setAviso(
@@ -241,6 +259,18 @@ export default function Facturas() {
       }
     }
     return ops
+  }
+
+  /**
+   * Lo que se muestra en la columna «Origen».
+   *
+   * Si la línea **no tiene etiqueta**, el origen es «sin clasificar» aunque el clasificador
+   * hubiera dicho otra cosa: una fila con el badge azul de `diccionario` y el selector en
+   * «Sin etiqueta» se contradice a sí misma.
+   */
+  function origenDe(linea: FacturaLinea) {
+    if (!linea.etiqueta_id) return ORIGEN.sin_clasificar
+    return ORIGEN[linea.origen] ?? ORIGEN.sin_clasificar
   }
 
   /** Todas las etiquetas en una lista plana con su categoría, para el buscador. */
@@ -539,12 +569,12 @@ export default function Facturas() {
                                   </span>
                                 ) : (
                                   <span
-                                    className={`rounded px-2 py-0.5 text-xs ${
-                                      (ORIGEN[l.origen] ?? ORIGEN.sin_clasificar).clase
-                                    }`}
-                                    title={l.confianza != null ? `confianza ${l.confianza}` : undefined}
+                                    className={`rounded px-2 py-0.5 text-xs ${origenDe(l).clase}`}
+                                    title={
+                                      l.confianza != null ? `confianza ${l.confianza}` : undefined
+                                    }
                                   >
-                                    {(ORIGEN[l.origen] ?? ORIGEN.sin_clasificar).label}
+                                    {origenDe(l).label}
                                   </span>
                                 )}
                               </td>

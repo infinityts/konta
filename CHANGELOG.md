@@ -1259,3 +1259,35 @@ La causa no era el diccionario, y el diagnóstico costó mirar la base de datos 
 - Tests: **185 en verde** (antes 182), con los **16 productos reales** de esa cuenta como
   casos, el auto-sembrado (borrar la etiqueta y ver que se recrea y clasifica) y la coherencia
   entre el diccionario y las etiquetas que la app siembra.
+
+## v1.45 — Etiquetas nuevas, y el selector deja de contradecirse
+
+Segunda vuelta sobre el etiquetado de facturas, con lo que salió al mirar la pantalla real.
+
+- **Etiquetas nuevas** (con sus palabras en el diccionario, que si no no clasifican nada):
+  **Bebidas** (jugos, gaseosas, agua, cerveza, vino, energizantes, té),
+  **Panadería** (pan, arepas, buñuelos, almojábanas, tortas),
+  **Snacks** (mecato, papas fritas, chocolatinas, chicles) y
+  **Congelados** (helados, nuggets, congelados). Antes todo eso caía revuelto en Despensa.
+  - **Mascotas**: la categoría y sus etiquetas ya existían pero **sin ninguna palabra** en el
+    diccionario, así que un concentrado no se podía clasificar. Ahora `Alimento` reconoce
+    Purina, Dogourmet, Pedigree, Whiskas, Pro Plan… y `Veterinario` su clínica.
+  - Palabras **específicas a propósito**: `PAPA FRITA` y no `PAPAS`, porque gana la más larga
+    y con `PAPAS` a secas las papas del mercado se irían a Snacks. Hay test de eso.
+  - Migración `0028` para crearlas en las cuentas que ya existen.
+- **El selector deja de contradecirse** (el bug que se veía en la captura): una fila decía
+  **«Sin etiqueta»** y a la derecha el badge decía **«diccionario»**. Pasaba porque al leer las
+  líneas el servidor **crea etiquetas** y la página **no recargaba la lista**: el selector no
+  encontraba el id y caía en «Sin etiqueta» mientras el badge decía la verdad.
+  - Ahora la lista de etiquetas se **recarga después de leer** (y al sembrar el diccionario).
+  - El badge de origen: **sin etiqueta ⇒ siempre ámbar «sin clasificar»**, nunca azul.
+  - Y el buscador **no miente**: si el id no está entre las opciones, dice «(etiqueta no
+    cargada)» en ámbar en vez de fingir que no tiene etiqueta.
+- **Se acabó el «recarga forzada» al desplegar**: `nginx.conf` manda `Cache-Control: no-cache`
+  para el `index.html` y cache largo solo para los `/assets/` (que llevan el hash en el
+  nombre). El navegador estaba sirviendo el bundle viejo y parecía que el despliegue no llegó.
+- **Un falso positivo que cazaron los tests**: puse `AROMATICA` en Bebidas (por la aromática,
+  el té) y una **«VELA AROMATICA» se iba a bebidas**. Fuera: el té se cubre con `TE ` y
+  `TE VERDE`, que no chocan con nada. Queda un test que lo vigila.
+- Tests: **187 en verde** (antes 185), incluidos los productos que **no** se pueden robar
+  (`PAPAS A GRANEL` sigue en Frutas, `VELA AROMATICA` no es una bebida).

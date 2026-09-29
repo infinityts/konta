@@ -117,8 +117,14 @@ export default function SelectBuscable({
         onClick={() => setAbierto((a) => !a)}
         className="flex w-full items-center justify-between gap-1 rounded-lg border border-slate-300 px-2 py-1 text-left text-sm disabled:bg-slate-100 disabled:text-slate-500"
       >
-        <span className={seleccionada ? 'text-slate-700' : 'text-slate-400'}>
-          {seleccionada ? seleccionada.label : textoVacio || '—'}
+        {/* Si hay un id pero no está entre las opciones (la lista se quedó vieja), se dice
+            en ámbar en vez de mostrar «Sin etiqueta», que sería mentira. */}
+        <span
+          className={
+            seleccionada ? 'text-slate-700' : value ? 'text-amber-700' : 'text-slate-400'
+          }
+        >
+          {seleccionada ? seleccionada.label : value ? '(etiqueta no cargada)' : textoVacio || '—'}
         </span>
         <span className="text-xs text-slate-400">▾</span>
       </button>
