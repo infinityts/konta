@@ -84,6 +84,9 @@ DICCIONARIO: dict[str, tuple[str, ...]] = {
         "CONGELADO", "NUGGETS", "HELADO", "PIZZA CONGELADA", "HAMBURGUESA CONGELADA",
     ),
     "Despensa": (
+        # `AGUILA ROJA` es un café, y `AGUILA` a secas es una cerveza (Bebidas): sin la
+        # frase completa, el café se iba a bebidas.
+        "AGUILA ROJA",
         "ARROZ", "ACEITE", "PANELA", "PASTA", "AZUCAR", "CAFE", "HARINA", "ATUN",
         "SARDINA", "GALLETA", "CHOCOLATE", "SALSA", "CONDIMENTO", "FRIJOL",
         "LENTEJA", "MAIZ", "CEREAL", "ESPAGUETI", "VINAGRE", "MAYONESA",

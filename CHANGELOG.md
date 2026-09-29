@@ -1291,3 +1291,12 @@ Segunda vuelta sobre el etiquetado de facturas, con lo que salió al mirar la pa
   `TE VERDE`, que no chocan con nada. Queda un test que lo vigila.
 - Tests: **187 en verde** (antes 185), incluidos los productos que **no** se pueden robar
   (`PAPAS A GRANEL` sigue en Frutas, `VELA AROMATICA` no es una bebida).
+
+### v1.45.1 — El café Águila Roja no es una cerveza
+
+Al aplicar las etiquetas nuevas a los datos reales salió un tercer choque de marcas: había
+puesto `AGUILA` en Bebidas (la cerveza) y **`CAFE AGUILA ROJA` se fue a bebidas**. Se
+arregla con la frase completa (`AGUILA ROJA` → Despensa), que es más larga y gana, así que
+el café vuelve a Despensa y la cerveza sigue en Bebidas. Con su test.
+
+Tests: **188 en verde**.

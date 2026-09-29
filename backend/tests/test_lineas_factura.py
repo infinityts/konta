@@ -326,3 +326,21 @@ def test_un_producto_que_no_es_bebida_no_cae_en_bebidas():
         resultado = _por_diccionario(normalizar(descripcion), etiquetas)
         obtenida = resultado[0] if resultado else "SIN CLASIFICAR"
         assert obtenida != "Bebidas", f"{descripcion} no es una bebida (dio {obtenida})"
+
+
+def test_el_cafe_de_marca_no_se_confunde_con_la_cerveza():
+    """`AGUILA ROJA` (café) contra `AGUILA` (cerveza): la frase completa manda.
+
+    Este choque se vio en datos reales: el café se fue a Bebidas por la marca de la cerveza.
+    """
+    from app.defaults import ETIQUETAS_DICCIONARIO
+
+    etiquetas = {
+        sin_acentos_upper(n): n
+        for nombres in ETIQUETAS_DICCIONARIO.values()
+        for n in nombres
+    }
+    cafe = _por_diccionario(normalizar("CAFE AGUILA ROJA*380g MOLIDO"), etiquetas)
+    assert cafe and cafe[0] == "Despensa", cafe
+    cerveza = _por_diccionario(normalizar("CERVEZA AGUILA LATA 330ml"), etiquetas)
+    assert cerveza and cerveza[0] == "Bebidas", cerveza
