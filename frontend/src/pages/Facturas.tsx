@@ -610,9 +610,28 @@ export default function Facturas() {
 
               {f.texto_extraido && (
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-sm text-slate-500">Ver texto extraído</summary>
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-                    {f.texto_extraido.slice(0, 1500)}
+                  {/* El texto se muestra **entero**. Antes se cortaba en 1.500 caracteres y
+                      parecía que el OCR solo había leído una parte de la factura. */}
+                  <summary className="cursor-pointer text-sm text-slate-500">
+                    Ver texto extraído ({f.texto_extraido.length.toLocaleString('es-CO')}{' '}
+                    caracteres)
+                  </summary>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(f.texto_extraido ?? '')
+                        setAviso('Texto copiado al portapapeles.')
+                      }}
+                      className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      Copiar todo
+                    </button>
+                    <span className="text-xs text-slate-500">
+                      Es el texto completo que leyó Konta, no un fragmento.
+                    </span>
+                  </div>
+                  <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                    {f.texto_extraido}
                   </pre>
                 </details>
               )}

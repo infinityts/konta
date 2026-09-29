@@ -1163,3 +1163,62 @@ y se avisa. En el extracto CMR de prueba, las compras en COP pasan de 252.333,63
 **335.017,81** al incorporar las de dólares con su T.C.
 
 Tests: **174 en verde**.
+
+## v1.42 — Cerrar los huecos de UI: borrar un aporte y editar o borrar un producto
+
+Los endpoints ya existían (`DELETE /metas/aportes/{id}`, `PATCH` y `DELETE /productos/{id}`);
+lo que faltaba era poder usarlos desde la interfaz.
+
+- **Metas**: botón **Ver aportes** en cada meta (la lista se pide al abrirla, no con la lista
+  entera) con fecha, monto y nota de cada aporte, y **Borrar** en cada uno. Al borrar se
+  recarga la meta, así que el saldo baja de verdad y no solo en pantalla.
+- **Mercado**: cada producto de la lista tiene **Precios**, **Editar** (abre la fila con su
+  nombre y su unidad) y **Borrar**, que se lleva por delante sus precios y limpia la selección
+  del comparativo si era el elegido. Antes solo se podía crear.
+- Tests de los endpoints que ya existían y **no estaban cubiertos**: borrar un aporte hace
+  bajar el saldo de la meta (no es un borrado visual) y un aporte ajeno devuelve 404; editar el
+  nombre y la unidad de un producto, borrarlo con sus precios, y que un producto ajeno no se
+  pueda tocar (404 en `PATCH` y en `DELETE`).
+- Tests: **176 en verde** (antes 174).
+
+## v1.43 — Facturas de caja grande: se leen enteras y se etiquetan solas
+
+Salió de una factura real de supermercado (120 artículos) que llegaba incompleta y sin
+etiquetas. Eran cuatro errores encadenados, y el tercero era el peor.
+
+- **El dinero se leía 1.000 veces más pequeño.** Esa caja imprime `24,674` (veinticuatro mil
+  seiscientos setenta y cuatro) en vez del `24.674` de siempre, y el detector de formato no lo
+  veía: la coma con grupos de tres dígitos no contaba como prueba de nada. Ahora sí, así que
+  `24,674` es 24674 y la cantidad `1.372 kg` sigue siendo decimal (son cosas distintas y ahora
+  se leen distinto).
+- **Se colaban líneas que no son artículos y se perdían otros.** `Tel: 4850175 Ext` y
+  `TPV : TPV008SP012` entraban como artículos (con totales absurdos) y las líneas con marca de
+  descuento (`6,375* D`) no casaban, así que el artículo se perdía: eran 89 de 120. Ahora hay un
+  **modo factura numerada** que se apoya en lo que ese formato cumple: los artículos van
+  numerados en orden (1, 2, 3…), cada uno trae su línea de valores (aunque la referencia sea un
+  código de promoción, `COVA-00`) y la tabla termina en el `T O T A L`.
+  - Resultado con la factura real: **120 artículos (los 120 que declara el documento)**, la
+    **suma de las líneas = el TOTAL de la factura (1.188.248)** y el **monto detectado =
+    1.188.248** (antes decía 120, que era el número de artículos).
+- **Los artículos no se etiquetaban.** El diccionario no conocía `PERNIL`, `MARGARINA`, `UVA`,
+  `SANDIA`, `COLIFLOR`, `KIWI`, `REPOLLITA`, `SAZONADOR`, `DESMAN`, `T.H`… y había un fallo de
+  fondo: la palabra clave se busca **completa**, así que `YOGUR` no casaba con `YOGURT`. Además
+  gana la palabra **más larga**, lo que aproveché para casos que estaban mal: `SALSA ... DE
+  TOMATE` es despensa (no verdura), `CEBOLLA ... EN POLVO` también, y `PEPINO RES` es carne.
+  - Con la factura real: **120 de 120 artículos etiquetados (100 %)**, antes 74 de 117.
+- **Un bug de cantidades**: `4.00 un` se leía como **400 unidades** (con unidad de cuenta, el
+  punto se tomaba por separador de miles). Dos decimales tras el punto son decimales siempre.
+- Tests: **182 en verde** (antes 174), en `tests/test_lineas_factura.py`, con una factura
+  sintética del mismo formato (`COVA-00`, marca `D`, `T O T A L` con letras separadas) y 21
+  descripciones reales de supermercado comprobando su etiqueta.
+
+### v1.43.1 — «Ver texto extraído» cortaba en 1.500 caracteres
+
+El texto de una factura se mostraba **recortado a 1.500 caracteres** (el 16 % de los 9.577 de
+una factura real), así que parecía que el OCR solo había leído hasta el artículo 17. El
+problema no era la lectura —la tabla de líneas ya mostraba los **120 artículos**— sino esa
+vista. Ahora:
+
+- se muestra el **texto completo**, en un recuadro con scroll;
+- el resumen dice **cuántos caracteres** trae (para que se vea que no falta nada);
+- botón **Copiar todo**, porque el texto se estaba copiando a mano.
