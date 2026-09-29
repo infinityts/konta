@@ -964,3 +964,48 @@ solo que no fuera `None`.
   reales de los tres extractos y del recibo, incluidos los tres pagos cuadrados al centavo
   (Davivienda 5.195.786,83 · Amex 8.780.589,32 · CMR 571.527,30). Y dos tests de regresión en
   los puntos de uso: el CSV colombiano (que ya no pierde filas) y el valor de `monto_detectado`.
+
+## v1.37 — Extractos bancarios, Fase 1: el motor de lectura (en progreso)
+
+Primera mitad de la Fase 1: **leer** un extracto (PDF o Excel, tarjeta o cuenta) y
+**conciliarlo** contra las cifras que el propio banco declara. Falta la API y el panel, que
+van en el siguiente tramo.
+
+- **Tablas nuevas** (migración `0025`): `extractos` (periodo, corte, pago, cupo, desglose del
+  corte, resultado de la conciliación y el texto leído) y `extracto_movimientos` (fecha,
+  descripción, valor con signo, moneda, saldo, cuotas, cuota del mes, valor pendiente,
+  **monto original y tasa de cambio** cuando la compra fue en divisa, y el tipo deducido).
+  `tipo` y `formato` son texto validado en Python y **no** ENUM de PostgreSQL: son listas que
+  crecerán y quitar un valor de un ENUM no existe (la lección del `0019`).
+- **El motor** (`extractos.py`) lee tres extractos reales, y en dos de ellos **cuadra al
+  centavo**:
+  - **Davivienda (PDF con contraseña)**: compras **1.004.353,02** ✅, pagos **1.103.790,03** ✅,
+    pago total **5.195.786,83** ✅ y **48/48** filas con su aritmética correcta.
+  - **Amex (Excel de dos monedas en dos hojas)**: compras **123.797,00** ✅, abonos
+    **974.993,00** ✅, pago total **8.780.589,32** vs 8.780.590,00 (el banco lo redondea) ✅,
+    **20/20** filas ✅.
+  - **CMR (PDF)**: lee los 30 movimientos y valida 30/30 filas, pero su conciliación todavía
+    no cuadra (imprime los pagos en positivo y llama «consumos del mes» al capital facturado).
+- **Lo que enseña cada archivo, y que está en el código**:
+  - **PDF por coordenadas, no por líneas**: `(y, x)` separa las columnas y desaparecen los
+    pegotes (`$108.515,3125,87`), los valores duplicados (`$9.568,71$9.568,71`) y las
+    etiquetas partidas (`Núme ro`). El encabezado se busca por **banda de `y`** y las columnas
+    salen de las posiciones del propio encabezado, así que el mismo código sirve para bancos
+    distintos.
+  - **La dirección del eje `y` no es la misma en todos los PDF**: en el CMR crece hacia abajo
+    y en Davivienda hacia arriba. Se deduce de las fechas.
+  - **Un movimiento puede ocupar varias líneas** y la tabla **continúa en la página siguiente
+    sin repetir el encabezado**: se reutilizan las columnas ya deducidas.
+  - **La conciliación tiene dos niveles**: por componentes (con tolerancia, porque el banco
+    redondea el total) y **por fila** (`pendiente = cuota × cuotas que faltan`), que detecta un
+    renglón mal leído aunque los totales cuadren.
+  - **Lo anterior al periodo no es un gasto nuevo**: son compras diferidas de meses atrás.
+- **Errores propios que cazaron los datos y los tests**: `campo_de("efectiva")` devolvía
+  «fecha» (el sinónimo `FEC`), las claves de meses estaban en minúscula mientras el texto se
+  normaliza a mayúsculas (por eso el periodo no se detectaba), `MOVISTAR PAGOSEPAYCO` se
+  clasificaba como pago (ahora el tipo usa límites de palabra) y el «Saldo anterior» del
+  cashback ganaba al «Saldo periodo anterior».
+- Tests: **136 en verde** (antes 113). `tests/test_extractos.py` cubre las piezas puras
+  (tipo de movimiento, cuotas pegadas a la tasa, fechas sin año), la conciliación de los dos
+  niveles y un **Excel de punta a punta construido en el test** (dos monedas, dos tablas,
+  cuotas), porque los extractos reales no se versionan.

@@ -357,7 +357,8 @@ cd backend
 FINANZAS_TEST_DATABASE_URL=postgresql+psycopg://finanzas:finanzas@localhost:5433/finanzas pytest
 ```
 
-Cobertura: **parseo de dinero** (formatos colombiano, US y mixto, con los casos
+Cobertura: **lectura de extractos bancarios** (PDF por coordenadas y Excel multi-hoja),
+**parseo de dinero** (formatos colombiano, US y mixto, con los casos
 reales de extractos de banco), auth, CRUD core, aislamiento multi-usuario, ingresos recurrentes,
 suscripciones que generan su gasto, pólizas (generación del gasto, beneficiarios y
 alertas de vigencia), etiquetas/subetiquetas (con cascada y unicidad
@@ -367,7 +368,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**113 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
+**136 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 **Antes de subir cambios**, los mismos tres pasos que corre el CI:

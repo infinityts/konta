@@ -81,6 +81,7 @@ relacionan las piezas.
 | `alertas.py` | Pagos próximos: suscripciones, **primas y vencimiento de pólizas** y corte/pago de tarjetas |
 | `reportes.py` | Agregación mensual y por categoría |
 | `facturas.py` | Extracción de texto (pypdf + OCR tesseract con preprocesado) y heurísticas monto/fecha |
+| `extractos.py` | **Lectura de extractos** (PDF por coordenadas y Excel multi-hoja): metadatos, movimientos, cuotas, multi-moneda y conciliación |
 | `dinero.py` | **Parseo de dinero**: un solo parser para formato colombiano, US y mixto (signos, paréntesis, espacios internos, valores duplicados) y detección del formato del documento |
 | `lineas.py` | Parser de recibos: parte un texto OCR en líneas de artículo (descripción, cantidad, valor) y detecta el tipo de documento |
 | `clasificador.py` | Clasifica un artículo en cascada: historial (`reglas_ocr`) → diccionario → embeddings |
@@ -113,7 +114,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-25 tablas de negocio (más `alembic_version`), creadas por 24 migraciones:
+27 tablas de negocio (más `alembic_version`), creadas por 26 migraciones:
 
 | Migración | Tablas |
 |---|---|
