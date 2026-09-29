@@ -414,8 +414,12 @@ que ya existían se omiten en vez de duplicarse. Dos cargos del mismo servicio e
 - **Una compra a cuotas no es una suscripción**: `7 de 24` significa que ya la estabas pagando.
   El detalle trae la cuota del mes y lo que queda pendiente.
 - **Multi-moneda**: si el extracto trae pesos y dólares (Amex), cada movimiento se guarda **en su
-  moneda** y el análisis muestra el desglose al lado. No se convierte nada al guardar: la
-  conversión es de presentación y, si falta la tasa, se avisa en vez de inventarla.
+  moneda** y el análisis muestra el desglose al lado. Los totales **sí** incluyen las compras en
+  divisa, convertidas con **la tasa que trae el propio extracto** (la del día de la compra), nunca
+  con una de hoy. Lo que no trae tasa **no se convierte**: queda fuera del total y se lista en
+  `sin_tasa`, para que el número no mienta. Convertir el total a *otra* moneda distinta de la del
+  extracto necesita la tasa de todas las compras, así que el panel muestra la del extracto con el
+  desglose al lado en vez de fingir una conversión.
 - Si el extracto es de una **cuenta** (ahorros o corriente), dilo en el desplegable *Tipo*.
 
 ---

@@ -1152,3 +1152,14 @@ responde las tres preguntas que uno se hace de verdad.
 - Tests: **173 en verde** (antes 165): proyección por moneda, el último corte manda, la tasa
   ponderada, el respaldo a la tasa de la tarjeta, el pago que no alcanza, el costo del dinero y
   la auditoría (incluido el movimiento metido a mano).
+
+### v1.41.1 — Los totales ignoraban las compras en dólares
+
+Cierre de un cabo suelto de la decisión multi-moneda: el total en la moneda del extracto **no
+incluía** los movimientos en otra moneda (los dejaba solo en el desglose). Ahora se convierten
+con **la tasa que trae el propio extracto** —la del día de la compra, no una de hoy— y lo que
+**no** trae tasa no se convierte: se queda fuera del total, se cuenta aparte en `sin_tasa_total`
+y se avisa. En el extracto CMR de prueba, las compras en COP pasan de 252.333,63 a
+**335.017,81** al incorporar las de dólares con su T.C.
+
+Tests: **174 en verde**.

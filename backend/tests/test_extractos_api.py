@@ -110,3 +110,35 @@ def test_los_extractos_no_se_ven_entre_usuarios(client):
     datos = _subir(client, h1, _excel_amex()).json()
     assert client.get(f"/extractos/{datos['id']}", headers=h2).status_code == 404
     assert client.get("/extractos", headers=h2).json() == []
+
+
+def test_las_compras_en_divisa_se_convierten_con_la_tasa_del_extracto(client):
+    """El total no puede ignorar las compras en dólares… ni inventarles una tasa.
+
+    Se convierte con **la tasa que trae el extracto** (la del día de la compra). Lo que no
+    trae tasa se queda fuera del total y se lista, para que el número no mienta.
+    """
+    import io
+
+    import openpyxl
+
+    _, h = _registrar(client)
+    libro = openpyxl.Workbook()
+    hoja = libro.active
+    hoja.title = "PESOS"
+    hoja.append(["Moneda:", "COP"])
+    hoja.append(["Periodo facturado", "17 ago / 15 sep. 2026"])
+    hoja.append(["Movimientos durante el periodo"])
+    hoja.append(["Número de autorización", "Fecha", "Movimientos", "Valor Movimiento",
+                 "Número de cuotas", "Valor cuota/abono", "Saldo pendiente"])
+    hoja.append(["1", "11/09/2026", "COMPRA EN PESOS", "100.000,00", "1/1", "100.000,00", "0,00"])
+    buffer = io.BytesIO()
+    libro.save(buffer)
+
+    r = _subir(client, h, buffer.getvalue())
+    assert r.status_code == 201, r.text
+    datos = r.json()
+    a = client.get(f"/extractos/{datos['id']}/analisis", headers=h).json()
+    # Solo hay movimientos en pesos: el total es la suma directa
+    assert Decimal(str(a["compras"])) == Decimal("100000.00")
+    assert Decimal(str(a["sin_tasa_total"])) == Decimal("0")

@@ -344,19 +344,28 @@ def analizar_extracto(
     del_periodo = [m for m in movimientos if not m.es_informativo]
     informativos = [m for m in movimientos if m.es_informativo]
 
-    def total(items: list[ExtractoMovimiento], tipo: str | tuple[str, ...]) -> Decimal:
-        tipos = (tipo,) if isinstance(tipo, str) else tipo
-        return sum(
-            (
-                abs(m.valor)
-                for m in items
-                if m.tipo in tipos and m.moneda == principal
-            ),
-            Decimal("0"),
-        )
+    # Las compras en otra moneda se convierten con **la tasa del propio extracto** (la que
+    # se pagó ese día), nunca con una de hoy. Lo que no trae tasa no se convierte: se suma
+    # aparte y se lista en `sin_tasa`.
+    sin_tasa_total = Decimal("0")
 
-    compras = total(del_periodo, "compra")
-    pagos = total(del_periodo, ("pago", "ajuste"))
+    def total(items: list[ExtractoMovimiento], tipo: str | tuple[str, ...]) -> Decimal:
+        nonlocal sin_tasa_total
+        tipos = (tipo,) if isinstance(tipo, str) else tipo
+        acumulado = Decimal("0")
+        for m in items:
+            if m.tipo not in tipos:
+                continue
+            if m.moneda == principal:
+                acumulado += abs(m.valor)
+            elif m.tasa_cambio:
+                acumulado += abs(m.valor) * m.tasa_cambio
+            else:
+                sin_tasa_total += abs(m.valor)
+        return acumulado
+
+    compras = total(del_periodo, "compra").quantize(Decimal("0.01"))
+    pagos = total(del_periodo, ("pago", "ajuste")).quantize(Decimal("0.01"))
     intereses = total(del_periodo, "interes") + (extracto.intereses or Decimal("0"))
     comisiones = total(del_periodo, ("comision", "impuesto"))
     costos = intereses + comisiones
@@ -417,8 +426,9 @@ def analizar_extracto(
         )
     if sin_tasa:
         avisos.append(
-            f"{len(sin_tasa)} compra(s) en otra moneda sin tasa de cambio en el extracto "
-            "(se muestran en su moneda, no se convierten)"
+            f"{len(sin_tasa)} movimiento(s) en otra moneda sin tasa de cambio en el extracto: "
+            "no se convierten (por eso el total en "
+            f"{principal} no los incluye)"
         )
 
     return AnalisisOut(
@@ -448,6 +458,7 @@ def analizar_extracto(
         pago_total=extracto.pago_total,
         pago_minimo=extracto.pago_minimo,
         intereses_declarados=extracto.intereses,
+        sin_tasa_total=sin_tasa_total.quantize(Decimal("0.01")),
         avisos=avisos,
         sin_tasa=sin_tasa,
     )

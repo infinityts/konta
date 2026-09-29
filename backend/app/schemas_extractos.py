@@ -91,6 +91,8 @@ class AnalisisOut(BaseModel):
     conciliacion: list[dict]
 
     compras: Decimal
+    # Lo que no se pudo convertir por falta de tasa: va aparte para que el total no mienta
+    sin_tasa_total: Decimal = Decimal("0")
     pagos: Decimal
     intereses: Decimal
     comisiones: Decimal
