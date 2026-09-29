@@ -42,14 +42,26 @@ from ..recurrentes_extractos import detectar as detectar_recurrentes
 from ..schemas_extractos import (
     AnalisisOut,
     CandidatoRecurrenteOut,
+    CostosDelDineroOut,
     CrearRecurrentesIn,
     CrearRecurrentesOut,
     ExtractoDetalleOut,
     ExtractoOut,
+    HallazgoOut,
     ImportarIn,
     ImportarPreviewOut,
     ImportarResultadoOut,
     MovimientoOut,
+    ProyeccionOut,
+    SimulacionOut,
+)
+from ..valor_extractos import (
+    auditoria as auditar_extracto,
+)
+from ..valor_extractos import (
+    costos_del_dinero,
+    proyeccion,
+    simulador,
 )
 
 router = APIRouter(prefix="/extractos", tags=["extractos"])
@@ -171,6 +183,8 @@ def subir_extracto(
         pago_minimo=crudo.pago_minimo,
         cupo_total=crudo.cupo_total,
         cupo_disponible=crudo.cupo_disponible,
+        tasa_mv=crudo.tasa_mv,
+        tasa_ea=crudo.tasa_ea,
         conciliacion_ok=conciliacion_ok(checks),
         conciliacion=json.dumps(checks, ensure_ascii=False),
         texto_extraido=texto[:200_000],
@@ -196,6 +210,7 @@ def subir_extracto(
             cuotas_total=m.cuotas_total,
             cuota_mes=m.cuota_mes,
             valor_pendiente=m.valor_pendiente,
+            tasa_ea=m.tasa_ea,
             titular=m.titular,
             tipo=m.tipo,
             es_informativo=m.es_informativo,
@@ -223,6 +238,47 @@ def listar_extractos(
     )
 
 
+@router.get("/proyeccion", response_model=ProyeccionOut)
+def proyeccion_de_cuotas(
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+    meses: int = Query(12, ge=1, le=60, description="Cuántos meses proyectar"),
+) -> ProyeccionOut:
+    """Cuánto te toca pagar cada mes por lo que **ya compraste a cuotas**, por moneda.
+
+    Se queda con el último estado de cada compra (el corte más reciente manda) para no
+    contar el mismo capital dos veces al tener varios extractos.
+    """
+    return ProyeccionOut(**proyeccion(db, user.id, meses))
+
+
+@router.get("/costos", response_model=CostosDelDineroOut)
+def costos(
+    db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)
+) -> CostosDelDineroOut:
+    """Lo que te cuesta la deuda: intereses, comisiones e impuestos del corte."""
+    return CostosDelDineroOut(**costos_del_dinero(db, user.id))
+
+
+@router.get("/simulador", response_model=SimulacionOut)
+def simular_deuda(
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+    extracto_id: uuid.UUID | None = Query(None),
+    pago_mensual: Decimal | None = Query(None, gt=0),
+    saldo: Decimal | None = Query(None, gt=0),
+) -> SimulacionOut:
+    """Simula cuándo terminas de pagar y cuánto pagas de intereses.
+
+    Usa la **tasa real** del extracto (promedio ponderado por capital pendiente) y dice de
+    dónde la sacó; si el extracto no la trae, la de la tarjeta.
+    """
+    extracto = None
+    if extracto_id is not None:
+        extracto = get_owned(db, Extracto, extracto_id, user.id)
+    return SimulacionOut(**simulador(db, user.id, extracto, pago_mensual, saldo))
+
+
 @router.get("/{extracto_id}", response_model=ExtractoDetalleOut)
 def ver_extracto(
     extracto_id: uuid.UUID,
@@ -242,6 +298,17 @@ def borrar_extracto(
     extracto = get_owned(db, Extracto, extracto_id, user.id)
     db.delete(extracto)
     db.commit()
+
+
+@router.get("/{extracto_id}/auditoria", response_model=list[HallazgoOut])
+def auditar(
+    extracto_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+) -> list[HallazgoOut]:
+    """Comprueba que lo que dice el extracto cuadre con lo que hay registrado en Konta."""
+    extracto = get_owned(db, Extracto, extracto_id, user.id)
+    return [HallazgoOut(**h) for h in auditar_extracto(db, user.id, extracto)]
 
 
 @router.get("/{extracto_id}/analisis", response_model=AnalisisOut)

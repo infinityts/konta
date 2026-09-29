@@ -1120,3 +1120,35 @@ cada uno y su confianza. Cinco señales, de la más fuerte a la más débil:
   Y RAPPI, con sus 7 apariciones a 24 cuotas, **no** aparece entre los candidatos.
 - Tests: **165 en verde** (antes 156), con cada señal por separado, la creación y que no se
   duplique.
+
+## v1.41 — Extractos, Fase 4: valor acumulado (última fase)
+
+Página nueva **Deuda y cuotas** (junto a Extractos), que mira **todos** los extractos juntos y
+responde las tres preguntas que uno se hace de verdad.
+
+- **Compromiso futuro**: lo que ya compraste a cuotas y falta pagar — capital pendiente, cuota
+  de este mes y el **calendario mes a mes** (6/12/24 meses), **por moneda** y sin convertir. Más
+  la tabla compra por compra: valor, cuota, cuántas van, cuántas faltan, pendiente y tasa.
+  - Se queda con el **último estado de cada compra** (la identidad es descripción + valor +
+    **fecha de compra**, que es la que no cambia entre cortes): tener dos extractos no cuenta el
+    capital dos veces.
+- **La tasa real, que hasta ahora se leía y se tiraba**: el extracto trae la de cada compra
+  (`1,9648% 26,30%` = mensual y anual) y ahora se guarda (migración `0026`). La tasa de la deuda
+  es el **promedio ponderado por capital pendiente** —la deuda cara pesa más—, y si el extracto
+  no la trae se usa la de la tarjeta **diciendo que es esa**. Comprobado con los reales:
+  Davivienda da **27,44 % E.A. ponderada** y Amex **24,70 %**.
+  - Leerla tuvo su detalle: en Excel viene con **cuatro decimales** (`29.2215`), que el parser de
+    dinero rechaza porque el dinero no tiene más de dos. Las tasas tienen su propio lector.
+- **Simulador con la tasa real**: cuántos meses y cuántos intereses, y avisa cuando el pago **no
+  cubre los intereses** (la deuda nunca baja). Con el extracto de Davivienda: 32 meses y
+  **1.762.962,14 de intereses** pagando la cuota actual.
+- **Costo del dinero**: intereses + comisiones + impuestos por extracto y su **porcentaje del
+  pago**. En Amex: 207.560,42 = **21,7 %** de lo que paga.
+- **Auditoría extracto ↔ Konta** con las mismas reglas que la importación: lo que se importa
+  contra el **pago mínimo del corte** (✅ en Amex: 956.314,13 frente a 956.315,00), si falta algo
+  por importar (distinguiendo los pagos, que **no** se importan), si hay movimientos repetidos en
+  el periodo que no vengan del extracto, la conciliación del banco y el cupo utilizado contra el
+  capital pendiente.
+- Tests: **173 en verde** (antes 165): proyección por moneda, el último corte manda, la tasa
+  ponderada, el respaldo a la tasa de la tarjeta, el pago que no alcanza, el costo del dinero y
+  la auditoría (incluido el movimiento metido a mano).

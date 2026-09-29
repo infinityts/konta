@@ -28,6 +28,7 @@ const Respaldo = lazy(() => import('./pages/Respaldo'))
 const Suscripciones = lazy(() => import('./pages/Suscripciones'))
 const Tarjetas = lazy(() => import('./pages/Tarjetas'))
 const Transacciones = lazy(() => import('./pages/Transacciones'))
+const ValorExtractos = lazy(() => import('./pages/ValorExtractos'))
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { token } = useAuth()
@@ -56,6 +57,7 @@ const RUTAS: Array<{ path: string; element: RouteObject['element'] }> = [
   { path: '/cuentas', element: <Cuentas /> },
   { path: '/categorias', element: <Categorias /> },
   { path: '/transacciones', element: <Transacciones /> },
+  { path: '/deuda-cuotas', element: <ValorExtractos /> },
 ]
 
 export default function App() {

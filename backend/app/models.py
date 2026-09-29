@@ -389,6 +389,10 @@ class Extracto(Base):
     pago_minimo: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     cupo_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     cupo_disponible: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # La tasa que cobra el banco, como **fracción** (0,2630 = 26,30 % E.A.), igual que en
+    # `tarjetas`: así el simulador usa la tasa real del extracto y no una configurada
+    tasa_mv: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
+    tasa_ea: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
 
     # Resultado de la conciliación: si no cuadra, se revisa antes de importar
     conciliacion_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -436,6 +440,8 @@ class ExtractoMovimiento(Base):
     cuotas_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cuota_mes: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     valor_pendiente: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Tasa de esa compra (fracción). El extracto de Davivienda la trae por fila
+    tasa_ea: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
     titular: Mapped[str | None] = mapped_column(String(2), nullable=True)  # T titular, A adicional
 
     # Clasificación (Fase 1 la deduce; Fase 2 la usa para importar)

@@ -203,3 +203,63 @@ class CrearRecurrentesIn(BaseModel):
 class CrearRecurrentesOut(BaseModel):
     creadas: list[SuscripcionOut]
     omitidas: list[str]
+
+
+class CompraCuotasOut(BaseModel):
+    descripcion: str
+    moneda: str
+    valor_compra: str
+    cuota_mes: str
+    cuotas: str
+    cuotas_restantes: int
+    pendiente: str
+    tasa_ea: str | None
+
+
+class ProyeccionOut(BaseModel):
+    desde: str
+    meses: list[str]
+    por_moneda: dict[str, dict]
+    detalle: list[CompraCuotasOut]
+
+
+class CostoOut(BaseModel):
+    extracto_id: str
+    banco: str | None
+    nombre_archivo: str
+    moneda: str
+    fecha_corte: str | None
+    intereses: str
+    comisiones: str
+    costo: str
+    pago_minimo: str | None
+    # Qué parte de lo que pagas se va en intereses y comisiones
+    porcentaje_del_pago: float | None
+
+
+class CostosDelDineroOut(BaseModel):
+    extractos: list[CostoOut]
+    total_por_moneda: dict[str, str]
+
+
+class HallazgoOut(BaseModel):
+    nombre: str
+    ok: bool | None
+    detalle: str
+    sugerencia: str | None
+
+
+class SimulacionOut(BaseModel):
+    moneda: str
+    saldo: str
+    pago_mensual: str
+    tasa_ea: str | None
+    tasa_mensual: str | None
+    # De dónde salió la tasa: la del extracto (ponderada) o la de la tarjeta
+    fuente_de_la_tasa: str | None
+    cuota_actual: str | None = None
+    meses: int | None = None
+    total_intereses: str | None = None
+    total_pagado: str | None = None
+    viable: bool | None = None
+    aviso: str | None = None

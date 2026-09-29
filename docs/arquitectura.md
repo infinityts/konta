@@ -83,6 +83,7 @@ relacionan las piezas.
 | `facturas.py` | Extracción de texto (pypdf + OCR tesseract con preprocesado) y heurísticas monto/fecha |
 | `routers/extractos.py` | **API de extractos**: subida (con contraseña), listado, detalle, borrado y análisis |
 | `schemas_extractos.py` | Esquemas de extracto, movimiento, control de conciliación y análisis |
+| `valor_extractos.py` | **Valor acumulado**: compromiso futuro por cuotas, costo del dinero, auditoría extracto↔Konta y simulador con la tasa real |
 | `recurrentes_extractos.py` | **Detectar recurrentes**: repetición entre extractos, historial, diccionario de servicios y la regla de las cuotas |
 | `importacion_extractos.py` | **Importar un extracto**: la cuota del mes como gasto, qué se omite y por qué, y la deuda del corte |
 | `extractos.py` | **Lectura de extractos** (PDF por coordenadas y Excel multi-hoja): metadatos, movimientos, cuotas, multi-moneda y conciliación |
@@ -118,7 +119,7 @@ relacionan las piezas.
 
 ## Modelo de datos
 
-27 tablas de negocio (más `alembic_version`), creadas por 26 migraciones:
+27 tablas de negocio (más `alembic_version`), creadas por 27 migraciones:
 
 | Migración | Tablas |
 |---|---|

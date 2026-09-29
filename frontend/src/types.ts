@@ -639,3 +639,69 @@ export interface CrearRecurrentesResultado {
   creadas: Suscripcion[]
   omitidas: string[]
 }
+
+export interface CompraCuotas {
+  descripcion: string
+  moneda: string
+  valor_compra: string
+  cuota_mes: string
+  cuotas: string
+  cuotas_restantes: number
+  pendiente: string
+  tasa_ea: string | null
+}
+
+export interface Proyeccion {
+  desde: string
+  meses: string[]
+  por_moneda: Record<
+    string,
+    {
+      pendiente: string
+      cuota_mensual_actual: string
+      compras: number
+      meses: Record<string, string>
+    }
+  >
+  detalle: CompraCuotas[]
+}
+
+export interface CostoExtracto {
+  extracto_id: string
+  banco: string | null
+  nombre_archivo: string
+  moneda: string
+  fecha_corte: string | null
+  intereses: string
+  comisiones: string
+  costo: string
+  pago_minimo: string | null
+  porcentaje_del_pago: number | null
+}
+
+export interface CostosDelDinero {
+  extractos: CostoExtracto[]
+  total_por_moneda: Record<string, string>
+}
+
+export interface Hallazgo {
+  nombre: string
+  ok: boolean | null
+  detalle: string
+  sugerencia: string | null
+}
+
+export interface SimulacionExtracto {
+  moneda: string
+  saldo: string
+  pago_mensual: string
+  tasa_ea: string | null
+  tasa_mensual: string | null
+  fuente_de_la_tasa: string | null
+  cuota_actual: string | null
+  meses: number | null
+  total_intereses: string | null
+  total_pagado: string | null
+  viable: boolean | null
+  aviso: string | null
+}

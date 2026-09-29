@@ -78,7 +78,9 @@ class LineaImportacion:
 
 
 def _monto_a_importar(
-    m: ExtractoMovimiento, incluir_cuotas_anteriores: bool = True
+    m: ExtractoMovimiento,
+    incluir_cuotas_anteriores: bool = True,
+    ignorar_ya_importado: bool = False,
 ) -> tuple[Decimal | None, str | None]:
     """El monto del mes y, si no se puede, el motivo.
 
@@ -95,7 +97,7 @@ def _monto_a_importar(
         return None, MOTIVO_PAGO
     if m.tipo == "transferencia":
         return None, MOTIVO_TRANSFERENCIA
-    if m.transaccion_id is not None:
+    if m.transaccion_id is not None and not ignorar_ya_importado:
         return None, MOTIVO_YA_IMPORTADO
 
     # Compra a cuotas: lo del mes es la cuota, no el valor de la compra. Da igual si es
@@ -138,16 +140,20 @@ def plan_de_importacion(
     movimientos: list[ExtractoMovimiento],
     extracto: Extracto | None = None,
     incluir_cuotas_anteriores: bool = True,
+    ignorar_ya_importado: bool = False,
 ) -> list[LineaImportacion]:
     """Qué se importaría y qué no, sin tocar nada. Es lo mismo que ejecuta la importación.
 
     Si se le pasa el extracto, añade las cifras que el corte declara y que **no** vienen
     como movimiento (los intereses del mes, por ejemplo): sin ellas el mes no cuadra con
     lo que se paga.
+
+    `ignorar_ya_importado` sirve para la **auditoría**: quiere saber cuánto *debería* sumar
+    la importación del corte, no cuánto falta por importar.
     """
     lineas: list[LineaImportacion] = []
     for m in movimientos:
-        monto, motivo = _monto_a_importar(m, incluir_cuotas_anteriores)
+        monto, motivo = _monto_a_importar(m, incluir_cuotas_anteriores, ignorar_ya_importado)
         lineas.append(
             LineaImportacion(
                 movimiento_id=m.id,

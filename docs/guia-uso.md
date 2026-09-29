@@ -420,7 +420,25 @@ que ya existían se omiten en vez de duplicarse. Dos cargos del mismo servicio e
 
 ---
 
-## 16. Subir un recibo (OCR por línea)
+## 16. Cuánto debo, cuánto me cuesta y si cuadra (deuda y cuotas)
+
+👉 **Deuda y cuotas** (junto a Extractos). Mira todos tus extractos juntos.
+
+| Bloque | Qué dice |
+|---|---|
+| **Compromiso futuro** | Lo que ya compraste a cuotas y te falta pagar: el capital pendiente, la cuota de este mes y **mes a mes** los próximos 6/12/24 meses. Cada moneda por separado |
+| **Compra por compra** | Valor, cuota, cuántas van, cuántas faltan, pendiente y la **tasa E.A.** de cada compra |
+| **Costo del dinero** | Intereses, comisiones e impuestos de cada extracto y **qué parte de lo que pagas se va en eso** |
+| **Simulador con la tasa real** | La tasa no es la que tengas configurada: es el **promedio ponderado por capital pendiente** de las tasas del extracto. Dice de dónde la sacó, en cuántos meses terminas y cuánto pagas de intereses |
+| **Auditoría** | Si lo que dice el banco cuadra con lo que tienes registrado: lo importado contra el pago mínimo del corte, si falta algo por importar y si hay movimientos repetidos |
+
+> La **tasa real** sale del extracto (`1,9648% 26,30%` son la mensual y la anual; se toma la
+> anual) ponderada por el capital pendiente: la deuda cara pesa más que la barata. Si el
+> extracto no la trae, se usa la de la tarjeta y se dice que es esa.
+
+---
+
+## 17. Subir un recibo (OCR por línea)
 
 👉 **Facturas** → sube el **PDF o una foto** del recibo → botón **Leer líneas**.
 

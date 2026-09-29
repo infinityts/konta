@@ -29,7 +29,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from .dinero import Formato, buscar_montos, parsear_monto, quitar_duplicado
 from .lineas import sin_acentos
@@ -163,6 +163,7 @@ class MovimientoCrudo:
     cuotas_total: int | None = None
     cuota_mes: Decimal | None = None
     valor_pendiente: Decimal | None = None
+    tasa_ea: Decimal | None = None
     titular: str | None = None
     es_informativo: bool = False
     tipo: str = "otro"
@@ -191,6 +192,9 @@ class ExtractoCrudo:
     pago_minimo: Decimal | None = None
     cupo_total: Decimal | None = None
     cupo_disponible: Decimal | None = None
+    # La tasa que declara el corte (fracción), si la declara
+    tasa_mv: Decimal | None = None
+    tasa_ea: Decimal | None = None
     movimientos: list[MovimientoCrudo] = field(default_factory=list)
     avisos: list[str] = field(default_factory=list)
     # El extracto llama «consumos del mes» al capital facturado (CMR) y no al valor de
@@ -221,6 +225,8 @@ _ETIQUETAS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("intereses_mora", ("INTERESES DE MORA", "INTERESES MORA")),
     ("abonos", ("PAGOS INCLUYE ABONOS", "PAGOS ABONOS", "ABONO")),
     ("otros_cargos", ("OTROS CARGOS", "CUOTA DE MANEJO")),
+    ("tasa_ea", ("TASA EFECTIVA ANUAL", "TASA E.A", "INTERES ANUAL")),
+    ("tasa_mv", ("TASA M.V", "TASA MENSUAL", "INTERES MENSUAL")),
 )
 
 # Una etiqueta puede aparecer antes de otra muy parecida: `Capital facturado consumos del
@@ -259,6 +265,12 @@ def metadatos(texto: str, extracto: ExtractoCrudo) -> None:
             if elegido is None:
                 continue
             ventana = base[elegido.end() : elegido.end() + 120]
+            if campo in ("tasa_ea", "tasa_mv"):
+                tasa = _tasa_de(ventana)
+                if tasa is not None:
+                    setattr(extracto, campo, tasa)
+                    break
+                continue
             valores = buscar_montos(ventana, Formato.CO)
             if valores:
                 setattr(extracto, campo, valores[0])
@@ -384,7 +396,10 @@ _SINONIMOS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("titular", ("TITULAROADICIONAL", "TITULAR", "ADICIONAL")),
     ("saldo", ("SALDO",)),
     ("fecha", ("FECHA",)),
-    ("tasa", ("TASA",)),
+    # La tasa anual antes que la mensual: `INTERES ANUAL` también contiene `INTERES`
+    ("tasa", ("TASAEFECTIVAANUAL", "TASAEA", "INTERESANUAL", "TASA")),
+    # El Excel de Amex la llama `Interés mensual (%)`, en su propia columna
+    ("tasa_mv", ("INTERESMENSUAL", "TASAMV", "TASAMENSUAL")),
 )
 
 
@@ -537,6 +552,8 @@ def movimientos_desde_filas(
 
         if valor is not None:
             actual.valor = valor
+        if actual.tasa_ea is None:
+            actual.tasa_ea = _tasa_de(celdas.get("tasa"))
         pendiente = _valor_de(celdas.get("valor_pendiente"))
         if pendiente is not None:
             actual.valor_pendiente = pendiente
@@ -667,6 +684,43 @@ def _valor_de(texto: str | None) -> Decimal | None:
     return valores[0] if valores else None
 
 
+def _numero_tasa(bruto: str) -> Decimal | None:
+    """Un número de tasa, que **no** es dinero: puede tener 4 decimales (`29.2215`)."""
+    s = (bruto or "").strip()
+    if not s:
+        return None
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".") if s.rfind(",") > s.rfind(".") else s.replace(",", "")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        return None
+
+
+def _tasa_de(texto: str | None) -> Decimal | None:
+    """La tasa E.A. de una celda, como fracción.
+
+    El extracto de Davivienda trae las dos en la misma celda (`1,9648% 26,30%`): la anual
+    es siempre la mayor, así que se toma esa. El Excel de Amex la trae como número de
+    porcentaje con cuatro decimales (`29.2215`), así que lo que pasa de 1 se divide entre 100.
+    """
+    if not texto:
+        return None
+    candidatos = [
+        v for v in (_numero_tasa(m.group(1)) for m in re.finditer(r"(\d+(?:[.,]\d+)?)", texto)) if v
+    ]
+    if not candidatos:
+        return None
+    tasa = max(candidatos)
+    if tasa > 1:  # viene en porcentaje
+        tasa = tasa / 100
+    if not (Decimal("0.0001") <= tasa <= Decimal("1")):
+        return None
+    return tasa.quantize(Decimal("0.0001"))
+
+
 def _cuotas_de(texto: str) -> tuple[int, int] | None:
     """`7 de 24`, y tolera que la tasa venga pegada (`1 de 128,15%` = `1 de 1` + `28,15%`)."""
     # Dos formas: `7 de 24` (PDF) y `1/1` (Excel de Amex)
@@ -792,6 +846,11 @@ def movimientos_desde_hoja(filas: list[list[str]], moneda: str) -> list[Movimien
         for campo in ("cuota_mes", "valor_pendiente", "saldo"):
             if campo in columnas and columnas[campo] < len(fila):
                 setattr(movimiento, campo, _valor_en_moneda(fila[columnas[campo]], moneda))
+        if "tasa" in columnas and columnas["tasa"] < len(fila):
+            movimiento.tasa_ea = _tasa_de(fila[columnas["tasa"]])
+        if movimiento.tasa_ea is None and "tasa_mv" in columnas and columnas["tasa_mv"] < len(fila):
+            # Excel de Amex: el interés anual está en su propia columna
+            movimiento.tasa_ea = _tasa_de(fila[columnas["tasa_mv"]])
         if "cuotas" in columnas and columnas["cuotas"] < len(fila):
             cuotas = _cuotas_de(fila[columnas["cuotas"]])
             if cuotas:
