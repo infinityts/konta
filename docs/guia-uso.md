@@ -390,3 +390,21 @@ limpia, porque ese gasto no sale de tu cuenta sino que engorda la deuda de la ta
 **Artículos que la app no conoce** (una marca rara, un producto nuevo): quedan *sin
 clasificar*. Asígnales la etiqueta una vez —eso queda aprendido— y la próxima tira ya sale
 clasificada.
+
+### Ver y deshacer lo aprendido
+
+👉 **Herramientas** → **Reglas de OCR** (o el enlace «Ver lo que el OCR ha aprendido» en
+*Facturas*).
+
+Cada corrección que haces queda como una regla: *«PECHUGA POLLO BANDEJA → Mercado › Carnes»*.
+Ahí puedes:
+
+- **Ver** qué sabe y cuántas veces ha usado cada regla.
+- **Corregir** una regla (el texto o la etiqueta) si aprendió algo mal.
+- **Borrar** una regla: el artículo deja de reconocerse de memoria y vuelve a decidirse por el
+  diccionario. Es la forma de deshacer un aprendizaje equivocado.
+- **Enseñar** una regla a mano, sin esperar a que aparezca en un recibo.
+
+> **Ojo**: el historial es lo **primero** que mira el clasificador, antes que el diccionario.
+> Por eso una regla equivocada manda sobre todo lo demás — y por eso conviene revisarlas de vez
+> en cuando.

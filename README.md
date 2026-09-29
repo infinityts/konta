@@ -161,6 +161,10 @@ alarmas de pagos y OCR de facturas. **Datos 100% locales.**
   **historial** (lo que ya corregiste) → **diccionario** (palabras típicas de un recibo) →
   **embeddings** (similitud semántica vía Ollama, opcional). Lo que no sabe decidir queda
   *sin clasificar* para que lo elijas una vez — y a la próxima ya lo sabe.
+- **El aprendizaje se puede ver y deshacer**: cada corrección de una línea queda como regla
+  (`reglas_ocr`) y es lo **primero** que mira el clasificador. En *Reglas de OCR* se listan,
+  se corrigen y se borran: si aprendió algo mal, se quita y el artículo vuelve a clasificarse
+  solo (antes el aprendizaje era de una sola dirección).
 - **Funciona de fábrica**: al registrarte se crean las **etiquetas que el diccionario
   reconoce** dentro de *Mercado* (Carnes, Frutas y verduras, Lácteos y huevos, Despensa,
   Aseo del hogar, Cuidado personal), *Transporte* (Gasolina) y *Otros gastos* (Ropa,
@@ -298,6 +302,7 @@ aislados por usuario.
 | **Notificaciones** | `GET/PUT /notificaciones`, `POST /notificaciones/probar`, `POST /notificaciones/telegram/detectar` |
 | **Cuentas** | `GET/POST /cuentas`, `PATCH/DELETE /cuentas/{id}`, `POST /cuentas/{id}/adoptar-movimientos` |
 | **Saldos** | `GET /saldos`, `GET /saldos/consolidado?meses=6`, `GET /saldos/diagnostico` |
+| **Reglas de OCR** | `GET/POST /reglas-ocr`, `GET/PATCH/DELETE /reglas-ocr/{id}` |
 | **Salud** | `GET /health` (sin token): comprueba **la base** y responde `503` si no contesta |
 
 ---
@@ -352,7 +357,7 @@ CSV, mercado, multi-moneda, simulador y deuda de tarjeta, respaldo, flujo de caj
 migraciones **con datos** (no solo con tablas vacías),
 metas de ahorro, notificaciones, cuentas/saldos y diagnóstico del sobregiro.
 
-**68 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
+**70 tests en verde** y `ruff check .` limpio. El esquema se mantiene alineado con el ORM:
 `alembic check` no reporta operaciones pendientes.
 
 **Antes de subir cambios**, los mismos tres pasos que corre el CI:
@@ -390,10 +395,10 @@ pytest
 - [x] **Pago de la tarjeta**: baja el saldo de la cuenta **y** la deuda, sin contarse como gasto; la deuda vigente es el último extracto menos los pagos posteriores
 - [x] **`/health` que comprueba la base**: 503 si PostgreSQL no contesta, y el `healthcheck` de compose lo usa (el frontend espera a que el backend esté *healthy*)
 - [x] **Linter (`ruff`) en CI**, con config acotada en `pyproject.toml` y `ruff check .` limpio
+- [x] **Reglas de OCR con interfaz**: ver, corregir y borrar lo que el clasificador ha aprendido (y deshacer un aprendizaje equivocado)
 
 Pendiente (criterios de aceptación en el backlog del Sistema de Contexto; el porqué de cada
 decisión, en el `CHANGELOG`):
 
-- [ ] **Reglas de OCR con interfaz** (ver, corregir y borrar lo aprendido), **confirmar un
-  recibo como un solo gasto**, **borrar un aporte** a una meta y **editar/borrar productos**
-  (detalle en el `CHANGELOG`)
+- [ ] **Confirmar un recibo como un solo gasto**, **borrar un aporte** a una meta y
+  **editar/borrar productos** (detalle en el `CHANGELOG`)

@@ -77,8 +77,6 @@ Historial de Konta, en orden cronológico. Cada entrada corresponde a un commit 
 Los criterios de aceptación de lo que sigue viven en el backlog del Sistema de Contexto
 (RAG); aquí queda el **porqué** de cada decisión, para que no se pierda.
 
-- **Reglas de OCR sin interfaz**: el clasificador aprende (`reglas_ocr`) pero no se pueden
-  ver, corregir ni borrar. Si aprende algo mal, no hay forma de deshacerlo desde la app.
 - **Confirmar un recibo como un solo gasto**: hoy cada línea confirmada crea su transacción,
   así que una compra de dos ítems son dos movimientos. Falta la opción de registrarlo como
   **un único gasto** con el total, dejando las líneas como detalle.
@@ -822,3 +820,29 @@ acotada a lo que **caza bugs** y arregla los hallazgos reales.
   `pyproject.toml`. En local pasaba porque los arreglos estaban en el árbol de trabajo, pero
   el CI parte del repo limpio. Queda anotado en el README: `git status` antes de subir y
   commitear todo lo que el linter haya tocado.
+
+## v1.33 — Ver (y deshacer) lo que el OCR ha aprendido
+
+El clasificador **aprende** de cada corrección: cuando cambias la etiqueta de una línea, se
+guarda «este texto va aquí» (`reglas_ocr`) y ese es el **primer** nivel que mira al leer un
+recibo — antes que el diccionario y que los embeddings. El problema es que era de **una sola
+dirección**: la app aprendía de ti y no había forma de ver qué sabía, corregirlo ni deshacer un
+aprendizaje equivocado. Y como el historial **manda sobre todo lo demás**, un aprendizaje malo
+contaminaba todas las facturas siguientes sin manera de arreglarlo desde la app.
+
+- **`GET/POST /reglas-ocr`** y **`GET/PATCH/DELETE /reglas-ocr/{id}`**: listar lo aprendido,
+  enseñar una regla a mano, corregir el patrón o la etiqueta, y borrarla.
+- El **patrón se normaliza igual que al aprender** (mayúsculas, sin acentos ni códigos), así
+  que una regla escrita a mano empareja de verdad; si al normalizar queda vacío (un texto que
+  solo tiene números y símbolos), se rechaza con un 422 en vez de guardar una regla inútil.
+- **Unicidad por usuario**: un patrón repetido da `400` con el aviso de que la edite en vez de
+  crear otra (la tabla ya tenía `uq_reglas_ocr_patron`; ahora no revienta con un 500).
+- La respuesta incluye **dónde cae** la regla (`Categoría › Etiqueta`) y **cuántas veces la ha
+  usado** el clasificador, para poder juzgar si está haciendo bien su trabajo.
+- **UI**: nueva página *Reglas de OCR* (grupo **Herramientas**, con enlace desde *Facturas*)
+  con buscador, corrección en línea y borrado. Explica que el historial manda sobre el
+  diccionario, que es justo el motivo por el que conviene poder borrarlo.
+- Tests: 70 en verde (antes 68). El interesante es de ida y vuelta: enseñar una regla →
+  el recibo se clasifica por `historial` → **borrarla** → el mismo recibo deja de reconocerse;
+  y corregirla → el mismo artículo cambia de etiqueta. Más duplicados, patrón vacío, etiquetas
+  ajenas (404) y aislamiento entre usuarios.
