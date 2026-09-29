@@ -626,6 +626,71 @@ class FacturaDetalleOut(FacturaOut):
     tipo_documento: str | None = None  # mercado | gasolina | servicios | restaurante | otro
 
 
+class MovimientoOut(BaseModel):
+    """Un movimiento del listado: una transacción suelta o una compra agrupada.
+
+    Una compra (factura confirmada) se colapsa en **un solo** movimiento: las
+    transacciones de sus artículos se agrupan, el monto es la suma y `articulos`
+    dice cuántos artículos hay detrás. Así el listado no se llena con 120 filas.
+    """
+
+    id: uuid.UUID | None = None  # la transacción representativa (la asociada)
+    ids: list[uuid.UUID] = []  # todas las transacciones que agrupa
+    tipo: str
+    monto: Decimal
+    fecha: date
+    descripcion: str | None = None
+    categoria_id: uuid.UUID | None = None
+    categoria: str | None = None
+    etiqueta_id: uuid.UUID | None = None
+    etiquetas: list[str] = []  # etiquetas del detalle (para una compra)
+    factura_id: uuid.UUID | None = None
+    articulos: int = 0  # 0 si no es una compra
+    agrupada: bool = False
+    cuenta_id: uuid.UUID | None = None
+    cuenta_destino_id: uuid.UUID | None = None  # solo transferencias
+    tarjeta_id: uuid.UUID | None = None
+    moneda: str = "COP"
+    notas: str | None = None
+    # Texto para el buscador: descripción + categoría + etiquetas + artículos del detalle
+    busqueda: str = ""
+    suscripcion_id: uuid.UUID | None = None
+    ingreso_recurrente_id: uuid.UUID | None = None
+    poliza_id: uuid.UUID | None = None
+
+
+class ArticuloDetalleOut(BaseModel):
+    id: uuid.UUID
+    descripcion: str
+    cantidad: Decimal | None
+    valor_unitario: Decimal | None
+    valor_total: Decimal
+    origen: str
+
+
+class GrupoDetalleOut(BaseModel):
+    etiqueta: str | None
+    categoria: str | None
+    total: Decimal
+    porcentaje: Decimal
+    articulos: list[ArticuloDetalleOut]
+
+
+class DetalleFacturaOut(BaseModel):
+    factura_id: uuid.UUID
+    descripcion: str | None
+    total: Decimal
+    articulos: int
+    grupos: list[GrupoDetalleOut]
+
+
+class UnificarOut(BaseModel):
+    transaccion_id: uuid.UUID
+    creada: bool  # False si ya estaba unificada
+    unificados: int  # transacciones individuales borradas
+    total: Decimal
+
+
 class ParsearLineasIn(BaseModel):
     """`texto` permite re-parsear un texto distinto del guardado (opcional)."""
 

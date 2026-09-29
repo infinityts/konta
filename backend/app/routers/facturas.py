@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..clasificador import clasificar, normalizar
@@ -26,7 +26,7 @@ from ..crud_utils import get_owned
 from ..defaults import sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..embeddings import make_embedding
-from ..facturas import detectar_fecha, detectar_monto, extraer_texto
+from ..facturas import detectar_fecha, detectar_monto, extraer_texto, nombre_factura
 from ..lineas import detectar_tipo, parsear_lineas
 from ..models import (
     Categoria,
@@ -43,15 +43,19 @@ from ..models import (
 )
 from ..recurrencia import hoy
 from ..schemas import (
+    ArticuloDetalleOut,
     AsignarEtiquetaIn,
     AsociarFacturaIn,
     ConfirmarLineasIn,
     ConfirmarTotalIn,
+    DetalleFacturaOut,
     FacturaDetalleOut,
     FacturaLineaOut,
     FacturaOut,
+    GrupoDetalleOut,
     LineaUpdateIn,
     ParsearLineasIn,
+    UnificarOut,
 )
 
 router = APIRouter(prefix="/facturas", tags=["facturas"])
@@ -513,3 +517,139 @@ def confirmar_total(
     db.commit()
     db.refresh(factura)
     return _detalle(db, factura)
+
+
+# --- detalle y unificación de una compra ----------------------------------- #
+
+
+@router.get("/{id}/detalle", response_model=DetalleFacturaOut)
+def detalle_factura(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    """Artículos de la compra, agrupados por etiqueta con subtotal y porcentaje.
+
+    Es lo que se ve al pulsar «Ver detalle» en el listado: de un solo vistazo, en
+    qué etiqueta se fue la plata y qué hay dentro de cada una.
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    lineas = _lineas(db, factura.id)
+    total = sum((li.valor_total for li in lineas), Decimal("0"))
+
+    etiquetas = {
+        e.id: (e.nombre, e.categoria_id)
+        for e in db.scalars(select(Etiqueta).where(Etiqueta.usuario_id == user.id)).all()
+    }
+    categorias = {
+        c.id: c.nombre for c in db.scalars(select(Categoria).where(Categoria.usuario_id == user.id)).all()
+    }
+
+    agrupados: dict[uuid.UUID | None, list[FacturaLinea]] = {}
+    for li in lineas:
+        agrupados.setdefault(li.etiqueta_id, []).append(li)
+
+    grupos: list[GrupoDetalleOut] = []
+    for etq_id, arts in agrupados.items():
+        sub = sum((a.valor_total for a in arts), Decimal("0"))
+        nombre, cat_id = etiquetas.get(etq_id, (None, None))
+        grupos.append(
+            GrupoDetalleOut(
+                etiqueta=nombre,
+                categoria=categorias.get(cat_id) if cat_id else None,
+                total=sub,
+                porcentaje=(sub / total * Decimal(100)).quantize(Decimal("0.1")) if total else Decimal("0"),
+                articulos=[
+                    ArticuloDetalleOut(
+                        id=a.id,
+                        descripcion=a.descripcion,
+                        cantidad=a.cantidad,
+                        valor_unitario=a.valor_unitario,
+                        valor_total=a.valor_total,
+                        origen=a.origen,
+                    )
+                    for a in arts
+                ],
+            )
+        )
+    grupos.sort(key=lambda g: g.total, reverse=True)
+
+    tx = db.get(Transaccion, factura.transaccion_id) if factura.transaccion_id else None
+    desc = (tx.descripcion if tx and tx.descripcion else None) or nombre_factura(factura.nombre_archivo)
+
+    return DetalleFacturaOut(
+        factura_id=factura.id,
+        descripcion=desc,
+        total=total,
+        articulos=len(lineas),
+        grupos=grupos,
+    )
+
+
+@router.post("/{id}/unificar", response_model=UnificarOut)
+def unificar(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    """Colapsa una factura confirmada línea por línea en **un solo** movimiento.
+
+    El caso del mercado: confirmar 120 artículos creó 120 transacciones. Aquí se
+    crea una única transacción con el total (o se reaprovecha la asociada), todas
+    las líneas pasan a apuntarle como detalle y se borran las individuales. Así el
+    listado muestra una fila y los reportes por etiqueta siguen usando el detalle.
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    lineas = _lineas(db, factura.id)
+    if not lineas:
+        raise HTTPException(status_code=400, detail="La factura no tiene artículos")
+
+    ids: set[uuid.UUID] = {li.transaccion_id for li in lineas if li.transaccion_id}
+    if factura.transaccion_id:
+        ids.add(factura.transaccion_id)
+    if not ids:
+        raise HTTPException(status_code=400, detail="Nada que unificar: confirma primero los artículos")
+
+    txs = [t for t in (db.get(Transaccion, i) for i in ids) if t is not None]
+    total = sum((li.valor_total for li in lineas), Decimal("0"))
+
+    # ¿Ya está unificada? (una sola transacción y es la asociada)
+    if len(txs) == 1 and factura.transaccion_id == txs[0].id and all(
+        li.transaccion_id == txs[0].id for li in lineas
+    ):
+        return UnificarOut(transaccion_id=txs[0].id, creada=False, unificados=0, total=total)
+
+    # La transacción asociada aporta los metadatos (nombre, categoría, cuenta, tarjeta)
+    base = next((t for t in txs if t.id == factura.transaccion_id), None) or txs[0]
+    nueva = Transaccion(
+        usuario_id=user.id,
+        tipo=base.tipo,
+        monto=total,
+        moneda=base.moneda,
+        fecha=factura.fecha_detectada or base.fecha,
+        descripcion=(base.descripcion or f"Compra de {len(lineas)} artículos"),
+        categoria_id=base.categoria_id,
+        etiqueta_id=base.etiqueta_id,
+        cuenta_id=base.cuenta_id,
+        tarjeta_id=base.tarjeta_id,
+        notas=base.notas,
+        suscripcion_id=base.suscripcion_id,
+        ingreso_recurrente_id=base.ingreso_recurrente_id,
+        poliza_id=base.poliza_id,
+    )
+    db.add(nueva)
+    db.flush()
+
+    for li in lineas:
+        li.transaccion_id = nueva.id
+    factura.transaccion_id = nueva.id
+
+    borradas = 0
+    for t in txs:
+        if t.id == nueva.id:
+            continue
+        # No borrar si otra factura la comparte
+        otras = db.scalar(
+            select(func.count())
+            .select_from(FacturaLinea)
+            .where(FacturaLinea.transaccion_id == t.id, FacturaLinea.factura_id != factura.id)
+        )
+        if otras:
+            continue
+        db.delete(t)
+        borradas += 1
+
+    db.commit()
+    return UnificarOut(transaccion_id=nueva.id, creada=True, unificados=borradas, total=total)

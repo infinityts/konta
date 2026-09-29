@@ -7,7 +7,8 @@ import {
   type Etiqueta,
   type SaldoResumen,
   type Tarjeta,
-  type Transaccion,
+  type DetalleFactura,
+  type Movimiento,
 } from '../types'
 
 const empty = {
@@ -25,8 +26,54 @@ const empty = {
   repeticion: '',
 }
 
+function DetalleCompra({ data }: { data?: DetalleFactura }) {
+  if (!data) return <div className="mt-3 text-sm text-slate-400">Cargando detalle…</div>
+  return (
+    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <p className="text-sm text-slate-500">
+        {data.descripcion} · {data.articulos} artículos · total{' '}
+        <strong className="text-slate-700">{fmtMoney(data.total)}</strong>
+      </p>
+      <div className="mt-2 space-y-2">
+        {data.grupos.map((g) => (
+          <details
+            key={g.etiqueta ?? 'sin-etiqueta'}
+            open={data.grupos.length <= 3}
+            className="rounded-lg border border-slate-200 bg-white"
+          >
+            <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm font-medium">
+              <span>
+                {g.etiqueta ?? 'Sin etiqueta'}
+                <span className="ml-2 font-normal text-slate-400">{g.articulos.length} art.</span>
+              </span>
+              <span className="text-slate-600">
+                {fmtMoney(g.total)} <span className="text-xs text-slate-400">· {g.porcentaje}%</span>
+              </span>
+            </summary>
+            <ul className="divide-y divide-slate-100 border-t border-slate-100">
+              {g.articulos.map((a) => (
+                <li key={a.id} className="flex items-start justify-between gap-2 px-3 py-1.5 text-sm">
+                  <span className="min-w-0 text-slate-600">
+                    <span className="break-words">{a.descripcion}</span>
+                    {a.cantidad != null && a.valor_unitario != null && (
+                      <span className="ml-2 whitespace-nowrap text-xs text-slate-400">
+                        {a.cantidad} × {fmtMoney(a.valor_unitario)}
+                      </span>
+                    )}
+                  </span>
+                  <span className="whitespace-nowrap text-slate-600">{fmtMoney(a.valor_total)}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Transacciones() {
-  const [items, setItems] = useState<Transaccion[]>([])
+  const [items, setItems] = useState<Movimiento[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
@@ -44,9 +91,27 @@ export default function Transacciones() {
   const [filtro, setFiltro] = useState<'todos' | 'gasto' | 'ingreso' | 'transferencia'>('todos')
   const [busqueda, setBusqueda] = useState('')
 
+  // detalle de una compra (se carga la primera vez que se abre)
+  const [detalle, setDetalle] = useState<Record<string, DetalleFactura>>({})
+  const [abierto, setAbierto] = useState<string | null>(null)
+
+  async function verDetalle(m: Movimiento) {
+    const clave = m.factura_id
+    if (!clave) return
+    if (abierto === clave) {
+      setAbierto(null)
+      return
+    }
+    setAbierto(clave)
+    if (!detalle[clave]) {
+      const d = await api<DetalleFactura>(`/facturas/${clave}/detalle`)
+      setDetalle((prev) => ({ ...prev, [clave]: d }))
+    }
+  }
+
   async function cargar() {
     try {
-      setItems(await api<Transaccion[]>('/transacciones'))
+      setItems(await api<Movimiento[]>('/transacciones/movimientos'))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     }
@@ -72,7 +137,8 @@ export default function Transacciones() {
     setShow(true)
   }
 
-  function abrirEditar(t: Transaccion) {
+  function abrirEditar(t: Movimiento) {
+    if (!t.id) return
     setError('')
     setEditando(t.id)
     setNuevaEtq(false)
@@ -201,10 +267,7 @@ export default function Transacciones() {
     if (filtro !== 'todos' && t.tipo !== filtro) return false
     const q = busqueda.trim().toLowerCase()
     if (!q) return true
-    return (
-      (t.descripcion ?? '').toLowerCase().includes(q) ||
-      nombreCat(t.categoria_id).toLowerCase().includes(q)
-    )
+    return (t.busqueda || t.descripcion || '').toLowerCase().includes(q)
   })
 
   return (
@@ -413,59 +476,87 @@ export default function Transacciones() {
 
       <ul className="mt-3 space-y-2">
         {visibles.map((t) => (
-          <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-4">
-            <div>
-              <p className="font-medium">
-                {t.descripcion ?? nombreCat(t.categoria_id)}
-                {(t.suscripcion_id || t.ingreso_recurrente_id) && (
-                  <span
-                    className="ml-2 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-normal text-sky-700"
-                    title="Viene de un compromiso recurrente"
+          <li key={t.id ?? t.factura_id ?? t.ids.join(',')} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="break-words font-medium">
+                  {t.descripcion ?? (t.categoria ?? nombreCat(t.categoria_id))}
+                  {(t.suscripcion_id || t.ingreso_recurrente_id) && (
+                    <span
+                      className="ml-2 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-normal text-sky-700"
+                      title="Viene de un compromiso recurrente"
+                    >
+                      🔁 recurrente
+                    </span>
+                  )}
+                  {!t.agrupada && nombreEtiqueta(t.etiqueta_id) && (
+                    <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-normal text-indigo-700">
+                      #{nombreEtiqueta(t.etiqueta_id)}
+                    </span>
+                  )}
+                  {t.agrupada &&
+                    t.etiquetas.slice(0, 2).map((e) => (
+                      <span key={e} className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-normal text-indigo-700">
+                        #{e}
+                      </span>
+                    ))}
+                  {t.agrupada && t.etiquetas.length > 2 && (
+                    <span className="ml-1 text-xs text-slate-400">+{t.etiquetas.length - 2}</span>
+                  )}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {t.fecha}
+                  {t.tipo === 'transferencia' ? (
+                    <>
+                      {' · '}🔄 {nombreCuenta(t.cuenta_id)}
+                      {' → '}
+                      {t.tarjeta_id
+                        ? `💳 ${nombreTarjeta(t.tarjeta_id)}`
+                        : nombreCuenta(t.cuenta_destino_id ?? null)}
+                    </>
+                  ) : (
+                    <>
+                      {' · '}{t.categoria ?? nombreCat(t.categoria_id)}
+                      {nombreTarjeta(t.tarjeta_id) && <span className="ml-2 text-slate-400">· 💳 {nombreTarjeta(t.tarjeta_id)}</span>}
+                      {nombreCuenta(t.cuenta_id) && <span className="ml-2 text-slate-400">· {nombreCuenta(t.cuenta_id)}</span>}
+                    </>
+                  )}
+                </p>
+                {t.agrupada && t.factura_id && (
+                  <button
+                    onClick={() => verDetalle(t)}
+                    className="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-200"
                   >
-                    🔁 recurrente
-                  </span>
+                    🧾 {t.articulos} artículos ·{' '}
+                    {abierto === t.factura_id ? 'Ocultar detalle ▴' : 'Ver detalle ▾'}
+                  </button>
                 )}
-                {nombreEtiqueta(t.etiqueta_id) && (
-                  <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-normal text-indigo-700">
-                    #{nombreEtiqueta(t.etiqueta_id)}
-                  </span>
-                )}
-              </p>
-              <p className="text-sm text-slate-500">
-                {t.fecha}
-                {t.tipo === 'transferencia' ? (
+              </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`text-sm font-medium ${
+                    t.tipo === 'gasto'
+                      ? 'text-red-600'
+                      : t.tipo === 'ingreso'
+                        ? 'text-emerald-600'
+                        : 'text-slate-600'
+                  }`}
+                >
+                  {t.tipo === 'gasto' ? '-' : t.tipo === 'ingreso' ? '+' : '🔄 '}
+                  {fmtMoney(t.monto)}
+                </span>
+                {t.id && (
                   <>
-                    {' · '}🔄 {nombreCuenta(t.cuenta_id)}
-                    {' → '}
-                    {t.tarjeta_id
-                      ? `💳 ${nombreTarjeta(t.tarjeta_id)}`
-                      : nombreCuenta(t.cuenta_destino_id ?? null)}
-                  </>
-                ) : (
-                  <>
-                    {' · '}{nombreCat(t.categoria_id)}
-                    {nombreTarjeta(t.tarjeta_id) && <span className="ml-2 text-slate-400">· 💳 {nombreTarjeta(t.tarjeta_id)}</span>}
-                    {nombreCuenta(t.cuenta_id) && <span className="ml-2 text-slate-400">· {nombreCuenta(t.cuenta_id)}</span>}
+                    <button onClick={() => abrirEditar(t)} className="text-sm text-indigo-600 hover:underline">Editar</button>
+                    <button onClick={() => eliminar(t.id!)} className="text-sm text-red-600 hover:underline">Eliminar</button>
                   </>
                 )}
-              </p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span
-                className={`text-sm font-medium ${
-                  t.tipo === 'gasto'
-                    ? 'text-red-600'
-                    : t.tipo === 'ingreso'
-                      ? 'text-emerald-600'
-                      : 'text-slate-600'
-                }`}
-              >
-                {t.tipo === 'gasto' ? '-' : t.tipo === 'ingreso' ? '+' : '🔄 '}
-                {fmtMoney(t.monto)}
-              </span>
-              <button onClick={() => abrirEditar(t)} className="text-sm text-indigo-600 hover:underline">Editar</button>
-              <button onClick={() => eliminar(t.id)} className="text-sm text-red-600 hover:underline">Eliminar</button>
-            </div>
+
+            {t.agrupada && t.factura_id && abierto === t.factura_id && (
+              <DetalleCompra data={detalle[t.factura_id]} />
+            )}
           </li>
         ))}
         {visibles.length === 0 && <p className="text-sm text-slate-500">No hay movimientos que coincidan.</p>}

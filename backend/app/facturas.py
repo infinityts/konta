@@ -139,3 +139,9 @@ def detectar_fecha(texto: str) -> date | None:
         except ValueError:
             pass
     return None
+
+
+def nombre_factura(nombre_archivo: str) -> str:
+    """De `Mercado_Septiembre_quincena 1.pdf` a `Mercado Septiembre quincena 1`."""
+    base = nombre_archivo.rsplit(".", 1)[0]
+    return base.replace("_", " ").strip() or "Factura"

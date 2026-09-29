@@ -199,6 +199,16 @@ export default function Facturas() {
       await cargar()
     })
 
+  /** Junta una factura confirmada línea por línea en **un** movimiento. */
+  const unificar = (facturaId: string) =>
+    conOcupado(facturaId, async () => {
+      await api(`/facturas/${facturaId}/unificar`, { method: 'POST' })
+      setAviso('Unificada en un solo movimiento (los artículos quedan como detalle).')
+      const detalle = await api<FacturaDetalle>(`/facturas/${facturaId}`)
+      setDetalles((d) => ({ ...d, [facturaId]: detalle }))
+      await cargar()
+    })
+
   /** Asigna una etiqueta a todas las líneas sin clasificar de una vez. */
   const asignarEnBloque = (facturaId: string) =>
     conOcupado(facturaId, async () => {
@@ -400,14 +410,36 @@ export default function Facturas() {
                           className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
                         />
                         <button
-                          onClick={() => confirmar(f.id)}
+                          onClick={() => confirmarTotal(f.id)}
                           disabled={ocupado === f.id}
+                          title="Un solo movimiento con los artículos como detalle (recomendado para el mercado)"
                           className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                         >
-                          Confirmar {pendientes.length} línea(s)
+                          Registrar la compra
+                        </button>
+                        <button
+                          onClick={() => confirmar(f.id)}
+                          disabled={ocupado === f.id}
+                          className="text-xs text-slate-500 underline hover:text-slate-700"
+                        >
+                          o separar en {pendientes.length} movimientos
                         </button>
                       </div>
                     )}
+                    {pendientes.length === 0 &&
+                      detalle.lineas.length > 0 &&
+                      new Set(detalle.lineas.map((l) => l.transaccion_id)).size !== 1 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => unificar(f.id)}
+                            disabled={ocupado === f.id}
+                            title="Junta los movimientos por artículo en una sola compra (los artículos quedan como detalle)"
+                            className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                          >
+                            Unificar en un solo movimiento
+                          </button>
+                        </div>
+                      )}
                     {pendientes.some((l) => l.origen === 'sin_clasificar') && (
                       <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-2">
                         <span className="text-xs text-slate-500">
@@ -485,9 +517,9 @@ export default function Facturas() {
                     {pendientes.length > 0 && (
                       <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
                         <p className="text-xs text-slate-500">
-                          <strong>O registra todo como un solo gasto</strong> (una compra de dos o
-                          tres cosas): una única transacción con el total y las líneas guardadas
-                          como detalle. Se usa la cuenta, la tarjeta y la fecha de arriba.
+                          <strong>Registrar la compra</strong>: un solo movimiento con el total y los{' '}
+                          {pendientes.length} artículos guardados como detalle (recomendado para el
+                          mercado). Cambia la descripción o el total si lo necesitas.
                         </p>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           <input
@@ -505,9 +537,9 @@ export default function Facturas() {
                           <button
                             onClick={() => confirmarTotal(f.id)}
                             disabled={ocupado === f.id}
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                           >
-                            Un solo gasto
+                            Registrar la compra
                           </button>
                           {f.monto_detectado != null &&
                             Number(f.monto_detectado) !==

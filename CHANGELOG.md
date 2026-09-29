@@ -1321,3 +1321,26 @@ anterior.
 backend (IP nueva) y el proxy siguió respondiendo 200 sin tocar el frontend.
 
 De paso, el orden correcto de un despliegue es **backend primero y frontend después**.
+
+## v1.46 — Una compra = un movimiento (se acabó el listado de 120 filas)
+
+El problema salió del uso real: un mercado de 120 artículos, confirmado **línea por línea**,
+llenaba el listado de Transacciones con 120 filas y volvía tedioso encontrar cualquier cosa.
+La culpa era del diseño: la acción principal de la factura era «Confirmar N línea(s)» y la
+opción de un solo movimiento estaba escondida y con el texto al revés.
+
+- **`GET /transacciones/movimientos`**: una compra (factura) es **un solo movimiento**, con el
+  total, la categoría, los chips de las etiquetas del detalle, el número de artículos y un
+  texto de búsqueda que incluye **todos** los artículos (escribes «queso» y aparece la compra).
+- **`GET /facturas/{id}/detalle`**: los artículos **agrupados por etiqueta** con subtotal y
+  porcentaje, y cada artículo con cantidad × precio unitario. Es lo que se ve en «Ver detalle».
+- **`POST /facturas/{id}/unificar`**: junta una factura confirmada línea por línea en un solo
+  movimiento (crea el padre con el total, reapunta los artículos y borra los individuales).
+  Idempotente y seguro: no borra una transacción que comparta otra factura.
+- **Frontend**: en Transacciones, el listado agrupado con «🧾 N artículos · Ver detalle» que se
+  despliega en la misma fila (acordeón, se ve bien en móvil) y el buscador entra en el detalle.
+  En Facturas, la acción principal pasa a ser **«Registrar la compra»** (un movimiento + detalle,
+  recomendado para el mercado) y el «separar en N movimientos» queda como opción secundaria;
+  si ya confirmaste por línea, aparece «Unificar en un solo movimiento».
+- Tests: **192 en verde** (antes 188): el agrupado, el detalle por etiqueta, el unificar
+  idempotente y el error claro si no hay nada confirmado.

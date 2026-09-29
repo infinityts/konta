@@ -88,6 +88,56 @@ export interface Transaccion {
   notas: string | null
 }
 
+export interface Movimiento {
+  id: string | null
+  ids: string[]
+  tipo: TipoTransaccion
+  monto: number | string
+  fecha: string
+  descripcion: string | null
+  categoria_id: string | null
+  categoria: string | null
+  etiqueta_id: string | null
+  etiquetas: string[]
+  factura_id: string | null
+  articulos: number
+  agrupada: boolean
+  cuenta_id: string | null
+  cuenta_destino_id: string | null
+  tarjeta_id: string | null
+  moneda: string
+  notas: string | null
+  busqueda: string
+  suscripcion_id: string | null
+  ingreso_recurrente_id: string | null
+  poliza_id: string | null
+}
+
+export interface ArticuloDetalle {
+  id: string
+  descripcion: string
+  cantidad: number | string | null
+  valor_unitario: number | string | null
+  valor_total: number | string
+  origen: string
+}
+
+export interface GrupoDetalle {
+  etiqueta: string | null
+  categoria: string | null
+  total: number | string
+  porcentaje: number | string
+  articulos: ArticuloDetalle[]
+}
+
+export interface DetalleFactura {
+  factura_id: string
+  descripcion: string | null
+  total: number | string
+  articulos: number
+  grupos: GrupoDetalle[]
+}
+
 export interface ReglaOcr {
   id: string
   patron: string
