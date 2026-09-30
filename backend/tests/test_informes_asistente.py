@@ -60,6 +60,8 @@ def test_comparar_dos_meses_con_cifras_conocidas(client, engine):
     with sessionmaker(bind=engine).begin() as s:
         datos = asistente._comparar(s, _usuario(s, "u@example.com"), "2026-09", "2026-08")
 
+    # de qué pantalla sale el dato: el asistente lo cita y no se inventa nombres
+    assert datos["pantalla"] == "Reportes"
     assert datos["totales"]["mes_a"]["gastos"] == 600000.0
     assert datos["totales"]["mes_b"]["gastos"] == 400000.0
     assert datos["totales"]["diferencia_gastos"] == 200000.0
@@ -142,6 +144,7 @@ def test_los_productos_salen_del_detalle_de_las_facturas(client, engine):
     with sessionmaker(bind=engine).begin() as s:
         datos = asistente._productos(s, _usuario(s, "u@example.com"), "2026-09")
     assert datos["mes"] == "2026-09"
+    assert datos["pantalla"] == "Mercado"
     assert datos["productos"], "el detalle de la factura tiene que aparecer"
     primero = datos["productos"][0]
     assert {"descripcion", "total", "veces", "precio_promedio"} <= set(primero)
@@ -190,5 +193,6 @@ def test_el_asistente_recibe_las_mismas_cifras_que_el_panel(client, monkeypatch)
     import json
 
     payload = json.loads(vistos[1][-1]["content"])
+    assert payload["pantalla"] == "Reportes", "el modelo tiene que poder citar la pantalla real"
     assert payload["totales"]["mes_a"]["gastos"] == panel["kpis"]["gastos"]
     assert payload["totales"]["mes_a"]["ingresos"] == panel["kpis"]["ingresos"]

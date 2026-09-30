@@ -56,7 +56,8 @@ Cuando te pidan un informe, una comparación o un desglose, ármalo así:
 1. Un titular con la cifra principal («En septiembre gastaste $1.240.000»).
 2. Las cifras que la expliquen, ordenadas de mayor a menor, con su nombre.
 3. Si hay un periodo anterior, qué cambió y cuánto (en pesos y en porcentaje).
-4. De dónde sale cada cifra (qué pantalla de la app).
+4. De dónde sale cada cifra: cada herramienta devuelve un campo `pantalla` con la pantalla real
+   de la app; cita ESA. Si no lo trae, no te inventes el nombre de una pantalla.
 Si te falta algún dato para el informe, dilo; no lo rellenes con estimaciones.
 """
 
@@ -167,6 +168,7 @@ def _mes_por_defecto() -> str:
 def _resumen(db: Session, usuario: Usuario, mes: str | None = None) -> dict:
     datos = reporte_panel(db, usuario.id, meses=2, mes=mes)
     return {
+        "pantalla": "Resumen",
         "mes": mes or _mes_por_defecto(),
         "cifras": datos.get("kpis", {}),
         "categorias": datos.get("categorias", [])[:8],
@@ -246,6 +248,7 @@ def _comparar(
 
     totales_a, totales_b = _totales(mes_a), _totales(mes_b)
     return {
+        "pantalla": "Reportes",
         "mes_a": mes_a,
         "mes_b": mes_b,
         "totales": {
@@ -300,6 +303,7 @@ def _detalle_de_categoria(
     ).all()
 
     return {
+        "pantalla": "Reportes",
         "mes": mes,
         "categoria": categoria,
         "total": round(sum(etiquetas.values()), 2),
@@ -320,6 +324,7 @@ def _productos(db: Session, usuario: Usuario, mes: str | None = None) -> dict:
     datos = reporte_panel(db, usuario.id, meses=2, mes=mes)
     mercado = datos.get("mercado") or {}
     return {
+        "pantalla": "Mercado",
         "mes": mes,
         "productos": (mercado.get("productos") or [])[:15],
         "por_etiqueta": (mercado.get("etiquetas") or [])[:15],
@@ -329,6 +334,7 @@ def _productos(db: Session, usuario: Usuario, mes: str | None = None) -> dict:
 def _cuentas(db: Session, usuario: Usuario) -> dict:
     datos = saldo_cuentas(db, usuario.id) or {}
     return {
+        "pantalla": "Cuentas",
         "total": datos.get("saldo_total"),
         "cuentas": [
             {"nombre": c.get("nombre"), "saldo": c.get("saldo_actual")}
@@ -390,6 +396,7 @@ def _mi_plan(db: Session, usuario: Usuario) -> dict:
 
     cupo = cuotas.resumen(db, usuario)
     return {
+        "pantalla": "Facturas (arriba, el cupo del mes)",
         "plan": cupo["plan_nombre"],
         "precio_mes": cupo["precio_mes"],
         "lecturas_ia_restantes": cupo["lecturas"]["restantes"],
@@ -409,12 +416,17 @@ def ejecutar(db: Session, usuario: Usuario, nombre: str, argumentos: dict) -> ob
     if nombre == "resumen":
         return _resumen(db, usuario, argumentos.get("mes"))
     if nombre == "movimientos":
-        return _movimientos(db, usuario, **argumentos)
+        return {"pantalla": "Transacciones", "movimientos": _movimientos(db, usuario, **argumentos)}
     if nombre == "gastos_por_categoria":
-        return reporte_categorias(db, usuario.id, argumentos.get("mes") or _mes_por_defecto())
+        return {
+            "pantalla": "Reportes",
+            "desglose": reporte_categorias(
+                db, usuario.id, argumentos.get("mes") or _mes_por_defecto()
+            ),
+        }
     if nombre == "evolucion":
         meses = max(1, min(int(argumentos.get("meses") or 6), 12))
-        return reporte_mensual(db, usuario.id, meses)
+        return {"pantalla": "Reportes", "meses": reporte_mensual(db, usuario.id, meses)}
     if nombre == "comparar":
         return _comparar(
             db, usuario, argumentos.get("mes_a") or "", argumentos.get("mes_b") or "",
@@ -429,11 +441,11 @@ def ejecutar(db: Session, usuario: Usuario, nombre: str, argumentos: dict) -> ob
     if nombre == "cuentas":
         return _cuentas(db, usuario)
     if nombre == "tarjetas":
-        return _tarjetas(db, usuario)
+        return {"pantalla": "Tarjetas", "tarjetas": _tarjetas(db, usuario)}
     if nombre == "presupuestos":
-        return _presupuestos(db, usuario)
+        return {"pantalla": "Presupuestos", "presupuestos": _presupuestos(db, usuario)}
     if nombre == "facturas":
-        return _facturas(db, usuario, argumentos.get("limite"))
+        return {"pantalla": "Facturas", "facturas": _facturas(db, usuario, argumentos.get("limite"))}
     if nombre == "mi_plan":
         return _mi_plan(db, usuario)
     if nombre == "ayuda":

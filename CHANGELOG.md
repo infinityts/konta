@@ -2289,3 +2289,17 @@ que compara el informe contra el panel de Reportes), no ve datos de otro cliente
 lectura.
 
 Tests: **348 en verde** (6 nuevos).
+
+### v1.82 — Cada dato dice de qué pantalla sale (y no de una inventada)
+
+En la verificación de los informes, el asistente citó *«según la pantalla Comparar»* — y esa
+pantalla **no existe**: el nombre se lo inventó ✗. Justo el tipo de detalle que hace que uno deje de
+creerle a las cifras.
+
+- Cada herramienta devuelve ahora un campo **`pantalla`** con la pantalla real de la app
+  (Resumen, Reportes, Mercado, Cuentas, Tarjetas, Presupuestos, Facturas, Transacciones).
+- La regla del prompt cambió: **cita la pantalla que venga en el resultado**; si no viene, no te
+  inventes ninguna.
+- Hay tests que lo comprueban en las tres herramientas de informe.
+
+Tests: **348 en verde**.
