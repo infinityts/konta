@@ -303,3 +303,73 @@ def test_cambiar_de_plan_suma_los_dias_que_quedaban_y_ajusta_la_retencion(client
     from datetime import timedelta
 
     assert expira == str(hoy() + timedelta(days=90)), expira
+
+
+def test_la_orden_se_reserva_para_que_dos_avisos_no_acrediten_dos_veces(client, engine):
+    """Las pasarelas reintentan, y a veces en paralelo: la comprobación sola no basta.
+
+    La garantía es que el aviso **reserve la fila** (`SELECT … FOR UPDATE`): el segundo aviso espera
+    al primero y, cuando entra, ya la ve aplicada. Se prueba sin depender de tiempos: con
+    `FOR UPDATE NOWAIT` la base dice **al instante** si la fila está reservada o no.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.dialects import postgresql
+
+
+    _, h = _registrar(client)
+    orden = _orden(client, h, "paquete", "lecturas10")
+    referencia = orden["referencia"]
+
+    # 1) la consulta de la app se compila con FOR UPDATE cuando se pide bloquear
+    from sqlalchemy import select
+
+    from app.models import Pago
+
+    con_bloqueo = str(
+        select(Pago).where(Pago.referencia == referencia)
+        .with_for_update()
+        .compile(dialect=postgresql.dialect())
+    )
+    assert "FOR UPDATE" in con_bloqueo.upper(), con_bloqueo
+    sin_bloqueo = str(
+        select(Pago).where(Pago.referencia == referencia).compile(dialect=postgresql.dialect())
+    )
+    assert "FOR UPDATE" not in sin_bloqueo.upper()
+
+    # 2) y de verdad reserva: mientras una conexión la tiene, otra no puede ni esperar por ella
+    conexion_a = engine.connect()
+    conexion_b = engine.connect()
+    try:
+        trans_a = conexion_a.begin()
+        conexion_a.execute(
+            text("select id from pagos where referencia = :r for update"), {"r": referencia}
+        )
+        with pytest.raises(Exception) as error:
+            conexion_b.execute(
+                text("select id from pagos where referencia = :r for update nowait"),
+                {"r": referencia},
+            )
+        assert "lock" in str(error.value).lower(), f"la fila no estaba reservada: {error.value}"
+        conexion_b.rollback()  # el intento fallido deja su transacción rota: se suelta
+
+        trans_a.commit()  # el primer aviso termina
+        # ahora sí entra, y sin esperar
+        conexion_b.execute(
+            text("select id from pagos where referencia = :r for update nowait"), {"r": referencia}
+        )
+        conexion_b.rollback()
+    finally:
+        conexion_a.close()
+        conexion_b.close()
+
+    # 3) y el camino normal (secuencial) sigue acreditando una sola vez
+    assert client.post(f"/pagos/simular-pago/{referencia}", headers=h).status_code == 200
+    repetido = client.post(f"/pagos/simular-pago/{referencia}", headers=h)
+    assert repetido.status_code == 200, "el segundo aviso responde, pero no acredita otra vez"
+    aviso = client.post(
+        "/pagos/webhook/simulada",
+        headers=h,
+        json={"referencia": referencia, "estado": "pagado", "id_externo": "ext-repetido"},
+    )
+    assert aviso.status_code == 200 and aviso.json()["aplicado_ahora"] is False
+    assert client.get("/ia/cuota", headers=h).json()["lecturas_restantes"] == 20, "una sola vez"

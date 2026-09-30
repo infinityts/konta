@@ -272,3 +272,34 @@ def test_el_mantenimiento_diario_hace_las_dos_cosas(client, engine):
     hecho = mantenimiento_diario()
     assert set(hecho) == {"planes_vencidos", "propuestas_expiradas"}
     assert hecho["planes_vencidos"] == 0 and hecho["propuestas_expiradas"] == 0
+
+
+def test_si_el_movimiento_ya_no_esta_la_propuesta_queda_fallida_no_pendiente(client, engine, monkeypatch):
+    """Confirmar algo que ya no existe no puede dejar la propuesta colgada para siempre."""
+    _, h = _registrar(client)
+    creado = client.post(
+        "/transacciones", headers=h,
+        json={"tipo": "gasto", "monto": "30000", "fecha": "2026-09-20", "descripcion": "Surtidor"},
+    ).json()
+    monkeypatch.setattr(
+        ia, "chat",
+        _modelo_que_propone("etiquetar_movimiento", {"transaccion_id": creado["id"], "categoria": "Transporte"}),
+    )
+    client.post("/asistente/preguntar", headers=h, json={"pregunta": "etiqueta el surtidor"})
+    propuesta_id = client.get("/asistente/propuestas", headers=h).json()[0]["id"]
+
+    # el movimiento se borra antes de confirmar
+    assert client.delete(f"/transacciones/{creado['id']}", headers=h).status_code == 204
+
+    r = client.post(f"/asistente/propuestas/{propuesta_id}/confirmar", headers=h)
+    assert r.status_code == 404, r.text
+    # y no se queda pendiente: queda fallida, con el motivo, y desaparece de la lista
+    assert client.get("/asistente/propuestas", headers=h).json() == []
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        estado, resultado = conn.execute(
+            text("select estado, resultado from propuestas where id = :id"), {"id": propuesta_id}
+        ).one()
+    assert estado == "fallida"
+    assert "No se pudo ejecutar" in resultado

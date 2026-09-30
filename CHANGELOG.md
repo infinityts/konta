@@ -2598,3 +2598,29 @@ mismo hecho ✗:
   en el total ✗.
 
 Tests: **392 en verde** (1 nuevo).
+
+### v1.97 — Dos avisos de pago a la vez (la ventana entre leer y escribir)
+
+Fui a probar en producción un caso raro: **dos avisos de la misma orden, en paralelo** (las pasarelas
+reintentan, y a veces a la vez). Salió bien (+10 lecturas) ✅ — pero **eso no prueba nada** ✗: mis dos
+peticiones no llegaron a solaparse en la ventana crítica, que es diminuta ✗. La ventana **estaba
+ahí** ✗: entre leer «¿ya está aplicado?» y escribir «aplicado» hay un instante en el que dos avisos
+podrían leer «pendiente» **los dos** y acreditar dos veces ✗.
+
+- **Arreglado por construcción** ✅, no por suerte: el aviso ahora **reserva la fila** con
+  `SELECT … FOR UPDATE`. El segundo aviso **espera** a que el primero termine y, cuando entra, ya la
+  ve aplicada ✅. Es la diferencia entre comprobar y **garantizar** ✅.
+- **Y probado sin depender de tiempos** ✅: con `FOR UPDATE NOWAIT` la base dice **al instante** si la
+  fila está reservada ✅, así que el test no tiene ni un `sleep` ni un hilo ✗ (mi primer intento fue
+  con hilos ✗ y era frágil ✗ — y además probaba lo que no era ✗, porque aplicar el pago confirma la
+  transacción y suelta la fila ✗).
+- **Una propuesta que no se puede ejecutar ya no se queda pendiente para siempre** ✗→✅: si al
+  confirmarla el movimiento ya no está (o el dato desapareció), queda **fallida con el motivo** ✅ y
+  sale de la lista ✅. Solo para errores de datos (4xx) ✅: un fallo pasajero del servidor se puede
+  reintentar ✅.
+
+Lo que aprendí de método ✅: ejecutar el caso raro en producción **confirma** ✅, pero no **garantiza**
+✗ — cuando la carrera es cuestión de milisegundos ✗, la garantía tiene que venir del diseño (el
+bloqueo) y de un test que no dependa del tiempo ✅.
+
+Tests: **394 en verde** (2 nuevos).

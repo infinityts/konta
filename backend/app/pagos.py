@@ -183,8 +183,18 @@ def marcar_fallido(db: Session, pago: Pago, motivo: str = "") -> Pago:
     return pago
 
 
-def por_referencia(db: Session, referencia: str) -> Pago | None:
-    return db.scalar(select(Pago).where(Pago.referencia == referencia))
+def por_referencia(db: Session, referencia: str, bloquear: bool = False) -> Pago | None:
+    """La orden por su referencia. Con `bloquear=True`, la deja **reservada** hasta el commit.
+
+    El aviso de la pasarela lo pide bloqueando: si llegan dos avisos de la misma orden a la vez
+    (las pasarelas reintentan, y a veces en paralelo), el segundo **espera** a que el primero
+    termine y entonces ve que ya estaba aplicado. Sin el bloqueo, los dos podrían leer «pendiente»
+    y acreditar dos veces: la comprobación sola no basta cuando hay prisa.
+    """
+    consulta = select(Pago).where(Pago.referencia == referencia)
+    if bloquear:
+        consulta = consulta.with_for_update()
+    return db.scalar(consulta)
 
 
 def historial(db: Session, usuario: Usuario) -> list[Pago]:

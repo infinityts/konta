@@ -219,8 +219,17 @@ def confirmar(db: Session, usuario: Usuario, propuesta_id) -> tuple[Propuesta, s
         raise HTTPException(status_code=422, detail="No sé ejecutar esa propuesta")
     try:
         resultado = ejecutor(db, usuario, json.loads(propuesta.datos))
-    except HTTPException:
+    except HTTPException as error:
         db.rollback()
+        # Si lo que falla es un dato (el movimiento ya no está, la categoría desapareció), la
+        # propuesta no puede quedarse pendiente para siempre: se marca fallida con el motivo, para
+        # que el usuario lo vea y no vuelva a intentarlo en balde.
+        if 400 <= error.status_code < 500:
+            propuesta.estado = "fallida"
+            propuesta.resultado = f"No se pudo ejecutar: {error.detail}"
+            propuesta.resuelta_en = datetime.now(UTC)
+            db.add(propuesta)
+            db.commit()
         raise
     propuesta.estado = "confirmada"
     propuesta.resultado = resultado

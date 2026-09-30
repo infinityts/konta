@@ -89,7 +89,7 @@ async def aviso_de_pago(
         raise HTTPException(status_code=401, detail="El aviso no viene de la pasarela")
 
     datos = pasarela.interpretar(cuerpo)
-    pago = cobros.por_referencia(db, datos.get("referencia") or "")
+    pago = cobros.por_referencia(db, datos.get("referencia") or "", bloquear=True)
     if pago is None:
         raise HTTPException(status_code=404, detail="No hay ninguna orden con esa referencia")
 
