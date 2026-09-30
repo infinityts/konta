@@ -2624,3 +2624,29 @@ Lo que aprendí de método ✅: ejecutar el caso raro en producción **confirma*
 bloqueo) y de un test que no dependa del tiempo ✅.
 
 Tests: **394 en verde** (2 nuevos).
+
+### v1.98 — La ventana más ancha posible: comprobar la cuota y cobrarla después
+
+Apliqué la lente de la ronda pasada (**comprobar no es garantizar**) al sitio donde más duele: la
+cuota de la IA. Estaba así ✗: se comprobaba el cupo **antes** de llamar al proveedor y se cobraba
+**después** — o sea, con **toda la llamada** (segundos) en medio ✗. Cinco lecturas lanzadas a la vez
+con una sola disponible pasaban las cinco la comprobación ✗: **cinco llamadas pagadas al proveedor y
+una sola cobrada** ✗. Una fuga real de dinero ✗, y en el peor sitio: el que decide si un plan deja
+ganancia.
+
+- **Se reserva antes** ✅: la lectura (o la consulta al asistente) se cobra **antes** de llamar al
+  proveedor, así que una petición sin cupo **no gasta un token** ✅.
+- **Y se devuelve si falla** ✅: si el proveedor no responde, la unidad vuelve al saldo ✅ — se
+  mantiene la promesa de *«no se cobra lo que no se hizo»* ✅ (con el saldo comprado incluido: si la
+  reserva había tocado las lecturas extra, se le devuelven ✅).
+- **La comprobación y el apunte son un solo paso** ✅: la fila del usuario se reserva
+  (`SELECT … FOR UPDATE`), así que la segunda petición **espera**, ve el contador actualizado y se le
+  dice que no ✅ (la misma lección que en los pagos: garantizar, no comprobar ✅).
+
+**Y dos fallos que cazaron los tests** ✗ (los cuento porque son la parte útil):
+1. Mi primer parche quitó el cobro de la lectura **sin** poner la reserva ✗ → esa lectura habría
+   salido **gratis** ✗. El test lo dijo al instante ✅.
+2. Con el asistente **apagado** (sin clave), el 503 se devolvía pero la consulta **ya estaba
+   cobrada** ✗ → ahora se devuelve ✅. Ese caso lo cazó un test que escribí hace diez rondas ✅.
+
+Tests: **395 en verde** (2 nuevos).

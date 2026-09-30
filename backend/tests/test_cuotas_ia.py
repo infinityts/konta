@@ -182,3 +182,22 @@ def test_el_pdf_se_convierte_en_imagen_para_el_modelo(client):
         pytest.skip("poppler no está instalado en este entorno")
     mime, _datos = ia._a_imagen(_pdf_minimo("Monto: $46.477\n"), "application/pdf")
     assert mime == "image/jpeg"
+
+
+def test_si_el_proveedor_falla_la_lectura_no_se_cobra(client):
+    """No se cobra lo que no se hizo: la lectura se reserva antes, y si falla se devuelve."""
+    from test_api import _pdf_minimo
+
+    _, h = _registrar(client)
+    antes = client.get("/ia/cuota", headers=h).json()["lecturas_restantes"]
+    r = client.post(
+        "/ia/leer",
+        headers=h,
+        files={"archivo": ("f.pdf", _pdf_minimo("Monto: $1.000\n"), "application/pdf")},
+    )
+    # sin clave configurada el servicio está apagado (503): ni cobra ni deja el contador tocado
+    assert r.status_code == 503, r.text
+    assert "falta la clave" in r.json()["detail"], r.json()["detail"]
+    cuota = client.get("/ia/cuota", headers=h).json()
+    assert cuota["lecturas_restantes"] == antes, "la lectura no se hizo: no se cobra"
+    assert cuota["lecturas_usadas"] == 0

@@ -783,17 +783,18 @@ async def releer_con_ia(
     factura = get_owned(db, Factura, id, user.id)
     contenido = archivos.contenido_de(factura, contrasena)
 
-    resumen = cuotas.resumen(db, user)
-    if resumen["lecturas"]["restantes"] < 1:
-        raise cuotas.agotado(cuotas.LECTURA_IA, resumen)
+    # Igual que en la lectura con IA: se reserva antes de llamar al proveedor
+    cuotas.reservar(db, user, cuotas.LECTURA_IA)
 
     try:
         lectura = ia.leer_documento(
             contenido, factura.nombre_archivo, factura.archivo_tipo, contrasena
         )
     except ia.IaNoConfigurada as error:
+        cuotas.devolver(db, user, cuotas.LECTURA_IA)
         raise HTTPException(status_code=503, detail=str(error)) from error
     except Exception as error:  # un fallo del proveedor no se cobra
+        cuotas.devolver(db, user, cuotas.LECTURA_IA)
         raise HTTPException(
             status_code=502,
             detail=(
@@ -802,7 +803,6 @@ async def releer_con_ia(
             ),
         ) from error
 
-    cuotas.consumir(db, user, cuotas.LECTURA_IA)
     cuotas.registrar_gasto(
         db, user, lectura.tokens_entrada, lectura.tokens_salida, lectura.costo_usd
     )

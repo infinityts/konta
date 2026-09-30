@@ -137,21 +137,34 @@ def agotado(recurso: str, resumen_actual: dict) -> HTTPException:
     return HTTPException(status_code=402, detail=detalle)
 
 
-def consumir(db: Session, usuario: Usuario, recurso: str, unidades: int = 1) -> ConsumoIa:
-    """Gasta una unidad del recurso o explica por qué no se puede.
+def _bloquear_usuario(db: Session, usuario: Usuario) -> None:
+    """Reserva la fila del usuario para que dos cobros a la vez no se pisen.
 
-    Se comprueba **antes** de llamar al proveedor de IA: si no hay cupo, no se gasta un token.
+    La comprobación «¿le quedan lecturas?» y el apunte de «gastó una» tienen que ser **un solo
+    paso**. Sin esto, cinco lecturas lanzadas a la vez con una disponible pasaban las cinco la
+    comprobación: cinco llamadas pagadas al proveedor y una sola cobrada. Con la fila reservada, la
+    segunda espera, ve el contador actualizado y se le dice que no.
     """
+    db.execute(select(Usuario.id).where(Usuario.id == usuario.id).with_for_update()).one()
+
+
+def reservar(db: Session, usuario: Usuario, recurso: str, unidades: int = 1) -> ConsumoIa:
+    """Cobra una unidad **antes** de llamar al proveedor, o explica por qué no se puede.
+
+    Se cobra antes (y no después) porque lo que se está protegiendo es el **gasto real**: si se
+    comprueba antes de la llamada y se cobra después, entre una cosa y otra pasan segundos y caben
+    todas las peticiones que quieras. Si la llamada falla, `devolver` deja el saldo como estaba.
+    """
+    _bloquear_usuario(db, usuario)
     actual = resumen(db, usuario)
+    clave = "lecturas" if recurso == LECTURA_IA else "consultas"
+    if actual[clave]["restantes"] < unidades:
+        raise agotado(recurso, actual)
+
+    consumo = consumo_de(db, usuario)
     if recurso == LECTURA_IA:
-        if actual["lecturas"]["restantes"] < unidades:
-            raise agotado(recurso, actual)
-        consumo = consumo_de(db, usuario)
         consumo.lecturas += unidades
     else:
-        if actual["consultas"]["restantes"] < unidades:
-            raise agotado(recurso, actual)
-        consumo = consumo_de(db, usuario)
         consumo.consultas += unidades
 
     # El saldo comprado se descuenta solo cuando lo incluido ya se agotó
@@ -160,6 +173,27 @@ def consumir(db: Session, usuario: Usuario, recurso: str, unidades: int = 1) -> 
     db.commit()
     db.refresh(consumo)
     return consumo
+
+
+def devolver(db: Session, usuario: Usuario, recurso: str, unidades: int = 1) -> ConsumoIa:
+    """Deshace una reserva cuando la llamada al proveedor no salió (no se cobra lo que no se hizo)."""
+    _bloquear_usuario(db, usuario)
+    actual = resumen(db, usuario)
+    consumo = consumo_de(db, usuario)
+    if recurso == LECTURA_IA:
+        consumo.lecturas = max(0, consumo.lecturas - unidades)
+        # Si la reserva había tocado el saldo comprado, se le devuelve
+        if actual["lecturas"]["restantes"] < 1 and actual["lecturas"]["extra"] > 0:
+            usuario.lecturas_extra = (usuario.lecturas_extra or 0) + unidades
+    else:
+        consumo.consultas = max(0, consumo.consultas - unidades)
+    db.commit()
+    db.refresh(consumo)
+    return consumo
+
+
+# El nombre viejo, por si algo lo llama: hacerlo bien es `reservar`
+consumir = reservar
 
 
 def registrar_gasto(

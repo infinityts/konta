@@ -130,10 +130,9 @@ async def leer_con_ia(
             detail=f"El archivo pesa más de {get_settings().tamano_maximo_archivo_mb} MB.",
         )
 
-    # 1) El cupo se comprueba **antes** de llamar al proveedor: si no hay, no se gasta nada.
-    resumen = cuotas.resumen(db, user)
-    if resumen["lecturas"]["restantes"] < 1:
-        raise cuotas.agotado(cuotas.LECTURA_IA, resumen)
+    # 1) La lectura se **cobra antes** de llamar al proveedor: si no hay cupo, no se gasta un token,
+    #    y cinco peticiones a la vez no pueden pasar las cinco con una sola lectura disponible.
+    cuotas.reservar(db, user, cuotas.LECTURA_IA)
 
     # 2) La lectura
     try:
@@ -141,8 +140,11 @@ async def leer_con_ia(
             contenido, archivo.filename or "documento", archivo.content_type, contrasena
         )
     except ia.IaNoConfigurada as error:
+        cuotas.devolver(db, user, cuotas.LECTURA_IA)
         raise HTTPException(status_code=503, detail=str(error)) from error
     except Exception as error:
+        # No se cobra lo que no se hizo
+        cuotas.devolver(db, user, cuotas.LECTURA_IA)
         raise HTTPException(
             status_code=502,
             detail=(
@@ -152,7 +154,6 @@ async def leer_con_ia(
         ) from error
 
     # 3) Se cobra **después** de que salga bien, y se anota lo que costó de verdad
-    cuotas.consumir(db, user, cuotas.LECTURA_IA)
     cuotas.registrar_gasto(
         db, user, lectura.tokens_entrada, lectura.tokens_salida, lectura.costo_usd
     )

@@ -530,15 +530,20 @@ def ejecutar(db: Session, usuario: Usuario, nombre: str, argumentos: dict) -> ob
 
 
 def preguntar(db: Session, usuario: Usuario, pregunta: str) -> dict:
-    """Responde una pregunta: comprueba cupo, deja que el modelo pida datos y cobra al final.
+    """Responde una pregunta sobre la app o las finanzas del usuario.
 
-    El cupo se comprueba **antes** (si no hay, no se gasta un token) y la consulta se cobra solo
-    si sale bien.
+    La consulta se **reserva antes** de llamar al modelo (si no hay cupo, no se gasta un token) y se
+    **devuelve** si el modelo no llega a responder: no se cobra lo que no se hizo.
     """
-    resumen_cupo = cuotas.resumen(db, usuario)
-    if resumen_cupo["consultas"]["restantes"] < 1:
-        raise cuotas.agotado(cuotas.CONSULTA_ASISTENTE, resumen_cupo)
+    cuotas.reservar(db, usuario, cuotas.CONSULTA_ASISTENTE)
+    try:
+        return _preguntar_de_verdad(db, usuario, pregunta)
+    except Exception:
+        cuotas.devolver(db, usuario, cuotas.CONSULTA_ASISTENTE)
+        raise
 
+
+def _preguntar_de_verdad(db: Session, usuario: Usuario, pregunta: str) -> dict:
     hoy_ = hoy()
     mensajes: list[dict] = [
         {"role": "system", "content": f"{SISTEMA}\n\nHoy es {hoy_} ({DIAS[hoy_.weekday()]})."},
@@ -603,7 +608,6 @@ def preguntar(db: Session, usuario: Usuario, pregunta: str) -> dict:
             "concreta?"
         )
 
-    cuotas.consumir(db, usuario, cuotas.CONSULTA_ASISTENTE)
     cuotas.registrar_gasto(db, usuario, entrada, salida, costo)
     db.add(
         ConsultaAsistente(
