@@ -2170,3 +2170,21 @@ Eso lo pagamos nosotros, no el cliente: se quitó de la pantalla (el gasto se si
 dentro, para el informe de promedios).
 
 Tests: **317 en verde** (sin cambios en el backend; CI incluido).
+
+### v1.77 — El espacio se mide en MB-día (y deja de ser una foto)
+
+Para poder cobrar el almacenamiento con criterio había que medirlo como se mide de verdad: no es
+lo mismo guardar 30 archivos una semana que un mes entero.
+
+- **Un trabajo diario** (23:50 en Colombia) suma al mes en curso lo que ocupan los archivos de
+  cada usuario: **archivos-día** y **MB-día**. Es **idempotente**: si corre dos veces el mismo
+  día, el cliente no paga dos veces (queda anotado el último día medido, y hay test).
+- **La cuota lo enseña**: además de la foto de ahora (archivos y MB), el usuario ve su
+  **promedio** del mes, el acumulado en MB-día y cuántos días se han medido.
+- Cada mes arranca su propia cuenta, y un usuario sin archivos guardados no entra en la medición.
+
+Con tus documentos (0,16 MB de media, 30 archivos ≈ 4,8 MB) un cliente que use la app todo el mes
+acumula del orden de **150 MB-día**: es la cifra con la que se compara cada plan, y la que
+alimenta el informe de promedios.
+
+Tests: **319 en verde** (2 nuevos).

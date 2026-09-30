@@ -582,10 +582,12 @@ class Plan(Base):
 
 
 class ConsumoIa(Base):
-    """Lo que un usuario gastó en el mes: lecturas, consultas y **tokens de verdad**.
+    """Lo que un usuario gastó en el mes: IA **y almacenamiento**.
 
-    Los tokens y el coste se guardan para poder mirar el margen real de cada plan y para saber
-    cuánto cuesta de verdad una lectura (que es lo que decide si un plan deja ganancia).
+    De la IA se guardan las lecturas, las consultas, los tokens y el coste real (para mirar el
+    margen de cada plan). del almacenamiento se guarda el **MB-día**: cada día, lo que ocupan sus
+    archivos se suma al mes. Es la métrica honesta para cobrar espacio, porque no es lo mismo
+    guardar 30 archivos siete días que treinta días.
     """
 
     __tablename__ = "consumos_ia"
@@ -614,6 +616,17 @@ class ConsumoIa(Base):
         server_default=text("now()"),
         onupdate=lambda: datetime.now(UTC),
     )
+
+    # ── Almacenamiento (la suma del día a día, no una foto) ─────────────────────────────
+    # `archivos_dia` y `mb_dia` son sumas diarias: divididas por los días medidos dan el
+    # promedio, y con eso se sabe lo que cuesta de verdad el espacio de cada cliente.
+    archivos_dia: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    mb_dia: Mapped[Decimal] = mapped_column(
+        Numeric(14, 3), nullable=False, default=0, server_default="0"
+    )
+    # Último día medido: evita contar dos veces si el trabajo corre dos veces el mismo día
+    ultima_medicion: Mapped[date | None] = mapped_column(Date, nullable=True)
+    dias_medidos: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
 class ConsultaAsistente(Base):

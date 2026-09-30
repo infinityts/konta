@@ -7,7 +7,8 @@ texto y el monto se leen de una vez): lo único que no habrá es la relectura co
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from . import almacen
 from .db import make_engine, make_session_factory
 from .models import Factura, Plan, Usuario
+from .recurrencia import hoy
 
 # Lo que se guarda si el usuario no tiene plan (o el plan no lo dice)
 ARCHIVOS_POR_DEFECTO = 30
@@ -124,7 +126,11 @@ def contenido_de(factura: Factura, contrasena: str | None = None) -> bytes:
 
 
 def resumen(db: Session, usuario: Usuario) -> dict:
-    """Lo que el usuario lleva de almacenamiento, para enseñarlo en la app."""
+    """Lo que el usuario lleva de almacenamiento: la foto de ahora y lo medido en el mes.
+
+    La foto dice cuántos archivos tiene; el **MB-día** dice cuánto espacio ha ocupado de verdad
+    a lo largo del mes, que es lo que se cobra y lo que se promedia.
+    """
     incluidos, dias, mb = limites(db, usuario)
     archivos, bytes_usados = uso(db, usuario)
     return {
@@ -133,6 +139,7 @@ def resumen(db: Session, usuario: Usuario) -> dict:
         "mb_usados": round(bytes_usados / 1024 / 1024, 3),
         "mb_incluidos": mb,
         "retencion_dias": dias,
+        **promedio(db, usuario),
     }
 
 
@@ -149,6 +156,81 @@ def borrar_archivos_vencidos(s: Session) -> int:
     for factura in vencidas:
         borrar_archivo(s, factura)
     return len(vencidas)
+
+
+def medir_almacenamiento(s: Session, cuando: date | None = None) -> int:
+    """Suma al mes en curso lo que ocupan los archivos de cada usuario. Una vez por día.
+
+    Es la parte que permite cobrar el espacio con criterio: 30 archivos guardados una semana no
+    pesan lo mismo que 30 guardados un mes. Se puede llamar varias veces al día: la segunda no
+    cuenta (queda anotado el último día medido).
+    """
+    from .models import ConsumoIa
+
+    hoy_ = cuando or hoy()
+    periodo = hoy_.strftime("%Y-%m")
+    medidos = 0
+    usuarios = s.scalars(
+        select(Usuario).where(
+            select(Factura.id)
+            .where(Factura.usuario_id == Usuario.id, Factura.archivo_clave.is_not(None))
+            .exists()
+        )
+    ).all()
+    for usuario in usuarios:
+        archivos, bytes_usados = uso(s, usuario)
+        fila = s.scalar(
+            select(ConsumoIa).where(
+                ConsumoIa.usuario_id == usuario.id, ConsumoIa.periodo == periodo
+            )
+        )
+        if fila is None:
+            fila = ConsumoIa(usuario_id=usuario.id, periodo=periodo)
+            s.add(fila)
+            s.flush()
+        if fila.ultima_medicion == hoy_:
+            continue  # ya se midió hoy: no se cuenta dos veces
+        fila.archivos_dia += archivos
+        fila.mb_dia = Decimal(str(fila.mb_dia or 0)) + Decimal(str(round(bytes_usados / 1024 / 1024, 3)))
+        fila.dias_medidos += 1
+        fila.ultima_medicion = hoy_
+        medidos += 1
+    return medidos
+
+
+def medir_almacenamiento_diario() -> int:
+    """Trabajo programado: mide el almacenamiento de todos los usuarios una vez al día."""
+    engine = make_engine()
+    sf = make_session_factory(engine)
+    try:
+        with sf.begin() as s:
+            return medir_almacenamiento(s)
+    finally:
+        engine.dispose()
+
+
+def promedio(s: Session, usuario: Usuario) -> dict:
+    """El promedio diario del mes: es lo que se compara contra el plan."""
+    from .models import ConsumoIa
+
+    fila = s.scalar(
+        select(ConsumoIa).where(
+            ConsumoIa.usuario_id == usuario.id, ConsumoIa.periodo == periodo_actual()
+        )
+    )
+    if fila is None or not fila.dias_medidos:
+        return {"archivos_promedio": 0.0, "mb_promedio": 0.0, "mb_dia": 0.0, "dias_medidos": 0}
+    dias = fila.dias_medidos
+    return {
+        "archivos_promedio": round(fila.archivos_dia / dias, 2),
+        "mb_promedio": round(float(fila.mb_dia) / dias, 3),
+        "mb_dia": float(fila.mb_dia),
+        "dias_medidos": dias,
+    }
+
+
+def periodo_actual() -> str:
+    return hoy().strftime("%Y-%m")
 
 
 def limpiar_archivos_vencidos() -> int:

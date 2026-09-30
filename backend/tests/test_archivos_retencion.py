@@ -219,3 +219,53 @@ def test_al_borrar_el_ultimo_archivo_no_queda_la_carpeta(client):
 
     client.delete(f"/facturas/{factura['id']}", headers=h)
     assert not carpeta.exists(), "la carpeta vacía del usuario se quedaba ahí"
+
+
+def test_el_almacenamiento_se_mide_por_dia_y_no_se_cuenta_dos_veces(client, engine):
+    """El MB-día es la métrica honesta: 30 archivos una semana no pesan como un mes.
+
+    Y tiene que ser idempotente: si el trabajo corre dos veces el mismo día, el cliente no puede
+    pagar dos veces por lo mismo.
+    """
+    from datetime import date
+
+    from app.db import make_session_factory
+
+    _, h = _registrar(client)
+    _factura(client, h)
+    sf = make_session_factory(engine)
+    hoy_ = date(2026, 9, 30)
+
+    with sf.begin() as s:
+        assert archivos.medir_almacenamiento(s, cuando=hoy_) == 1
+    with sf.begin() as s:
+        # la segunda del mismo día no cuenta
+        assert archivos.medir_almacenamiento(s, cuando=hoy_) == 0
+
+    cuota = client.get("/ia/cuota", headers=h).json()
+    assert cuota["dias_medidos"] == 1
+    assert cuota["archivos_promedio"] == 1.0
+    assert cuota["mb_promedio"] > 0
+    assert cuota["mb_dia"] > 0
+
+    # al día siguiente vuelve a sumar
+    with sf.begin() as s:
+        assert archivos.medir_almacenamiento(s, cuando=date(2026, 10, 1)) == 1
+    cuota = client.get("/ia/cuota", headers=h).json()
+    assert cuota["dias_medidos"] == 1, "el mes nuevo empieza su propia cuenta"
+    assert cuota["periodo"] == "2026-09"  # el periodo de la cuota sigue siendo el de hoy
+
+
+def test_un_usuario_sin_archivos_no_se_mide(client, engine):
+    from datetime import date
+
+    from app.db import make_session_factory
+
+    _, h = _registrar(client)
+    _factura(client, h)
+    client.delete(f"/facturas/{[f['id'] for f in client.get('/facturas', headers=h).json()][0]}", headers=h)
+
+    sf = make_session_factory(engine)
+    with sf.begin() as s:
+        assert archivos.medir_almacenamiento(s, cuando=date(2026, 9, 30)) == 0
+    assert client.get("/ia/cuota", headers=h).json()["dias_medidos"] == 0

@@ -44,6 +44,10 @@ def _cuota_out(resumen: dict) -> CuotaOut:
         mb_usados=resumen["mb_usados"],
         mb_incluidos=resumen["mb_incluidos"],
         retencion_dias=resumen["retencion_dias"],
+        archivos_promedio=resumen.get("archivos_promedio", 0.0),
+        mb_promedio=resumen.get("mb_promedio", 0.0),
+        mb_dia=resumen.get("mb_dia", 0.0),
+        dias_medidos=resumen.get("dias_medidos", 0),
     )
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from .archivos import limpiar_archivos_vencidos
+from .archivos import limpiar_archivos_vencidos, medir_almacenamiento_diario
 from .notificaciones import procesar_notificaciones
 from .recurrencia import (
     procesar_ingresos_vencidos,
@@ -44,6 +44,17 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         hours=1,
         id="polizas-vencidas",
+        max_instances=1,
+        coalesce=True,
+    )
+    # El almacenamiento se mide una vez al día (23:50 en Colombia): cada día suma al mes lo que
+    # ocupan los archivos, que es lo que permite cobrar el espacio con criterio.
+    _scheduler.add_job(
+        medir_almacenamiento_diario,
+        "cron",
+        hour=4,
+        minute=50,
+        id="medir-almacenamiento",
         max_instances=1,
         coalesce=True,
     )

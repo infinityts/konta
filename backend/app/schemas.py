@@ -745,6 +745,11 @@ class CuotaOut(BaseModel):
     mb_usados: float = 0.0
     mb_incluidos: int = 0
     retencion_dias: int = 7
+    # Lo medido del mes (MB-día): lo que de verdad ocupa y lo que se cobra
+    archivos_promedio: float = 0.0
+    mb_promedio: float = 0.0
+    mb_dia: float = 0.0
+    dias_medidos: int = 0
 
 
 class CalidadEmisorOut(BaseModel):
