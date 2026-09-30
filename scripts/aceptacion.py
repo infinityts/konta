@@ -144,7 +144,7 @@ def main() -> int:
         )
         if args.web:
             try:
-                with urllib.request.urlopen(args.web.rstrip("/") + "/version", timeout=20) as r:
+                with urllib.request.urlopen(args.web.rstrip("/") + "/version.txt", timeout=20) as r:
                     web = r.read().decode().strip()
                 revisar("la pantalla sirve la misma versión", web == esperado, f"sirve {web}")
             except Exception as e:  # noqa: BLE001 — se reporta como fallo
