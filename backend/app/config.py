@@ -12,6 +12,16 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://finanzas:finanzas@localhost:5433/finanzas"
 
+    # ── Lectura de facturas con IA (opcional: sin clave, la app funciona igual) ──────────
+    # La clave vive **solo en el servidor** y no se registra en ningún log.
+    ia_api_key: str = ""
+    ia_base_url: str = "https://api.deepseek.com"
+    ia_modelo: str = "deepseek-flash"
+    # Precios por millón de tokens, en dólares. Se configuran porque cambian: hay tarifa con y
+    # sin caché, y horas valle a mitad de precio (01:00-04:00 y 06:00-10:00 UTC, L-V).
+    ia_precio_entrada: float = 0.30
+    ia_precio_salida: float = 1.20
+
     # Seguridad (JWT)
     secret_key: str = "cambiar-por-un-secreto-largo-y-aleatorio"
     access_token_expire_minutes: int = 1440  # 24 h

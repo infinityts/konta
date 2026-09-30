@@ -2016,3 +2016,42 @@ emisor y renglones que no son artículos) y **Nivel 3** (mejorarlo: buzón de ca
 este panel).
 
 Tests: **290 en verde** (5 nuevos).
+
+## v1.73 — Lecturas de factura con IA, con cuota por plan
+
+La IA entra como **segunda opinión** para los documentos que el OCR local no puede (manuscritos,
+fotos torcidas, formatos raros). No sustituye al lector de siempre: se pide a propósito, cuesta
+dinero y va limitada por el plan.
+
+**Lo que se construyó**
+
+- **Catálogo de planes** (`planes`, migración 0037): Básico $6.000/mes con 10 lecturas,
+  Personal $12.000 con 30 y Pro $29.000 con 100. Son **datos**, no código: los límites se
+  cambian sin tocar la aplicación.
+- **Medidor por mes** (`consumos_ia`): lecturas, consultas y —lo que de verdad importa— los
+  **tokens y el coste real en dólares** que facturó el proveedor. Sin eso no se sabe el margen.
+- **Saldo comprado aparte** (`usuarios.lecturas_extra`): cuando se agota lo incluido, se gasta
+  este saldo. Es el «y a partir de ahí leer más».
+- **API de lectura con IA**: `POST /ia/leer` (una imagen o un PDF) devuelve la factura normal,
+  con su texto, su monto y sus avisos, lista para revisar y registrar con las herramientas de
+  siempre. Más `GET /ia/planes` y `GET /ia/cuota`.
+- **Tres reglas que protegen el dinero**: el cupo se comprueba **antes** de llamar al proveedor
+  (si no hay, no se gasta un token), se descuenta **solo si la lectura sale bien** (un fallo del
+  proveedor devuelve 502 y no cobra) y sin clave la función está **apagada**, no rota (503).
+- El monto que devuelve el modelo **pasa por las mismas reglas de la app**: si no cuadra, sale
+  con su aviso y el usuario lo corrige.
+
+**El coste, con los precios verificados del proveedor** (1.024 tokens por imagen como máximo,
+imagen ~1.000 + instrucciones ~300, salida ~400):
+
+| | por lectura |
+|---|---|
+| Hora valle | ≈ $0,00044 (≈ **1,8 COP**) |
+| Hora pico | ≈ $0,00087 (≈ **3,5 COP**) |
+
+O sea: las 10 lecturas del plan Básico cuestan del orden de **20–35 pesos al mes**. El coste de
+los tokens **no** es lo que decide el precio del plan; la cuota está para evitar abusos y para
+segmentar planes. El único sitio donde el gasto puede crecer de verdad es el asistente de chat,
+que se medirá igual.
+
+Tests: **298 en verde** (8 nuevos).

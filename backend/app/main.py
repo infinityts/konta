@@ -38,6 +38,9 @@ from .routers import (
     tarjetas,
     transacciones,
 )
+from .routers import (
+    ia as ia_router,
+)
 from .scheduler import start_scheduler, stop_scheduler
 from .schemas import SaludOut
 
@@ -70,6 +73,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(ia_router.router)
 app.include_router(auth.router)
 app.include_router(categorias.router)
 app.include_router(tarjetas.router)

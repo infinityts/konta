@@ -688,6 +688,37 @@ class PlantillaLectorOut(BaseModel):
     actualizada_en: datetime
 
 
+class PlanOut(BaseModel):
+    """Un plan del catálogo: lo que cuesta y lo que incluye."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    codigo: str
+    nombre: str
+    precio_mes: Decimal
+    lecturas_ia: int
+    consultas_asistente: int
+
+
+class CuotaOut(BaseModel):
+    """Lo que le queda al usuario este mes."""
+
+    periodo: str
+    plan: str | None = None
+    plan_nombre: str | None = None
+    precio_mes: float = 0.0
+    lecturas_incluidas: int = 0
+    lecturas_usadas: int = 0
+    lecturas_extra: int = 0
+    lecturas_restantes: int = 0
+    consultas_incluidas: int = 0
+    consultas_usadas: int = 0
+    consultas_restantes: int = 0
+    tokens_entrada: int = 0
+    tokens_salida: int = 0
+    costo_usd: float = 0.0
+
+
 class CalidadEmisorOut(BaseModel):
     """Cómo se ha portado el lector con un emisor."""
 

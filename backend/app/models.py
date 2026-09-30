@@ -111,6 +111,11 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Su plan (catálogo en `planes`) y las lecturas que haya comprado aparte
+    plan_codigo: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="basico", server_default="basico"
+    )
+    lecturas_extra: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     moneda_principal: Mapped[str] = mapped_column(
         ForeignKey("monedas.codigo"), nullable=False, default="COP"
     )
@@ -533,6 +538,62 @@ class FacturaLinea(Base):
     # `*` gravado, `**` exento, sin marca excluido
     iva_tipo: Mapped[str | None] = mapped_column(String(10), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class Plan(Base):
+    """Un plan de la app: lo que se paga y lo que incluye.
+
+    Es **catálogo**, no código: los límites se cambian desde la base (o desde un panel) sin
+    tocar la aplicación. El precio va en pesos; el coste de los tokens es aparte y se mide.
+    """
+
+    __tablename__ = "planes"
+
+    codigo: Mapped[str] = mapped_column(String(24), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(60), nullable=False)
+    precio_mes: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    # Lo que incluye cada mes (0 = no incluido)
+    lecturas_ia: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    consultas_asistente: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
+class ConsumoIa(Base):
+    """Lo que un usuario gastó en el mes: lecturas, consultas y **tokens de verdad**.
+
+    Los tokens y el coste se guardan para poder mirar el margen real de cada plan y para saber
+    cuánto cuesta de verdad una lectura (que es lo que decide si un plan deja ganancia).
+    """
+
+    __tablename__ = "consumos_ia"
+
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "periodo", name="uq_consumos_ia_periodo"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False
+    )
+    # "2026-09", en la zona del usuario (no en UTC: el mes es el del usuario)
+    periodo: Mapped[str] = mapped_column(String(7), nullable=False)
+    lecturas: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    consultas: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    tokens_entrada: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    tokens_salida: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # Coste real facturado por el proveedor, en dólares (para vigilar el margen)
+    costo_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=0, server_default="0"
+    )
+    actualizado_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
 
 class CasoLector(Base):

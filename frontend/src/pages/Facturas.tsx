@@ -24,6 +24,7 @@ const ORIGEN: Record<string, { label: string; clase: string }> = {
   embeddings: { label: 'embeddings', clase: 'bg-violet-100 text-violet-700' },
   manual: { label: 'manual', clase: 'bg-indigo-100 text-indigo-700' },
   agregada: { label: 'añadida', clase: 'bg-emerald-100 text-emerald-700' },
+  ia: { label: 'IA', clase: 'bg-violet-100 text-violet-700' },
   sin_clasificar: { label: 'sin clasificar', clase: 'bg-amber-100 text-amber-700' },
 }
 
