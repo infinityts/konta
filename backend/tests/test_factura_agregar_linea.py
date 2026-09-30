@@ -60,7 +60,7 @@ def test_se_puede_anadir_con_etiqueta_y_queda_como_manual(client):
     assert r.status_code == 200, r.text
     nueva = [li for li in r.json()["lineas"] if "ARROZ" in li["descripcion"].upper()][0]
     assert nueva["etiqueta_id"] == etq["id"]
-    assert nueva["origen"] == "manual", "una línea puesta a mano se marca como manual"
+    assert nueva["origen"] == "agregada", "una línea puesta a mano se marca como agregada"
 
 
 def test_reordenar_las_lineas(client):

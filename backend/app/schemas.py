@@ -629,7 +629,7 @@ class FacturaLineaOut(BaseModel):
     valor_unitario: Decimal | None
     valor_total: Decimal
     etiqueta_id: uuid.UUID | None
-    origen: str  # historial | diccionario | embeddings | manual | sin_clasificar
+    origen: str  # historial | diccionario | embeddings | manual | agregada | sin_clasificar
     confianza: Decimal | None
     orden: int
     transaccion_id: uuid.UUID | None

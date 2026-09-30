@@ -376,14 +376,15 @@ def parsear(
         )
 
     # Las líneas que ya están dentro de un movimiento **no se borran** (el usuario las
-    # corrigió y las registró) y las que puso **a mano** tampoco: son su trabajo. Se borran
-    # solo las que quedaron pendientes y las generó el lector.
+    # registró) y las que el usuario **añadió a mano** tampoco (no vienen del texto, así que
+    # releer no las puede reconstruir). Las demás sí se rehacen: para eso está el releer, y
+    # las correcciones de etiqueta se conservan por la regla aprendida en `reglas_ocr`.
     todas = _lineas(db, factura.id)
     registradas = [
-        li for li in todas if li.transaccion_id is not None or li.origen == "manual"
+        li for li in todas if li.transaccion_id is not None or li.origen == "agregada"
     ]
     for linea in todas:
-        if linea.transaccion_id is None and linea.origen != "manual":
+        if linea.transaccion_id is None and linea.origen != "agregada":
             db.delete(linea)
     db.flush()
 
@@ -512,16 +513,18 @@ def agregar_linea(
 
     if data.etiqueta_id is not None:
         etiqueta = get_owned(db, Etiqueta, data.etiqueta_id, user.id)
-        etiqueta_id, origen, confianza = etiqueta.id, "manual", Decimal("1")
+        etiqueta_id, origen, confianza = etiqueta.id, "agregada", Decimal("1")
         _aprender(db, user.id, data.descripcion, etiqueta.id)
     else:
         etiquetas = list(db.scalars(select(Etiqueta).where(Etiqueta.usuario_id == user.id)).all())
         # La etiqueta la puede sugerir el clasificador, pero el renglón lo puso el usuario:
-        # se marca `manual` para que un re-parseo no se lo lleve por delante.
+        # se marca `agregada` para que un re-parseo no se lo lleve por delante. (`manual`
+        # significa otra cosa: una línea del lector cuya etiqueta corrigió el usuario, y esa
+        # sí se vuelve a clasificar al releer, que para eso está la regla aprendida.)
         etiqueta_id, _, confianza = clasificar(
             db, user.id, data.descripcion, etiquetas, make_embedding()
         )
-        origen = "manual"
+        origen = "agregada"
 
     db.add(
         FacturaLinea(

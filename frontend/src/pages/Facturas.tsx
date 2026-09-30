@@ -23,6 +23,7 @@ const ORIGEN: Record<string, { label: string; clase: string }> = {
   diccionario: { label: 'diccionario', clase: 'bg-sky-100 text-sky-700' },
   embeddings: { label: 'embeddings', clase: 'bg-violet-100 text-violet-700' },
   manual: { label: 'manual', clase: 'bg-indigo-100 text-indigo-700' },
+  agregada: { label: 'añadida', clase: 'bg-emerald-100 text-emerald-700' },
   sin_clasificar: { label: 'sin clasificar', clase: 'bg-amber-100 text-amber-700' },
 }
 
