@@ -7,6 +7,7 @@ oportunidad, y el aviso lo dice.
 
 from __future__ import annotations
 
+import pathlib
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -207,3 +208,14 @@ def test_borrar_la_factura_borra_su_archivo(client):
         almacen.leer(clave)
     # y el cupo vuelve a quedar libre
     assert client.get("/ia/cuota", headers=h).json()["archivos_usados"] == 0
+
+
+def test_al_borrar_el_ultimo_archivo_no_queda_la_carpeta(client):
+    _, h = _registrar(client)
+    factura = _factura(client, h)
+    detalle = client.get(f"/facturas/{factura['id']}", headers=h).json()
+    carpeta = pathlib.Path(get_settings().almacen_ruta) / detalle["usuario_id"]
+    assert carpeta.is_dir()
+
+    client.delete(f"/facturas/{factura['id']}", headers=h)
+    assert not carpeta.exists(), "la carpeta vacía del usuario se quedaba ahí"

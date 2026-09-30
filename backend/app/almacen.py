@@ -64,6 +64,12 @@ def leer(clave: str) -> bytes:
 def borrar(clave: str) -> None:
     destino = _ruta(clave)
     destino.unlink(missing_ok=True)
+    # Si era el último archivo del usuario, se va también su carpeta: si no, quedan miles de
+    # carpetas vacías que nadie limpia.
+    padre = destino.parent
+    raiz = _raiz().resolve()
+    if padre != raiz and padre.is_dir() and not any(padre.iterdir()):
+        padre.rmdir()
 
 
 def huella(contenido: bytes) -> str:
