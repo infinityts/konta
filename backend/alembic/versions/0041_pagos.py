@@ -45,8 +45,8 @@ def upgrade() -> None:
     op.bulk_insert(
         paquetes,
         [
-            {"codigo": c, "nombre": n, "lecturas": l, "precio": p, "orden": i}
-            for i, (c, n, l, p) in enumerate(PAQUETES, start=1)
+            {"codigo": codigo, "nombre": nombre, "lecturas": lecturas, "precio": precio, "orden": i}
+            for i, (codigo, nombre, lecturas, precio) in enumerate(PAQUETES, start=1)
         ],
     )
 
