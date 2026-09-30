@@ -644,6 +644,8 @@ class FacturaDetalleOut(FacturaOut):
     # Comparación con la transacción asociada (auditoría): None si no hay asociada
     transaccion_monto: Decimal | None = None
     descuadre: Decimal | None = None  # transacción - factura (0 = cuadra)
+    # Lo que hay que decirle al usuario de esta lectura (p. ej. «no se duplicaron N líneas»)
+    aviso: str | None = None
 
 
 class MovimientoOut(BaseModel):

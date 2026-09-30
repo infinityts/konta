@@ -1549,3 +1549,25 @@ la K blanca con el brazo de arriba en esmeralda —el trazo que sube— sobre el
 
 Los PNG se generan desde el mismo dibujo (a 4096 y reducidos con LANCZOS), así que el
 antialiasing es idéntico en todos: el script está en `.tools/tmp/iconos/exportar_marca.py`.
+
+## v1.55 — Releer una factura ya registrada ya no duplica sus líneas
+
+Apareció con una factura del mercado: **240 líneas y la suma al doble del total** (2.376.496
+en vez de 1.188.248), con cada artículo repetido y una copia marcada «confirmada» (la que
+estaba en el movimiento) y otra «diccionario» (la nueva).
+
+No era la pantalla: en la base había dos lecturas **de verdad**, separadas por cinco horas.
+El endpoint de «Leer líneas» dice ser idempotente y borra las líneas anteriores… pero solo
+las que **no** tienen movimiento. A las 06:52 se leyeron 120 líneas y se registró la compra
+(las 120 quedaron dentro del movimiento); a las 12:07 se volvió a leer: no había nada que
+borrar, así que se añadieron otras 120.
+
+- **Arreglo**: al releer, los artículos que ya están dentro de un movimiento se **omiten** en
+  vez de insertarse otra vez. Se emparejan uno a uno (dos «BOLSA CANAVERAL» iguales son dos
+  líneas) por `(orden, valor)` y, si la descripción se corrigió a mano, por
+  `(descripción, valor)`. Lo que aparezca **nuevo** sí se añade, pendiente de confirmar.
+- **Aviso**: la respuesta y la pantalla dicen cuántos se omitieron («N de M artículos ya
+  estaban dentro de un movimiento: no se duplicaron»).
+- **Antes de releer**, si la factura ya está registrada, la pantalla **pregunta**.
+- Tests: **224 en verde** (3 nuevos: releer sin duplicar, releer con un artículo nuevo, y
+  releer sin registrar, que sigue reemplazando).

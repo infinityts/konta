@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections import Counter
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -98,6 +99,33 @@ def _duplicada(db: Session, factura: Factura) -> bool:
             )
         )
     )
+
+
+def _ya_registrados(registradas: list[FacturaLinea], articulos: list[dict]) -> set[int]:
+    """Qué artículos de la lectura nueva ya están dentro de un movimiento.
+
+    Volver a leer una factura **no puede duplicar** lo que ya se registró: las líneas con
+    movimiento no se borran (el usuario las corrigió y las registró), así que hay que
+    saltarse las que repiten. Se empareja **una a una** —dos «BOLSA CANAVERAL» iguales son
+    dos líneas, no una— por `(orden, valor)`, que es estable porque el parseo es
+    determinista, y por `(descripción, valor)` para el caso de una descripción corregida a
+    mano.
+    """
+    por_orden = Counter((li.orden, li.valor_total) for li in registradas)
+    por_texto = Counter((normalizar(li.descripcion), li.valor_total) for li in registradas)
+    ya: set[int] = set()
+    for i, articulo in enumerate(articulos):
+        valor = articulo["valor_total"]
+        clave_texto = (normalizar(articulo["descripcion"]), valor)
+        if por_orden[(i, valor)] > 0:
+            por_orden[(i, valor)] -= 1
+            if por_texto[clave_texto] > 0:
+                por_texto[clave_texto] -= 1
+            ya.add(i)
+        elif por_texto[clave_texto] > 0:
+            por_texto[clave_texto] -= 1
+            ya.add(i)
+    return ya
 
 
 def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
@@ -284,7 +312,11 @@ def parsear(
             ),
         )
 
-    for linea in _lineas(db, factura.id):
+    # Las líneas que ya están dentro de un movimiento **no se borran** (el usuario las
+    # corrigió y las registró): se borran solo las que quedaron pendientes.
+    todas = _lineas(db, factura.id)
+    registradas = [li for li in todas if li.transaccion_id is not None]
+    for linea in todas:
         if linea.transaccion_id is None:
             db.delete(linea)
     db.flush()
@@ -307,8 +339,14 @@ def parsear(
     if detectar_tipo(texto, articulos) in ("parqueadero", "servicios"):
         articulos = []
 
+    # Y las que ya estaban registradas se **omiten** en vez de volver a insertarse: era el
+    # bug — al releer una factura ya registrada quedaban las 120 viejas más las 120 nuevas.
+    ya = _ya_registrados(registradas, articulos)
+
     emb = make_embedding()
     for orden, articulo in enumerate(articulos):
+        if orden in ya:
+            continue
         etiqueta_id, origen, confianza = clasificar(
             db, user.id, articulo["descripcion"], etiquetas, emb
         )
@@ -328,7 +366,13 @@ def parsear(
         )
     db.commit()
     db.refresh(factura)
-    return _detalle(db, factura)
+    detalle = _detalle(db, factura)
+    if ya:
+        detalle.aviso = (
+            f"{len(ya)} de los {len(articulos)} artículos ya estaban dentro de un "
+            "movimiento: no se duplicaron."
+        )
+    return detalle
 
 
 @router.patch("/{id}/lineas/{linea_id}", response_model=FacturaLineaOut)

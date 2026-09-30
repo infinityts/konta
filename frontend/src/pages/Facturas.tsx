@@ -132,11 +132,24 @@ export default function Facturas() {
   /** Parte el texto en líneas, las clasifica y las guarda. */
   const leerLineas = (id: string) =>
     conOcupado(id, async () => {
+      // Si la factura ya está dentro de un movimiento, se avisa antes: el backend **no**
+      // duplica las líneas ya registradas, pero es una acción que toca datos ya cuadrados.
+      const enMovimiento = items.find((f) => f.id === id)?.transaccion_id
+      const registradas = (detalles[id]?.lineas ?? []).filter((li) => li.transaccion_id).length
+      if (enMovimiento || registradas > 0) {
+        const seguir = window.confirm(
+          'Esta factura ya está registrada en un movimiento.\n\n' +
+            'Se volverán a leer las líneas. Las que ya están registradas **no** se duplican, ' +
+            'pero los cambios que hayas hecho a mano pueden perderse. ¿Seguir?'
+        )
+        if (!seguir) return
+      }
       const detalle = await api<FacturaDetalle>(`/facturas/${id}/lineas`, {
         method: 'POST',
         body: JSON.stringify({}),
       })
       setDetalles((d) => ({ ...d, [id]: detalle }))
+      if (detalle.aviso) setAviso(`ℹ️ ${detalle.aviso}`)
       await cargar()
       await recargarEtiquetas()
     })

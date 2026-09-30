@@ -298,6 +298,8 @@ export interface FacturaDetalle extends Factura {
   tipo_documento: string | null
   transaccion_monto: number | string | null
   descuadre: number | string | null
+  /** Lo que hay que decir de esta lectura (p. ej. «no se duplicaron N líneas») */
+  aviso: string | null
 }
 
 export interface Presupuesto {
