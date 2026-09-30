@@ -15,10 +15,12 @@ router = APIRouter(prefix="/asistente", tags=["asistente"])
 # Preguntas de ejemplo, para que la pantalla tenga por dónde empezar
 SUGERENCIAS = [
     "¿Cómo voy este mes?",
-    "¿Cuánto gasté en mercado?",
+    "Compárame este mes con el anterior",
+    "¿En qué se me fue la plata en mercado?",
+    "¿Qué productos me están subiendo el mercado?",
     "¿Por qué cambió mi saldo?",
-    "¿Cómo subo una factura?",
     "¿Cuánto debo en mis tarjetas?",
+    "¿Cómo subo una factura?",
     "¿Cómo separo los gastos de casa y apartamento?",
 ]
 

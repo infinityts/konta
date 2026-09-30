@@ -2263,3 +2263,29 @@ manual) es perfecta para un manual, pero **no** escala a miles de documentos: cu
 eso, tocará un índice de verdad.
 
 Tests: **342 en verde** (7 nuevos).
+
+### v1.81 — El asistente arma informes a pedido
+
+Antes solo podía enseñar cifras suelta a cifra: para comparar dos meses tenía que llamar dos veces
+a la misma herramienta y cuadrarlo él. Ahora tiene **tres herramientas de informe** y una regla de
+cómo redactar:
+
+- **`comparar(mes_a, mes_b)`**: ingresos, gastos y balance de los dos meses, y el gasto por
+  categoría con la **diferencia en pesos y en porcentaje**, ordenado por lo que más cambió. Es la
+  herramienta de «compárame septiembre con agosto».
+- **`detalle_de_categoria(categoria, mes)`**: abre una categoría en sus **etiquetas y
+  subetiquetas** y trae los movimientos más altos que la componen. Para «¿en qué se me fue la plata
+  en Mercado?». Si esa categoría no tiene gastos, lo dice y enumera las que sí.
+- **`productos(mes)`**: lo que se compró por **artículo** (cuánto, cuántas veces y a qué precio
+  promedio), del detalle de las facturas.
+- **Regla de redacción** en el prompt: titular con la cifra principal, las cifras que la expliquen
+  ordenadas, qué cambió frente al periodo anterior, y **de qué pantalla sale cada dato**. Si falta
+  algo para el informe, lo dice; no lo rellena con estimaciones.
+- Las **preguntas sugeridas** de la pantalla incluyen ya las de informe («Compárame este mes con el
+  anterior», «¿Qué productos me están subiendo el mercado?»).
+
+Como el resto del asistente: los números salen de los mismos servicios que las pantallas (hay test
+que compara el informe contra el panel de Reportes), no ve datos de otro cliente, y es de solo
+lectura.
+
+Tests: **348 en verde** (6 nuevos).

@@ -19,10 +19,12 @@ from sqlalchemy.orm import Session
 
 from . import cuotas, ia, manual
 from .models import (
+    Categoria,
     ConsultaAsistente,
     Factura,
     Presupuesto,
     Tarjeta,
+    TipoTransaccion,
     Transaccion,
     Usuario,
 )
@@ -49,6 +51,13 @@ Reglas que no puedes romper:
 
 Cuando uses una herramienta, apóyate en su resultado y di de dónde sale el dato
 («según tus movimientos de septiembre», «según el Resumen»).
+
+Cuando te pidan un informe, una comparación o un desglose, ármalo así:
+1. Un titular con la cifra principal («En septiembre gastaste $1.240.000»).
+2. Las cifras que la expliquen, ordenadas de mayor a menor, con su nombre.
+3. Si hay un periodo anterior, qué cambió y cuánto (en pesos y en porcentaje).
+4. De dónde sale cada cifra (qué pantalla de la app).
+Si te falta algún dato para el informe, dilo; no lo rellenes con estimaciones.
 """
 
 def _esquema(nombre: str, descripcion: str, propiedades: dict, requeridos: list[str] | None = None):
@@ -96,6 +105,33 @@ HERRAMIENTAS = [
         "evolucion",
         "Ingresos, gastos y balance de los últimos meses.",
         {"meses": {"type": "integer", "description": "Cuántos meses hacia atrás (1 a 12)"}},
+    ),
+    _esquema(
+        "comparar",
+        "Compara dos meses: ingresos, gastos, balance y el gasto por categoría de cada uno, con "
+        "la diferencia. Es la herramienta de «compárame septiembre con agosto».",
+        {
+            "mes_a": {"type": "string", "description": "Mes principal, AAAA-MM"},
+            "mes_b": {"type": "string", "description": "Mes con el que comparar, AAAA-MM"},
+            "limite": {"type": "integer", "description": "Cuántas categorías devolver (tope 20)"},
+        },
+        ["mes_a", "mes_b"],
+    ),
+    _esquema(
+        "detalle_de_categoria",
+        "El desglose de una categoría en un mes: sus etiquetas y subetiquetas con totales, y los "
+        "movimientos que la componen. Para «¿en qué se me fue la plata en Mercado?».",
+        {
+            "categoria": {"type": "string", "description": "Nombre de la categoría (o parte)"},
+            "mes": {"type": "string", "description": "Mes AAAA-MM (por defecto, el actual)"},
+        },
+        ["categoria"],
+    ),
+    _esquema(
+        "productos",
+        "Lo que se compró por artículo en un mes: cuánto, cuántas veces y a qué precio promedio. "
+        "Sale del detalle de las facturas.",
+        {"mes": {"type": "string", "description": "Mes AAAA-MM (por defecto, el actual)"}},
     ),
     _esquema("cuentas", "Las cuentas con su saldo actual y el total.", {}),
     _esquema("tarjetas", "Las tarjetas, su tipo, su cupo y la deuda por movimientos.", {}),
@@ -165,6 +201,129 @@ def _movimientos(
         }
         for t in filas
     ]
+
+
+def _gastos_por_categoria(db: Session, usuario: Usuario, mes: str) -> dict[str, float]:
+    """El gasto de cada categoría en un mes, sumando sus etiquetas."""
+    totales: dict[str, float] = {}
+    for fila in reporte_categorias(db, usuario.id, mes):
+        if fila["tipo"] != "gasto":
+            continue
+        totales[fila["categoria"]] = totales.get(fila["categoria"], 0.0) + fila["total"]
+    return totales
+
+
+def _comparar(
+    db: Session, usuario: Usuario, mes_a: str, mes_b: str, limite: int | None = None
+) -> dict:
+    """Dos meses frente a frente: totales y por categoría, con la diferencia."""
+    serie = {fila["mes"]: fila for fila in reporte_mensual(db, usuario.id, 24)}
+    cat_a = _gastos_por_categoria(db, usuario, mes_a)
+    cat_b = _gastos_por_categoria(db, usuario, mes_b)
+
+    nombres = set(cat_a) | set(cat_b)
+    categorias = []
+    for nombre in nombres:
+        antes, ahora = cat_b.get(nombre, 0.0), cat_a.get(nombre, 0.0)
+        diferencia = round(ahora - antes, 2)
+        categorias.append(
+            {
+                "categoria": nombre,
+                "mes_a": round(ahora, 2),
+                "mes_b": round(antes, 2),
+                "diferencia": diferencia,
+                "variacion_pct": round(100 * diferencia / antes, 1) if antes else None,
+            }
+        )
+    categorias.sort(key=lambda x: -abs(x["diferencia"]))
+    tope = min(limite or 12, 20)
+
+    def _totales(mes: str) -> dict:
+        fila = serie.get(mes) or {}
+        ingresos = float(fila.get("ingresos") or 0)
+        gastos = float(fila.get("gastos") or 0)
+        return {"ingresos": ingresos, "gastos": gastos, "balance": round(ingresos - gastos, 2)}
+
+    totales_a, totales_b = _totales(mes_a), _totales(mes_b)
+    return {
+        "mes_a": mes_a,
+        "mes_b": mes_b,
+        "totales": {
+            "mes_a": totales_a,
+            "mes_b": totales_b,
+            "diferencia_gastos": round(totales_a["gastos"] - totales_b["gastos"], 2),
+        },
+        "categorias": categorias[:tope],
+        "nota": (
+            "La diferencia es mes_a menos mes_b: positiva quiere decir que en mes_a se gastó más."
+        ),
+    }
+
+
+def _detalle_de_categoria(
+    db: Session, usuario: Usuario, categoria: str, mes: str | None = None
+) -> dict:
+    """Una categoría abierta: sus etiquetas y los movimientos que la componen."""
+    mes = mes or _mes_por_defecto()
+    buscado = (categoria or "").strip().lower()
+    filas = [
+        fila
+        for fila in reporte_categorias(db, usuario.id, mes)
+        if buscado in (fila["categoria"] or "").lower()
+    ]
+    if not filas:
+        disponibles = sorted({f["categoria"] for f in reporte_categorias(db, usuario.id, mes)})
+        return {
+            "mes": mes,
+            "categoria": categoria,
+            "nota": "No hay gastos de esa categoría en ese mes.",
+            "categorias_disponibles": disponibles[:20],
+        }
+
+    etiquetas: dict[str, float] = {}
+    for fila in filas:
+        if fila["tipo"] == "gasto":
+            nombre = fila["etiqueta"] or "Sin etiqueta"
+            etiquetas[nombre] = etiquetas.get(nombre, 0.0) + fila["total"]
+
+    gastos = db.scalars(
+        select(Transaccion)
+        .join(Categoria, Categoria.id == Transaccion.categoria_id)
+        .where(
+            Transaccion.usuario_id == usuario.id,
+            func.to_char(Transaccion.fecha, "YYYY-MM") == mes,
+            Transaccion.tipo == TipoTransaccion.GASTO,
+            Categoria.nombre.ilike(f"%{categoria}%"),
+        )
+        .order_by(Transaccion.monto.desc())
+        .limit(10)
+    ).all()
+
+    return {
+        "mes": mes,
+        "categoria": categoria,
+        "total": round(sum(etiquetas.values()), 2),
+        "etiquetas": [
+            {"etiqueta": n, "total": round(v, 2)}
+            for n, v in sorted(etiquetas.items(), key=lambda x: -x[1])
+        ],
+        "movimientos_mas_altos": [
+            {"fecha": str(g.fecha), "monto": float(g.monto), "descripcion": g.descripcion or ""}
+            for g in gastos
+        ],
+    }
+
+
+def _productos(db: Session, usuario: Usuario, mes: str | None = None) -> dict:
+    """Los artículos que más pesan en las compras del mes (del detalle de las facturas)."""
+    mes = mes or _mes_por_defecto()
+    datos = reporte_panel(db, usuario.id, meses=2, mes=mes)
+    mercado = datos.get("mercado") or {}
+    return {
+        "mes": mes,
+        "productos": (mercado.get("productos") or [])[:15],
+        "por_etiqueta": (mercado.get("etiquetas") or [])[:15],
+    }
 
 
 def _cuentas(db: Session, usuario: Usuario) -> dict:
@@ -256,6 +415,17 @@ def ejecutar(db: Session, usuario: Usuario, nombre: str, argumentos: dict) -> ob
     if nombre == "evolucion":
         meses = max(1, min(int(argumentos.get("meses") or 6), 12))
         return reporte_mensual(db, usuario.id, meses)
+    if nombre == "comparar":
+        return _comparar(
+            db, usuario, argumentos.get("mes_a") or "", argumentos.get("mes_b") or "",
+            argumentos.get("limite"),
+        )
+    if nombre == "detalle_de_categoria":
+        return _detalle_de_categoria(
+            db, usuario, argumentos.get("categoria") or "", argumentos.get("mes")
+        )
+    if nombre == "productos":
+        return _productos(db, usuario, argumentos.get("mes"))
     if nombre == "cuentas":
         return _cuentas(db, usuario)
     if nombre == "tarjetas":
