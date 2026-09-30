@@ -334,15 +334,22 @@ export default function Facturas() {
 
   const descTx = (t: Transaccion) => `${t.fecha} · ${t.descripcion ?? t.tipo} · ${fmtMoney(t.monto)}`
 
-  /** Etiquetas de una categoría, con sus subetiquetas indentadas. */
+  /**
+   * Etiquetas de una categoría con **todo** su árbol, indentadas.
+   *
+   * Antes solo bajaba dos niveles, así que una subetiqueta de tercero (por ejemplo
+   * `Suscripciones › Streaming › Netflix`) no se podía elegir aunque la app la guarde y los
+   * reportes agrupen por esa ruta.
+   */
   function opcionesDeCategoria(c: Categoria) {
     const ops: { id: string; label: string }[] = []
-    for (const raiz of etiquetas.filter((e) => e.categoria_id === c.id && !e.padre_id)) {
-      ops.push({ id: raiz.id, label: raiz.nombre })
-      for (const hija of etiquetas.filter((e) => e.padre_id === raiz.id)) {
-        ops.push({ id: hija.id, label: `${raiz.nombre} › ${hija.nombre}` })
+    const hijas = (padreId: string | null, prefijo: string) => {
+      for (const e of etiquetas.filter((x) => x.categoria_id === c.id && x.padre_id === padreId)) {
+        ops.push({ id: e.id, label: `${prefijo}${e.nombre}` })
+        hijas(e.id, `${prefijo}${e.nombre} › `)
       }
     }
+    hijas(null, '')
     return ops
   }
 

@@ -1696,3 +1696,20 @@ cadena vacía del select llegaba al backend y `""` no es un UUID.
   navegador («Password field is not contained in a form»).
 
 Tests: **233 en verde** (2 nuevos).
+
+## v1.62 — Separar los gastos por lugar (casa / apartamento)
+
+La app guarda `Categoría › Etiqueta › Subetiqueta` y los reportes agrupan por esa ruta, pero
+los selectores de etiqueta **solo ofrecían dos niveles**: una subetiqueta de tercero (por
+ejemplo `Suscripciones › Streaming › Netflix`) no se podía elegir. Ahora bajan todo el árbol.
+
+Para distinguir **dónde** es el gasto, la forma que mejor funciona con los reportes es:
+
+- **Categoría = el lugar** (`Casa`, `Apartamento Yumbo`): el gráfico por categoría te da el
+  total de cada sitio de un vistazo.
+- **Etiqueta = el servicio** (Arriendo, Energía, Acueducto, Gas, Internet): el desglose por
+  etiqueta te dice en qué se va dentro de cada lugar.
+- **Subetiqueta (opcional)** = el proveedor o el detalle (`Internet › Claro`).
+
+Poner el lugar en la etiqueta y el servicio en la descripción también «funciona», pero
+entonces los reportes no te dan el total por sitio sin sumar a mano.

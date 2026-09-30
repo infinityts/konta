@@ -262,6 +262,20 @@ export default function Transacciones() {
   const etqDeCategoria = etiquetas.filter((e) => e.categoria_id === form.categoria_id)
   const etqRaices = etqDeCategoria.filter((e) => !e.padre_id)
   const etqHijas = (id: string) => etqDeCategoria.filter((e) => e.padre_id === id)
+  /**
+   * Las etiquetas de debajo de `id`, a **cualquier** profundidad.
+   *
+   * La app guarda `Categoría › Etiqueta › Subetiqueta` y los reportes agrupan por esa
+   * ruta, pero el select solo ofrecía dos niveles: una subetiqueta de tercer nivel (por
+   * ejemplo `Suscripciones › Streaming › Netflix`) no se podía elegir.
+   */
+  const etqDescendientes = (id: string, nivel: number): React.ReactElement[] =>
+    etqHijas(id).flatMap((h) => [
+      <option key={h.id} value={h.id}>
+        {'—'.repeat(nivel)} {h.nombre}
+      </option>,
+      ...etqDescendientes(h.id, nivel + 1),
+    ])
 
   const visibles = items.filter((t) => {
     if (filtro !== 'todos' && t.tipo !== filtro) return false
@@ -406,9 +420,7 @@ export default function Transacciones() {
             {etqRaices.map((r) => (
               <optgroup key={r.id} label={r.nombre}>
                 <option value={r.id}>{r.nombre}</option>
-                {etqHijas(r.id).map((h) => (
-                  <option key={h.id} value={h.id}>— {h.nombre}</option>
-                ))}
+                {etqDescendientes(r.id, 1)}
               </optgroup>
             ))}
           </select>
