@@ -89,6 +89,13 @@ def hay_sitio(db: Session, usuario: Usuario, nuevos_bytes: int) -> tuple[bool, s
     return True, ""
 
 
+def _bloquear_usuario(db: Session, usuario: Usuario) -> None:
+    """Reserva la fila del usuario mientras se comprueba y se guarda (una sola implementación)."""
+    from .cuotas import _bloquear_usuario as bloquear
+
+    bloquear(db, usuario)
+
+
 def guardar_factura(
     db: Session,
     factura: Factura,
@@ -101,6 +108,10 @@ def guardar_factura(
     Devuelve (guardado, motivo). Nunca falla la subida por esto: el archivo es un extra para
     poder releer, no un requisito para registrar el gasto.
     """
+    # La comprobación del cupo y el guardado tienen que ser un solo paso: si no, varias subidas a
+    # la vez pasarían todas la comprobación y el plan se saltaría por la puerta de atrás. Se reserva
+    # la fila del usuario (el mismo mecanismo que usa la cuota).
+    _bloquear_usuario(db, usuario)
     cabe, motivo = hay_sitio(db, usuario, len(contenido))
     if not cabe:
         return False, motivo

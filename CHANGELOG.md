@@ -2650,3 +2650,32 @@ ganancia.
    cobrada** ✗ → ahora se devuelve ✅. Ese caso lo cazó un test que escribí hace diez rondas ✅.
 
 Tests: **395 en verde** (2 nuevos).
+
+### v1.99 — El mismo patrón, cerrado en los cuatro sitios donde se escribe dinero o datos
+
+En la ronda 20 anuncié que iría a por el **almacenamiento** ✗, y de paso apareció un cuarto sitio ✗.
+El patrón es siempre el mismo ✗: **comprobar en un sitio y escribir en otro** ✗.
+
+| dónde | qué podía pasar | ronda |
+|---|---|---|
+| **pagos** | dos avisos a la vez acreditaban dos veces | v1.97 ✅ |
+| **cuota de la IA** | cinco lecturas a la vez con una disponible: cinco llamadas pagadas | v1.98 ✅ |
+| **almacenamiento** | varias subidas a la vez saltaban el tope del plan | v1.99 ✅ |
+| **propuestas** | dos clics a la vez registraban el movimiento **dos veces** | v1.99 ✅ |
+
+- **Almacenamiento** ✗: `hay_sitio` comprobaba y luego se guardaba ✗, así que varias subidas a la vez
+  pasaban todas ✗ (con un script, 100 archivos con un tope de 30 ✗). Ahora la fila del usuario se
+  **reserva** durante la comprobación y el guardado ✅, con **la misma** implementación que usa la
+  cuota ✅ (una sola, no dos ✅).
+- **Propuestas** ✗✗: el peor de los cuatro ✗, porque lo que se duplica son **datos** ✗ (el mismo
+  movimiento registrado dos veces ✗) y basta un **doble clic** ✗ o que el navegador reintente ✗.
+  Ahora se reserva la fila de la propuesta **antes** de mirar su estado ✅: la segunda confirmación
+  espera y ve que ya estaba ✅.
+- **Probado sin depender de tiempos** ✅ (como en la ronda 19): con `FOR UPDATE NOWAIT` la base dice
+  **al instante** si la fila está reservada ✅, así que no hay ni un `sleep` en los tests ✅.
+
+Con esto queda cerrado **el patrón que conozco** ✗ — pero la lente se queda ✅: ha aparecido cuatro
+veces en tres rondas ✗, y siempre en el mismo sitio ✗ (donde el código comprueba algo y escribe ese
+algo en dos pasos ✗).
+
+Tests: **397 en verde** (2 nuevos).

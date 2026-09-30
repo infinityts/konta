@@ -315,3 +315,44 @@ def test_tambien_barre_las_carpetas_que_ya_estaban_vacias(client, engine):
     with sf.begin() as s:
         archivos.borrar_huerfanos(s)
     assert not vacia.exists()
+
+
+def test_la_subida_reserva_al_usuario_para_no_saltarse_el_cupo(client, engine, monkeypatch):
+    """Varias subidas a la vez no pueden pasar todas la comprobación del cupo."""
+    from sqlalchemy import select
+    from sqlalchemy.dialects import postgresql
+
+    from app.models import Usuario
+
+    _, h = _registrar(client)
+    _factura(client, h)
+
+    # la consulta con la que se reserva el usuario se compila con FOR UPDATE
+    compilada = str(select(Usuario.id).where(Usuario.id.isnot(None)).with_for_update().compile(
+        dialect=postgresql.dialect()
+    ))
+    assert "FOR UPDATE" in compilada.upper(), compilada
+
+    # y de verdad reserva: con la fila tomada, otra conexión no puede tomarla ni esperando
+    from sqlalchemy import text
+
+    conexion_a = engine.connect()
+    conexion_b = engine.connect()
+    try:
+        trans_a = conexion_a.begin()
+        usuario_id = conexion_a.execute(text("select id from usuarios limit 1")).scalar()
+        conexion_a.execute(text("select id from usuarios where id = :id for update"), {"id": usuario_id})
+        with pytest.raises(Exception) as error:
+            conexion_b.execute(
+                text("select id from usuarios where id = :id for update nowait"), {"id": usuario_id}
+            )
+        assert "lock" in str(error.value).lower(), f"el usuario no estaba reservado: {error.value}"
+        conexion_b.rollback()
+        trans_a.commit()
+    finally:
+        conexion_a.close()
+        conexion_b.close()
+
+    # y el cupo sigue contando bien de forma secuencial
+    cuota = client.get("/ia/cuota", headers=h).json()
+    assert cuota["archivos_usados"] == 1

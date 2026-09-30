@@ -197,7 +197,16 @@ EJECUTORES = {REGISTRAR: _ejecutar_registrar, ETIQUETAR: _ejecutar_etiquetar}
 
 def confirmar(db: Session, usuario: Usuario, propuesta_id) -> tuple[Propuesta, str, bool]:
     """Ejecuta lo propuesto. **Una sola vez**: si ya estaba confirmada, no repite."""
-    propuesta = get_owned(db, Propuesta, propuesta_id, usuario.id)
+    # Se reserva la fila de la propuesta **antes** de mirar su estado: si dos confirmaciones
+    # llegan a la vez (un doble clic, o el navegador reintentando), la segunda espera y ve que ya
+    # estaba confirmada, en vez de ejecutar lo mismo dos veces.
+    propuesta = db.scalar(
+        select(Propuesta)
+        .where(Propuesta.id == propuesta_id, Propuesta.usuario_id == usuario.id)
+        .with_for_update()
+    )
+    if propuesta is None:
+        raise HTTPException(status_code=404, detail="Esa propuesta no existe")
     if propuesta.estado == "confirmada":
         # Se dice que ya estaba (para que un doble clic no parezca una segunda ejecución) y qué
         # fue lo que quedó hecho
