@@ -563,6 +563,10 @@ def confirmar(
         raise HTTPException(status_code=400, detail="No hay líneas pendientes de confirmar")
 
     for linea in pendientes:
+        # Un descuento (o un envío gratis) no es un movimiento por sí solo: se queda como
+        # detalle de la factura. Si no, se crearía un gasto en negativo.
+        if linea.valor_total is None or linea.valor_total <= 0:
+            continue
         categoria_id, etiqueta_id = pago.de_linea(linea)
         transaccion = Transaccion(
             usuario_id=user.id,

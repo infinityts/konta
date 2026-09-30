@@ -1571,3 +1571,31 @@ borrar, así que se añadieron otras 120.
 - **Antes de releer**, si la factura ya está registrada, la pantalla **pregunta**.
 - Tests: **224 en verde** (3 nuevos: releer sin duplicar, releer con un artículo nuevo, y
   releer sin registrar, que sigue reemplazando).
+
+## v1.56 — Pedidos de fuera (Amazon) y el IVA que no existe
+
+Salió de una pregunta: *«esta transacción que hice con tarjeta de crédito, ¿cómo ingreso los
+datos del pago para que valide el IVA?»*. La respuesta es que **en esa compra no hay IVA que
+validar** (`Impuestos: COP 0`), pero al comprobar cómo se leía el pedido aparecieron **tres
+fallos** en el parser:
+
+- **El «cambio» se comía una comisión.** `CAMBIO` estaba en la lista de palabras ignoradas y
+  descartaba cualquier línea que la contuviera, así que *«Cuota de garantía del tipo de
+  cambio: 1.971,70»* —una comisión que sí se pagó— desaparecía. Ahora `CAMBIO` solo descarta
+  la línea cuando **es la etiqueta** (el cambio que devuelven en un recibo), y las líneas de
+  tasa (`1 USD = 3370.42 COP`) se saltan aparte.
+- **El signo negativo no se capturaba.** `-COP 38.456,49` (envío gratis de Prime) se leía como
+  **+38.456,49**: el envío se contaba como un cobro y el detalle sumaba 164.542 en vez de
+  89.602,62. Ahora el menos que va antes del símbolo se detecta y el descuento entra en
+  negativo. (Un descuento **no** genera un movimiento por sí solo: al confirmar línea por
+  línea se omite, para no crear un gasto en negativo.)
+- **Se perdían los centavos.** El patrón de dinero paraba en el grupo de miles, así que
+  `87,630.92` se leía como 87.630. Amazon imprime los pesos en formato gringo y ahí se
+  perdían los centavos de todas las líneas.
+
+Con los tres, el detalle del pedido cuadra **al centavo** con su total (89.602,62) y no hay
+que tocar nada a mano. Y el IVA: si la factura trae `Impuestos: 0`, la app **no inventa** un
+IVA (el impuesto de una importación lo cobra la DIAN en la aduana, no el vendedor). La comisión
+del cambio va como parte del costo, con su etiqueta, no como impuesto.
+
+Tests: **229 en verde** (5 nuevos).

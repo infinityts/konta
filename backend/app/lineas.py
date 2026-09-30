@@ -32,7 +32,7 @@ UNIDADES_PESO_VOLUMEN = ("KG", "KGS", "G", "GR", "GRS", "LT", "LTS", "L", "ML", 
 
 # Si la línea contiene alguna de estas, NO es un artículo.
 IGNORAR = (
-    "TOTAL", "SUBTOTAL", "IVA", "IMPUESTO", "PROPINA", "CAMBIO", "EFECTIVO",
+    "TOTAL", "SUBTOTAL", "IVA", "IMPUESTO", "PROPINA", "EFECTIVO",
     "TARJETA", "DEBITO", "CREDITO", "DEVOLUCION", "BASE GRAVABLE", "BASE",
     "ARTICULOS", "GRACIAS", "NIT", "RESOLUCION", "FACTURA", "CAJA", "CAJERO",
     "FECHA", "HORA", "VENDEDOR", "CLIENTE", "AUTORIZADO", "PUNTOS", "AHORRO",
@@ -52,13 +52,31 @@ IGNORAR = (
 # `MESA` y el queso parmesano se caía de la factura como si fuera una línea de restaurante.
 IGNORAR_RE = re.compile(r"\b(?:" + "|".join(re.escape(p) for p in IGNORAR) + r")\b")
 
+# Palabras que solo descartan la línea si son **la etiqueta** (van al principio). «Cambio» en
+# medio de una descripción es legítimo: «Cuota de garantía del tipo de cambio» es una comisión
+# que sí se pagó, y con la palabra en la lista general se la comía.
+IGNORAR_ETIQUETA = ("CAMBIO", "VUELTAS")
+IGNORAR_ETIQUETA_RE = re.compile(
+    r"^\s*(?:" + "|".join(re.escape(p) for p in IGNORAR_ETIQUETA) + r")\b"
+)
+
+# Una tasa de cambio no es un artículo: «1 USD = 3370.42 COP», «Tasa de cambio».
+TASA_RE = re.compile(r"(?i)\bTASA\s+DE\s+CAMBIO\b|\b(?:USD|EUR)\s*=|= \s*[\d.,]+\s*(?:COP|USD|EUR)\b")
+
 # "2 UN X 2.500" / "1.234 KG X 12.900" / "3 x 4.000"
 PATRON_CANT_X_UNIT = re.compile(
     rf"(\d+(?:[.,]\d+)?)\s*({UNIDADES})?\s*[Xx*]\s*\$?\s*(\d[\d.,]*)"
 )
 
 # Dinero: 1.234.567 · 12.900 · 4500. Se excluye lo que va seguido de unidad (500G)
-PATRON_MONTO = re.compile(rf"\$?\s*(\d{{1,3}}(?:[.,]\d{{3}})+|\d{{3,}})(?!\s*{UNIDADES}(?![A-Z]))")
+# Dinero: 1.234.567 · 12.900 · 4500 · **y con centavos** (1.234,56 / 87,630.92). Antes el
+# patrón paraba en el grupo de miles y se comía los decimales: un pedido de Amazon en pesos
+# «87,630.92» se leía como 87.630 y la suma no cuadraba con el total. Se excluye lo que va
+# seguido de unidad (500G) y los números de una o dos cifras (cantidades, no precios).
+PATRON_MONTO = re.compile(
+    rf"\$?\s*(\d{{1,3}}(?:[.,]\d{{3}})+(?:[.,]\d{{2}})?|\d{{3,}}(?:[.,]\d{{2}})?)"
+    rf"(?!\s*{UNIDADES}(?![A-Z]))"
+)
 
 LETRAS = re.compile(r"[A-ZÑ]{3,}")
 
@@ -104,6 +122,8 @@ def cantidad(s: str, unidad: str | None) -> Decimal | None:
 
 def _limpiar_descripcion(texto: str) -> str:
     t = re.sub(r"[\$@|_=~]+", " ", texto)
+    # El código de la moneda no es parte del nombre del artículo: «Productos: COP» -> «Productos»
+    t = re.sub(r"(?i)\b(?:COP|USD|EUR|MXN|PEN|CLP|ARS)\b", " ", t)
     t = re.sub(r"\s{2,}", " ", t)
     return t.strip(" .-*:").strip()
 
@@ -197,6 +217,16 @@ def _parsear_factura_numerada(texto: str, formato: Formato) -> list[dict] | None
     return articulos if len(articulos) >= 3 else None
 
 
+def _negativo(linea: str, corte: int) -> bool:
+    """¿El importe que empieza en `corte` va con signo negativo?
+
+    «Envio gratis de Prime: -COP 38.456,49»: el menos va **antes** del símbolo de la moneda,
+    así que el patrón del monto no lo ve. Sin esto, un descuento se sumaba como un cobro y el
+    detalle no cuadraba con el total.
+    """
+    return bool(re.search(r"-\s*(?:COP|USD|EUR|\$)?\s*$", linea[:corte].rstrip()))
+
+
 def _linea_plausible(descripcion: str, total: Decimal | None) -> bool:
     """Descarta el ruido típico de una **foto**: NIT, direcciones, correos, resoluciones.
 
@@ -245,7 +275,8 @@ def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
         t = cruda.strip()
         if len(t) < 3:
             continue
-        if IGNORAR_RE.search(sin_acentos(t).upper()):
+        plano = sin_acentos(t).upper()
+        if IGNORAR_RE.search(plano) or IGNORAR_ETIQUETA_RE.match(plano) or TASA_RE.search(t):
             pendiente = ""
             continue
 
@@ -262,6 +293,8 @@ def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
                 total = unit
             else:
                 total = monto(coincidencias[-1].group(1), formato)
+                if total is not None and _negativo(t, m.end() + coincidencias[-1].start()):
+                    total = -total
         else:
             coincidencias = list(PATRON_MONTO.finditer(t))
             if not coincidencias:
@@ -271,9 +304,13 @@ def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
                     pendiente = solo_texto
                 continue
             total = monto(coincidencias[-1].group(1), formato)
+            if total is not None and _negativo(t, coincidencias[-1].start()):
+                total = -total
             descripcion = t[: coincidencias[-1].start()]
 
-        if total is None or total <= 0:
+        # Un descuento viene en negativo (`-COP 38.456,49`) y **sí** es una línea: se
+        # descuenta del total. Solo se descarta el cero.
+        if total is None or total == 0:
             pendiente = ""
             continue
 
