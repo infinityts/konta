@@ -938,3 +938,13 @@ export interface PlanIa {
   lecturas_ia: number
   consultas_asistente: number
 }
+
+/** La respuesta del asistente, con las herramientas que usó para poder comprobarla. */
+export interface RespuestaAsistente {
+  respuesta: string
+  herramientas_usadas: string[]
+  consultas_restantes: number
+  tokens_entrada: number
+  tokens_salida: number
+  costo_usd: number
+}

@@ -2149,3 +2149,24 @@ finanzas del usuario. Lo que lo hace fiable es una regla: **el modelo no sabe lo
 `POST /asistente/preguntar`, más `GET /asistente/sugerencias` y `GET /asistente/manual`.
 
 Tests: **317 en verde** (8 nuevos).
+
+### v1.76 — El chat del asistente, dentro de la app (fase B)
+
+El servicio ya respondía; ahora tiene cara. Página **Asistente** en el menú (Herramientas → 💬):
+
+- **Caja de pregunta** con respuestas en el hilo, estado «Consultando tus datos…» (tarda unos
+  segundos: es un modelo de verdad) y **preguntas sugeridas** para arrancar.
+- **Cada respuesta dice qué consultó** («Consultó: tu resumen del mes, tus gastos por
+  categoría»), que es lo que permite comprobarla contra la pantalla correspondiente.
+- **El contador a la vista**: «Te quedan N de 10 consultas este mes» y, al agotarse, el aviso con
+  la opción de subir de plan.
+- Los errores se explican en el propio hilo (cupo agotado, sin configurar…) en vez de quedarse
+  en blanco.
+- Dos honestidades en la pantalla: **cada pregunta es independiente** (no recuerda la anterior) y
+  las respuestas pueden equivocarse — si una cifra no cuadra, está su pantalla al lado.
+
+Un detalle que corregí al revisarlo: la página enseñaba el **coste en tokens** de cada respuesta.
+Eso lo pagamos nosotros, no el cliente: se quitó de la pantalla (el gasto se sigue midiendo por
+dentro, para el informe de promedios).
+
+Tests: **317 en verde** (sin cambios en el backend; CI incluido).
