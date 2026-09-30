@@ -2391,3 +2391,26 @@ cuesta más de lo que paga** — que es lo que no se ve en un promedio.
 `GET /ia/informe/usuarios` (además del `/ia/informe` de siempre).
 
 Tests: **369 en verde** (4 nuevos).
+
+### v1.87 — Preparado para mudarse de máquina (y una prueba de que los números cuadran)
+
+La máquina definitiva (500 GB) todavía no existe, así que lo que se puede entregar es todo lo que
+**no** depende de ella: el procedimiento, los scripts y la comprobación.
+
+- **`docs/migracion.md`**: la lista de pasos completa — base, archivos, contenedores, variables,
+  certificados, URL, qué comprobar y cómo volver atrás. Incluye los detalles que ya nos mordieron
+  (el `:Z` del volumen con SELinux, la misma `SECRET_KEY` para no cerrar las sesiones, y el Ollama
+  para la ayuda por significado).
+- **`scripts/respaldo.sh`**: base (`pg_dump -Fc`), archivos, variables (sin imprimirlas) y un
+  **manifiesto** con filas por tabla, bytes y **sha256** del dump.
+- **`scripts/restaurar.sh`**: restaura en una base **aparte** primero, para comprobar sin tocar la
+  buena.
+- **`scripts/verificar_migracion.py`** + `app/verificacion.py`: compara las dos bases en filas,
+  **sumas de dinero** (ingresos, gastos, IVA), lecturas de IA y el **saldo de cada usuario**, más una
+  **huella md5** del contenido de las tablas con dinero. Esa huella es la que delata el caso
+  traicionero: **mismas filas, un monto cambiado** (hay test).
+
+Falta solo la máquina: la tarea queda **en progreso** hasta que el respaldo se restaure **allá** y
+los números cuadren.
+
+Tests: **375 en verde** (6 nuevos).
