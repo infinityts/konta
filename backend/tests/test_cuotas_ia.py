@@ -54,13 +54,25 @@ def _leer(client, h):
 
 
 def test_el_catalogo_de_planes_es_datos_no_codigo(client):
+    """El catálogo sale de la base: añadir un plan es un insert, no un despliegue.
+
+    Por eso el test no fija la lista entera (crecería con cada plan nuevo): comprueba que están
+    los planes de siempre, que llegan ordenados y que lo que traen es lo que hay en la base.
+    """
     _, h = _registrar(client)
     planes = client.get("/ia/planes", headers=h).json()
     codigos = [p["codigo"] for p in planes]
-    assert codigos == ["basico", "personal", "pro"], codigos
-    basico = planes[0]
+    assert {"basico", "personal", "pro", "ilimitado"} <= set(codigos), codigos
+    # el orden importa: la pantalla los enseña del más barato al más caro
+    assert codigos[0] == "basico", codigos
+    assert codigos.index("pro") < codigos.index("ilimitado"), codigos
+    basico = next(p for p in planes if p["codigo"] == "basico")
     assert basico["precio_mes"] == "6000.00"
     assert basico["lecturas_ia"] == 10
+    # y el de PDFs ilimitados: sin tope de cantidad, con tope de peso
+    ilimitado = next(p for p in planes if p["codigo"] == "ilimitado")
+    assert ilimitado["archivos_incluidos"] is None
+    assert ilimitado["almacenamiento_mb"] == 1024
 
 
 def test_la_cuota_empieza_llena_y_baja_con_cada_lectura(client, monkeypatch):

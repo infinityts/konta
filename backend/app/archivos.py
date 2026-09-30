@@ -52,19 +52,34 @@ def uso(db: Session, usuario: Usuario) -> tuple[int, int]:
     return int(fila.archivos), int(fila.bytes)
 
 
+def _peso(mb: float) -> str:
+    """El peso como se lee bien: 2,0 MB · 45,3 MB · 500 MB · 1 GB."""
+    if mb >= 1024:
+        return f"{mb / 1024:.1f} GB".replace(".0 GB", " GB")
+    if mb < 100:
+        return f"{mb:.1f} MB".replace(".", ",")
+    return f"{mb:,.0f} MB".replace(",", ".")
+
+
 def hay_sitio(db: Session, usuario: Usuario, nuevos_bytes: int) -> tuple[bool, str]:
-    """¿Cabe otro archivo? Devuelve (sí/no, motivo para el usuario)."""
-    incluidos, _dias, mb = limites(db, usuario)
+    """¿Cabe otro archivo? Devuelve (sí/no, motivo para el usuario).
+
+    El motivo se le da al usuario tal cual, así que dice **cuánto lleva** y **qué puede hacer**:
+    borrar alguno, esperar a que se borren solos (la retención) o subir de plan.
+    """
+    incluidos, dias, mb = limites(db, usuario)
     archivos, bytes_usados = uso(db, usuario)
+    usados_mb = bytes_usados / 1024 / 1024
     if incluidos is not None and archivos >= incluidos:
         return False, (
             f"Tu plan guarda {incluidos} archivos a la vez y ya los tienes. Puedes borrar el de "
-            "una factura que ya registraste o subir de plan."
+            f"una factura que ya registraste, esperar a que se borren solos ({dias} días) o subir "
+            "de plan."
         )
     if bytes_usados + nuevos_bytes > mb * 1024 * 1024:
         return False, (
-            f"Tu plan guarda hasta {mb} MB de archivos y ya usa "
-            f"{bytes_usados / 1024 / 1024:.1f} MB. Puedes borrar alguno o subir de plan."
+            f"Ya usas {_peso(usados_mb)} de los {_peso(mb)} que guarda tu plan. Puedes borrar "
+            f"algún archivo, esperar a que se borren solos ({dias} días) o subir de plan."
         )
     return True, ""
 

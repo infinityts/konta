@@ -792,6 +792,10 @@ class PlanOut(BaseModel):
     precio_mes: Decimal
     lecturas_ia: int
     consultas_asistente: int
+    # Almacenamiento: cuántos archivos (None = ilimitados), cuántos días y cuánto peso
+    archivos_incluidos: int | None = None
+    retencion_dias: int = 7
+    almacenamiento_mb: int = 60
 
 
 class CuotaOut(BaseModel):

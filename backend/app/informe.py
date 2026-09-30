@@ -80,6 +80,8 @@ def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
             "tokens_salida": [],
             "costo_usd": [],
             "mb_dia": [],
+            "archivos_dia": [],
+            "dias_medidos": [],
         }
 
     # Los usuarios sin consumo también cuentan: pagan y no gastan
@@ -100,6 +102,8 @@ def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
         fila["tokens_salida"].append(float(consumo.tokens_salida or 0))
         fila["costo_usd"].append(float(consumo.costo_usd or 0))
         fila["mb_dia"].append(float(consumo.mb_dia or 0))
+        fila["archivos_dia"].append(float(consumo.archivos_dia or 0))
+        fila["dias_medidos"].append(int(consumo.dias_medidos or 0))
 
     # A cuánto está el dólar hoy, para poder comparar contra el precio en pesos
     trm = convertir(db, "USD", "COP", Decimal("1"))
@@ -139,6 +143,13 @@ def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
                 "tokens_salida": _resumen_de(fila["tokens_salida"]),
                 "costo_ia": _resumen_de(fila["costo_usd"]),
                 "mb_dia": _resumen_de(fila["mb_dia"]),
+        "archivos_promedio": round(
+            sum(fila["archivos_dia"]) / sum(fila["dias_medidos"]) if sum(fila["dias_medidos"]) else 0,
+            2,
+        ),
+        "tamano_medio_archivo_mb": round(
+            sum(fila["mb_dia"]) / sum(fila["archivos_dia"]) if sum(fila["archivos_dia"]) else 0, 3
+        ),
                 "gb_mes": round(gb_mes, 4),
                 "costo_ia_usd": round(costo_ia_usd, 6),
                 "costo_almacen_usd": round(costo_almacen_usd, 6) if precio_gb else None,

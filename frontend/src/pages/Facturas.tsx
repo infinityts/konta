@@ -30,6 +30,17 @@ const ORIGEN: Record<string, { label: string; clase: string }> = {
   sin_clasificar: { label: 'sin clasificar', clase: 'bg-amber-100 text-amber-700' },
 }
 
+/** El almacenamiento de un plan, en palabras: «30 archivos · 7 días · 60 MB». */
+function textoAlmacenamiento(pl: PlanIa): string {
+  const peso =
+    pl.almacenamiento_mb != null && pl.almacenamiento_mb >= 1024
+      ? `${(pl.almacenamiento_mb / 1024).toFixed(pl.almacenamiento_mb % 1024 === 0 ? 0 : 1)} GB`
+      : `${pl.almacenamiento_mb ?? 0} MB`
+  const archivos =
+    pl.archivos_incluidos == null ? 'archivos ilimitados' : `${pl.archivos_incluidos} archivos`
+  return `${archivos} · ${pl.retencion_dias ?? 7} días · ${peso}`
+}
+
 export default function Facturas() {
   const [items, setItems] = useState<Factura[]>([])
   const [transacciones, setTransacciones] = useState<Transaccion[]>([])
@@ -569,7 +580,7 @@ export default function Facturas() {
                   </span>
                   <span className="text-slate-500">
                     ${Number(pl.precio_mes).toLocaleString('es-CO')}/mes · {pl.lecturas_ia} lecturas
-                    IA · {pl.consultas_asistente} consultas
+                    IA · {pl.consultas_asistente} consultas · {textoAlmacenamiento(pl)}
                   </span>
                 </li>
               ))}

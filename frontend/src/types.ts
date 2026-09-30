@@ -932,6 +932,10 @@ export interface CuotaIa {
 
 /** Un plan del catálogo, tal como lo lee la app (los límites viven en la base). */
 export interface PlanIa {
+  /** Almacenamiento: null en archivos = ilimitados */
+  archivos_incluidos?: number | null
+  retencion_dias?: number
+  almacenamiento_mb?: number
   codigo: string
   nombre: string
   precio_mes: string

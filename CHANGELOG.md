@@ -2331,3 +2331,27 @@ nada**. Cuando entiende que quieres registrar un gasto o etiquetar un movimiento
 
 Tests: **356 en verde** (8 nuevos, más los 74 del router de transacciones que comprueban que el
 refactor no cambió nada).
+
+### v1.84 — Plan de PDFs ilimitados con tope de peso
+
+Lo que cuesta de verdad es el **espacio**, no el número de archivos: para quien sube muchas facturas
+pequeñas, un tope de «30 archivos» molesta aunque le sobre sitio. Este plan lo arregla.
+
+- **`ilimitado`**: archivos **sin tope de cantidad** (`archivos_incluidos = NULL`), **15 días** de
+  retención (el doble que el Básico), **1 GB** de peso, 300 lecturas con IA y 200 consultas.
+- **El tope de 1 GB sale de lo medido**, no de una corazonada: tus documentos pesan **0,16 MB de
+  media** (mediana 0,10), así que 1 GB son del orden de **6.000 documentos** — un tope que no
+  molesta al uso normal y sí acota el abuso.
+- **El aviso habla del problema real**: cuando no cabe, dice **cuánto llevas y cuánto incluye el
+  plan en peso** (*«Ya usas 2,0 MB de los 1,0 MB que guarda tu plan»*) y las tres salidas: borrar
+  alguno, **esperar a que se borren solos (15 días)** o subir de plan. Al plan ilimitado no se le
+  habla de cantidad de archivos.
+- **El catálogo lo enseña**: cada plan muestra su almacenamiento en palabras (*«archivos
+  ilimitados · 15 días · 1 GB»*, *«30 archivos · 7 días · 60 MB»*).
+- **El informe da el dato para elegir el tope**: además del MB-día, ahora saca los **archivos
+  promedio** y el **tamaño medio de archivo** por plan.
+
+El **precio ($19.900) es provisional**: se ajusta con el informe de promedios del mes, que es
+justo para lo que se construyó.
+
+Tests: **362 en verde** (5 nuevos).
