@@ -1671,3 +1671,10 @@ está protegido, el aviso lo dice, el archivo se queda elegido y se reintenta co
 También: la tarjeta de la factura usa `flex-wrap` y el nombre `break-words`, para que un
 nombre largo no empuje los botones fuera de la pantalla; y al subir se dice **siempre** qué
 pasó y el paso siguiente.
+
+### v1.60.2 — La auditoría factura ↔ movimiento, con el mismo margen que los extractos
+
+El monto de una factura muchas veces sale del **OCR** y redondea, pero la comparación con su
+transacción era **exacta**: un céntimo de diferencia salía como «✗ No cuadra» y parecía un
+error de datos. Los extractos ya tenían su margen; ahora la factura también (**1 peso**), y si
+la diferencia es de redondeo la ficha lo dice en vez de alarmar.

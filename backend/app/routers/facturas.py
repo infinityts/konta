@@ -102,6 +102,11 @@ def _duplicada(db: Session, factura: Factura) -> bool:
     )
 
 
+# Margen al comparar el monto de una factura con su transacción: el monto puede venir del
+# OCR y redondear. Un peso sobra para el redondeo y no tapa un descuadre de verdad.
+TOLERANCIA_FACTURA = Decimal("1")
+
+
 def _ya_registrados(registradas: list[FacturaLinea], articulos: list[dict]) -> set[int]:
     """Qué artículos de la lectura nueva ya están dentro de un movimiento.
 
@@ -271,7 +276,10 @@ def asociar(
     descuadre: Decimal | None = None
     if factura.monto_detectado is not None:
         descuadre = tx.monto - factura.monto_detectado
-        if descuadre != 0:
+        # Un peso de margen: el monto de la factura muchas veces sale del **OCR** y redondea
+        # (los extractos ya lo tenían así). Con comparación exacta, un céntimo de redondeo
+        # salía como «no cuadra» y parecía un error de datos.
+        if abs(descuadre) > TOLERANCIA_FACTURA:
             aviso = (
                 f"La factura es {factura.monto_detectado:,.0f} y esa transacción es "
                 f"{tx.monto:,.0f}: no cuadra."
@@ -279,7 +287,7 @@ def asociar(
         confirmadas = [
             li.transaccion_id for li in _lineas(db, factura.id) if li.transaccion_id
         ]
-        if confirmadas and tx.id not in confirmadas and descuadre == 0:
+        if confirmadas and tx.id not in confirmadas and abs(descuadre) <= TOLERANCIA_FACTURA:
             aviso = (
                 "Esta factura ya tiene artículos confirmados y esa transacción es del mismo "
                 "valor: parece un duplicado del gasto."

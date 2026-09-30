@@ -464,7 +464,9 @@ export default function Facturas() {
                     </p>
                   )}
                   {f.transaccion_id ? (
-                    detalle && detalle.descuadre != null && Number(detalle.descuadre) !== 0 ? (
+                    detalle &&
+                    detalle.descuadre != null &&
+                    Math.abs(Number(detalle.descuadre)) > 1 ? (
                       <p className="mt-1 text-xs text-red-600">
                         ✗ No cuadra: factura {fmtMoney(f.monto_detectado)} vs transacción{' '}
                         {fmtMoney(detalle.transaccion_monto)}
@@ -472,6 +474,9 @@ export default function Facturas() {
                     ) : (
                       <p className="mt-1 text-xs text-emerald-600">
                         ✓ Asociada{detalle?.transaccion_monto != null ? ` y cuadra con ${fmtMoney(detalle.transaccion_monto)}` : ''}
+                        {detalle?.descuadre != null && Number(detalle.descuadre) !== 0
+                          ? ` (diferencia de ${fmtMoney(Math.abs(Number(detalle.descuadre)))}, redondeo del OCR)`
+                          : ''}
                       </p>
                     )
                   ) : (
