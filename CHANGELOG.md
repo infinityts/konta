@@ -1830,3 +1830,26 @@ añadir** la que el lector se saltó — con el detalle mintiendo (una suma que 
   mano**. Las líneas manuales se conservan (y no se duplican).
 
 Tests: **255 en verde** (5 nuevos).
+
+### v1.66.3 — Si el monto no es de fiar, la app lo dice
+
+Cierra el Nivel 1 del plan. El caso que lo motivó: una confirmación de pago subida con una
+versión anterior del lector quedó con un monto de **695.417.658** (el CUS) y la lista lo
+mostraba tan tranquila. La app no inventa números, pero tampoco puede callarse cuando algo no
+cuadra.
+
+Ahora cada factura trae un **`aviso_monto`** con el motivo, y se ve **ya en la lista** (sin
+abrir el detalle) al lado del monto, con el botón de corregir ahí mismo:
+
+- **Sale de un número de documento**: si todas las apariciones de ese número en el texto están
+  pegadas a un NIT, una referencia, un comprobante… (típico en facturas viejas).
+- **Es inverosímil**: 100 millones o más para un recibo de pago.
+- **No cuadra con los artículos**: el monto detectado contra la suma de las líneas, con margen
+  del 25 % para no chillar por IVA o descuentos (una factura con IVA **no** dispara el aviso).
+- **No se pudo leer**: «escríbelo tú» en vez de dejar la factura en blanco sin explicación.
+
+De paso, un fallo que salió al escribir esto: la comprobación de «número pegado a letras»
+miraba el carácter anterior a los **espacios**, así que `TOTAL 11.800` contaba como pegado y el
+monto se descartaba. Ahora mira el carácter justo anterior al número.
+
+Tests: **260 en verde** (5 nuevos).

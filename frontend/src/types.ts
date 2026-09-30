@@ -274,6 +274,8 @@ export interface Factura {
   cude: string | null
   url_dian: string | null
   duplicada: boolean
+  /** Si el monto detectado no es de fiar: por qué (null = está bien) */
+  aviso_monto?: string | null
   creada_en: string
 }
 

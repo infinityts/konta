@@ -201,10 +201,13 @@ def detectar_monto(texto: str) -> Decimal | None:
     candidatos: list[tuple[Decimal, bool]] = []
     for m in re.finditer(r"(\$)?\s*(\d[\d.,]*)", texto):
         crudo = m.group(2)
-        antes = texto[max(0, m.start() - 26) : m.start()]
+        # Ojo: el patrón se come los espacios de delante, así que «pegado a una letra» hay que
+        # mirarlo en el carácter justo anterior al **número** (`TOTAL 11.800` no está pegado).
+        inicio = m.start(2)
+        antes = texto[max(0, inicio - 26) : inicio]
         despues = texto[m.end() : m.end() + 6]
         # Pegado a letras = código (`TR260930020535`), no importe
-        if re.search(r"[A-Za-z]$", antes) or re.match(r"[A-Za-z]", despues):
+        if (inicio and texto[inicio - 1].isalpha()) or re.match(r"[A-Za-z]", despues):
             continue
         # `890399003-4`: el guion es el dígito de verificación de un NIT
         if re.match(r"\s*-\s*\d", despues):
@@ -223,6 +226,72 @@ def detectar_monto(texto: str) -> Decimal | None:
     if con_pista:
         return max(con_pista)
     return max((v for v, _ in candidatos), default=None)
+
+
+# Un monto por encima de esto no es un recibo ni una factura de consumo: es casi siempre un
+# número de documento (un NIT, una referencia, un consecutivo) mal leído.
+MONTO_INVEROSIMIL = Decimal("100000000")
+# Y si el monto no coincide con la suma de los artículos, se avisa. El margen es ancho a
+# propósito: en una factura con IVA o descuento las líneas **no** suman el total, y eso es
+# normal; lo que no es normal es una diferencia de un 25 %.
+MARGEN_LINEAS = Decimal("0.25")
+
+
+def aviso_del_monto(
+    monto: Decimal | None, texto: str, suma_lineas: Decimal | None = None
+) -> str | None:
+    """Dice si el monto detectado **no es de fiar** (y por qué). `None` si está bien.
+
+    La app no inventa números: cuando el monto sale de un número de documento, cuando es
+    absurdamente grande o cuando no cuadra con los artículos, lo dice para que el usuario lo
+    corrija **antes** de registrar el gasto. Las facturas viejas leídas con una versión
+    anterior del lector son justo las que caen aquí.
+    """
+    if monto is None:
+        return (
+            "No pudimos leer el monto en este documento: escríbelo en «✏️ Corregir» para que "
+            "la factura y el gasto cuadren."
+        )
+    if monto >= MONTO_INVEROSIMIL:
+        return (
+            f"El monto detectado ({monto:,.2f}) es altísimo para este documento: mira que no "
+            "sea un número de referencia (NIT, consecutivo, comprobante) y corrígelo."
+        )
+
+    # ¿De dónde salió ese número? Si todas sus apariciones en el texto están pegadas a una
+    # etiqueta de documento, no es un monto.
+    if texto:
+        formato = detectar_formato([texto])
+        apariciones = 0
+        pegadas = 0
+        for m in re.finditer(r"(\$)?\s*(\d[\d.,]*)", texto):
+            if parsear_monto(m.group(2), formato) != monto:
+                continue
+            apariciones += 1
+            inicio = m.start(2)
+            antes = texto[max(0, inicio - 26) : inicio]
+            despues = texto[m.end() : m.end() + 6]
+            if (
+                _LABEL_DOCUMENTO.search(antes)
+                or (inicio and texto[inicio - 1].isalpha())
+                or re.match(r"\s*-\s*\d", despues)
+            ):
+                pegadas += 1
+        if apariciones and pegadas == apariciones:
+            return (
+                f"El monto detectado ({monto:,.2f}) sale de un número de documento (NIT, "
+                "referencia o comprobante), no del valor pagado: corrígelo."
+            )
+
+    if suma_lineas is not None and suma_lineas > 0:
+        diferencia = abs(monto - suma_lineas)
+        if diferencia > max(Decimal("1000"), abs(monto) * MARGEN_LINEAS):
+            return (
+                f"El monto detectado ({monto:,.2f}) no coincide con la suma de los artículos "
+                f"({suma_lineas:,.2f}): revisa cuál de los dos está mal (si la factura tiene "
+                "impuestos o descuentos, la diferencia es normal)."
+            )
+    return None
 
 
 def detectar_fecha(texto: str) -> date | None:

@@ -545,6 +545,11 @@ export default function Facturas() {
                       </button>
                     )}
                   </p>
+                  {f.aviso_monto && datosEditando !== f.id && (
+                    <p className="mt-1 rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+                      ⚠️ {f.aviso_monto}
+                    </p>
+                  )}
                   {datosEditando === f.id && (
                     <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
                       <label className="text-xs text-slate-600">

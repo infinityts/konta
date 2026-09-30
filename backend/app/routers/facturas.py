@@ -29,7 +29,14 @@ from ..crud_utils import get_owned
 from ..defaults import sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..embeddings import make_embedding
-from ..facturas import detectar_fecha, detectar_monto, es_imagen, extraer_texto, nombre_factura
+from ..facturas import (
+    aviso_del_monto,
+    detectar_fecha,
+    detectar_monto,
+    es_imagen,
+    extraer_texto,
+    nombre_factura,
+)
 from ..impuestos import a_json, detectar_impuestos
 from ..lineas import detectar_tipo, parsear_lineas
 from ..models import (
@@ -144,6 +151,11 @@ def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
     if factura.texto_extraido or lineas:
         detalle.tipo_documento = detectar_tipo(factura.texto_extraido or "", lineas)
     detalle.duplicada = _duplicada(db, factura)
+    detalle.aviso_monto = aviso_del_monto(
+        factura.monto_detectado,
+        factura.texto_extraido or "",
+        suma_lineas=sum((li.valor_total for li in lineas), Decimal("0.00")) or None,
+    )
     # Auditoría: ¿cuadra con la transacción asociada?
     if factura.transaccion_id:
         tx = db.get(Transaccion, factura.transaccion_id)
@@ -190,9 +202,22 @@ def _aprender(db: Session, usuario_id: uuid.UUID, descripcion: str, etiqueta_id:
 
 @router.get("", response_model=list[FacturaOut])
 def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
-    return db.scalars(
+    """Las facturas del usuario, avisando ya desde la lista si el monto no es de fiar.
+
+    Aquí el aviso se calcula **sin** las líneas (sería una consulta por factura): con el texto
+    basta para cazar un monto que salió de un número de documento o que es inverosímil, que es
+    el caso que deja la factura mintiendo en la lista.
+    """
+    salida: list[FacturaOut] = []
+    for factura in db.scalars(
         select(Factura).where(Factura.usuario_id == user.id).order_by(Factura.creada_en.desc())
-    ).all()
+    ):
+        item = FacturaOut.model_validate(factura)
+        item.aviso_monto = aviso_del_monto(
+            factura.monto_detectado, factura.texto_extraido or ""
+        )
+        salida.append(item)
+    return salida
 
 
 @router.post("", response_model=FacturaOut, status_code=201)

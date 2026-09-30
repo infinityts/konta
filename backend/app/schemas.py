@@ -602,6 +602,8 @@ class FacturaOut(BaseModel):
     url_dian: str | None = None
     # True si ya hay otra factura del mismo usuario con el mismo CUDE
     duplicada: bool = False
+    # Si el monto detectado no es de fiar: por qué (None = está bien)
+    aviso_monto: str | None = None
     creada_en: datetime
 
 
