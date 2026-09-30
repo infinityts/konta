@@ -6,6 +6,8 @@ factura: si hubo que **corregirla** y si salió bien **gracias a una plantilla**
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from test_api import _pdf_minimo, _registrar
 
 BUENO = "EMPRESA BUENA S.A.\nNit 900111222-3\nMonto: $46.477\nFecha: 30/09/2026\n"
@@ -63,6 +65,8 @@ def test_las_lecturas_con_plantilla_se_cuentan_aparte(client):
     client.patch(f"/facturas/{primera['id']}", headers=h, json={"monto_detectado": "50000"})
 
     segunda = _factura(client, h, MALO, "m2.pdf")
+    # la segunda salió bien a la primera: el total lo puso la plantilla aprendida
+    assert Decimal(str(segunda["monto_detectado"])) == Decimal("50000")
     panel = client.get("/facturas/calidad-lector", headers=h).json()
     assert panel["con_plantilla"] == 1, panel
     assert panel["corregidas"] == 1  # la primera, que hubo que arreglar
