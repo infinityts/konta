@@ -2511,4 +2511,4 @@ Revisando lo que toca dinero y datos aparecieron tres cosas que no estaban bien:
 - **Una sola tarea de mantenimiento al día** (00:10 Colombia) en vez de varias: planes que vencen y
   propuestas que expiran, cada una idempotente.
 
-Tests: **387 en verde** (5 nuevos).
+Tests: **385 en verde** (3 nuevos).
