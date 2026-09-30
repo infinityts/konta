@@ -69,8 +69,11 @@ export default function Facturas() {
     ]).catch((e) => setError(e instanceof Error ? e.message : 'Error'))
   }, [])
 
-  async function subir() {
-    if (!archivo) {
+  async function subir(elegido?: File) {
+    // Se le pasa el archivo **recién elegido** desde el input: `setArchivo` no se aplica
+    // hasta el siguiente render, así que leer el estado aquí subiría el archivo anterior.
+    const file = elegido ?? archivo
+    if (!file) {
       setError('Elige el archivo de la factura (PDF o foto)')
       return
     }
@@ -79,7 +82,7 @@ export default function Facturas() {
     setAviso('')
     try {
       const fd = new FormData()
-      fd.append('archivo', archivo)
+      fd.append('archivo', file)
       // Las facturas electrónicas suelen venir en PDF protegido (la clave es el NIT del
       // emisor). Si el PDF no está protegido, la contraseña se ignora.
       if (contrasena) fd.append('contrasena', contrasena)
@@ -383,9 +386,14 @@ export default function Facturas() {
           type="file"
           accept="application/pdf,image/*"
           onChange={(e: ChangeEvent<HTMLInputElement>) => {
-            setArchivo(e.target.files?.[0] ?? null)
+            const elegido = e.target.files?.[0] ?? null
+            setArchivo(elegido)
             setError('')
             setAviso('')
+            // Sube al elegirlo (un solo paso). Si el PDF viene protegido, el aviso lo dice,
+            // el archivo se queda elegido y solo hay que escribir la contraseña y pulsar
+            // «Subir factura».
+            if (elegido) void subir(elegido)
           }}
           disabled={subiendo}
           className="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700"
@@ -400,11 +408,11 @@ export default function Facturas() {
             className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <button
-            onClick={subir}
+            onClick={() => void subir()}
             disabled={subiendo || !archivo}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {subiendo ? 'Procesando…' : 'Subir factura'}
+            {subiendo ? 'Procesando…' : 'Volver a subir'}
           </button>
           <span className="text-xs text-slate-500">
             {archivo ? archivo.name : 'Ningún archivo seleccionado'}

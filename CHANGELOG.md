@@ -1659,3 +1659,15 @@ recibo real de parqueadero pasaba de 67 s a menos de uno.
 
 Con esto, los archivos de hasta 15 MB —y muy por encima de los 5 MB que pediste— se leen sin
 esperas. Tests: **231 en verde**.
+
+### v1.60.1 — Subir una factura vuelve a ser un solo paso
+
+Al añadir el campo de contraseña, la subida pasó a necesitar un botón («Subir factura»): quien
+elegía el archivo y no lo pulsaba no veía la factura ni, por tanto, el botón «Leer líneas».
+Vuelve a subirse **al elegir el archivo**. La contraseña sigue teniendo su camino: si el PDF
+está protegido, el aviso lo dice, el archivo se queda elegido y se reintenta con el botón
+(que ahora se llama «Volver a subir»).
+
+También: la tarjeta de la factura usa `flex-wrap` y el nombre `break-words`, para que un
+nombre largo no empuje los botones fuera de la pantalla; y al subir se dice **siempre** qué
+pasó y el paso siguiente.
