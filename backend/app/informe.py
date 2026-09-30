@@ -53,6 +53,98 @@ def _resumen_de(valores: list[float]) -> dict:
     }
 
 
+UMBRAL_AJUSTADO = 0.6  # a partir de aquí, el cliente se está comiendo el margen
+
+
+def informe_por_usuario(db: Session, periodo: str | None = None) -> dict:
+    """Cliente por cliente: lo que paga contra lo que cuesta, y quién se está pasando.
+
+    Es la parte que no se ve a simple vista: un plan puede dejar margen de sobra **en promedio** y
+    tener dentro un cliente que cuesta más de lo que paga. Aquí salen los dos casos que hay que
+    mirar: `pierde` (cuesta más de lo que paga) y `ajustado` (se come más del 60 % del precio).
+    """
+    periodo = periodo or hoy().strftime("%Y-%m")
+    admins = {c.strip().lower() for c in (get_settings().informe_admins or "").split(",") if c.strip()}
+    usuarios = {
+        u.id: u for u in db.scalars(select(Usuario)).all() if (u.email or "").lower() not in admins
+    }
+    planes = {p.codigo: p for p in db.scalars(select(Plan)).all()}
+    consumos = {
+        c.usuario_id: c for c in db.scalars(select(ConsumoIa).where(ConsumoIa.periodo == periodo))
+    }
+
+    trm = convertir(db, "USD", "COP", Decimal("1"))
+    cop_por_usd = float(trm) if trm else None
+    precio_gb = get_settings().costo_gb_mes_usd
+
+    filas = []
+    for usuario in usuarios.values():
+        plan = planes.get(usuario.plan_codigo or "")
+        if plan is None:
+            continue
+        consumo = consumos.get(usuario.id)
+        costo_ia_usd = float(consumo.costo_usd or 0) if consumo else 0.0
+        mb_dia = float(consumo.mb_dia or 0) if consumo else 0.0
+        costo_almacen_usd = (mb_dia / 1024) * precio_gb if precio_gb else 0.0
+        costo_total_usd = costo_ia_usd + costo_almacen_usd
+        costo_cop = costo_total_usd * cop_por_usd if cop_por_usd else None
+        precio = float(plan.precio_mes)
+        margen = (precio - costo_cop) if costo_cop is not None else None
+
+        if costo_cop is None:
+            aviso = None
+        elif costo_cop > precio:
+            aviso = "pierde"
+        elif costo_cop > precio * UMBRAL_AJUSTADO:
+            aviso = "ajustado"
+        else:
+            aviso = None
+
+        filas.append(
+            {
+                "usuario": usuario.email,
+                "plan": plan.codigo,
+                "precio_mes": precio,
+                "lecturas": int(consumo.lecturas or 0) if consumo else 0,
+                "consultas": int(consumo.consultas or 0) if consumo else 0,
+                "tokens_entrada": int(consumo.tokens_entrada or 0) if consumo else 0,
+                "tokens_salida": int(consumo.tokens_salida or 0) if consumo else 0,
+                "mb_dia": round(mb_dia, 3),
+                "costo_ia_usd": round(costo_ia_usd, 6),
+                "costo_almacen_usd": round(costo_almacen_usd, 6) if precio_gb else None,
+                "costo_total_cop": round(costo_cop, 2) if costo_cop is not None else None,
+                "margen_cop": round(margen, 2) if margen is not None else None,
+                "margen_pct": round(100 * margen / precio, 2) if (margen is not None and precio) else None,
+                "aviso": aviso,
+            }
+        )
+
+    # Los que peor van, primero: es lo que se viene a mirar
+    filas.sort(key=lambda f: (f["margen_pct"] if f["margen_pct"] is not None else 100))
+
+    alertas = [f for f in filas if f["aviso"]]
+    return {
+        "periodo": periodo,
+        "cop_por_usd": round(cop_por_usd, 2) if cop_por_usd else None,
+        "umbral_ajustado": UMBRAL_AJUSTADO,
+        "usuarios": filas,
+        "alertas": {
+            "pierden": [f["usuario"] for f in alertas if f["aviso"] == "pierde"],
+            "ajustados": [f["usuario"] for f in alertas if f["aviso"] == "ajustado"],
+        },
+        "notas": (
+            []
+            if cop_por_usd
+            else ["No hay tasa USD→COP cargada, así que el margen no se puede calcular en pesos."]
+        )
+        + (
+            []
+            if precio_gb
+            else ["Sin precio por GB-mes el almacenamiento se informa en volumen, no en dinero."]
+        ),
+    }
+
+
 def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
     """Las cifras del mes por plan, con promedios, percentiles y margen."""
     periodo = periodo or hoy().strftime("%Y-%m")

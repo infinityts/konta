@@ -2369,3 +2369,25 @@ hace también eso:
 - Devuelve cuántos borró (vencidos + huérfanos), para poder mirarlo.
 
 Tests: **364 en verde** (2 nuevos).
+
+### v1.86 — El panel de coste y margen, y el aviso del cliente que se pasa
+
+El motor del informe ya estaba; faltaba verlo sin curl y, sobre todo, **detectar al cliente que
+cuesta más de lo que paga** — que es lo que no se ve en un promedio.
+
+- **Pantalla nueva** (Configuración → **Informe de costes**, solo para el dueño): clientes,
+  ingreso del mes, coste real de IA y margen; la tabla por plan con **p50/p90** de lecturas y
+  consultas, **MB-día** y **tamaño medio de archivo**; y la tabla **cliente por cliente**, con los
+  que peor van primero. Selector de mes.
+- **Dos avisos por cliente**: `pierde` (cuesta más de lo que paga) y `ajustado` (se come más del
+  60 % del precio). Salen destacados arriba, con los nombres, porque son los dos casos que hay que
+  mirar a tiempo.
+- **Un plan puede ir bien en promedio y esconder un cliente que pierde dinero**: por eso el
+  informe por usuario existe aparte del informe por plan (y hay test que lo comprueba con un
+  cliente caro, uno normal y uno que no gasta nada).
+- Sigue siendo **solo del dueño**: las cuentas del dueño quedan fuera (no se pagan a sí mismas) y
+  a los demás se les dice con claridad que ese informe no es suyo.
+
+`GET /ia/informe/usuarios` (además del `/ia/informe` de siempre).
+
+Tests: **369 en verde** (4 nuevos).

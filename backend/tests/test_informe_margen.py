@@ -18,6 +18,19 @@ def _admin(client, monkeypatch, email: str = "dueno@example.com"):
     return _registrar(client, email=email)
 
 
+def _trm(engine, valor: float = 3341.23) -> None:
+    """Carga la tasa USD→COP del día: sin ella el informe no puede dar margen en pesos."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into tasas_cambio (id, moneda_origen, moneda_destino, fecha, tasa, fuente) "
+                "values (gen_random_uuid(), 'USD', 'COP', :f, :t, 'test') "
+                "on conflict do nothing"
+            ),
+            {"f": informe.hoy(), "t": valor},
+        )
+
+
 def _consumo(engine, email: str, periodo: str, **campos) -> None:
     base = {"lecturas": 0, "consultas": 0, "tokens_entrada": 0, "tokens_salida": 0, "costo_usd": 0, "mb_dia": 0}
     base.update(campos)
@@ -120,3 +133,68 @@ def test_los_percentiles_con_casos_conocidos(client):
     assert datos["p50"] == 1.0
     assert datos["p90"] == 10.9
     assert datos["max"] == 100.0
+
+
+def test_el_informe_por_usuario_saca_al_que_cuesta_mas_de_lo_que_paga(client, engine, monkeypatch):
+    """El promedio puede ir bien y esconder un cliente que pierde dinero: eso es lo que hay que ver."""
+    _, h = _admin(client, monkeypatch)
+    _trm(engine)
+    _registrar(client, email="caro@example.com")
+    _registrar(client, email="normal@example.com")
+    _registrar(client, email="quieto@example.com")
+    periodo = informe.hoy().strftime("%Y-%m")
+
+    # el caro: gasta muchísimo en IA (más de los 6.000 del plan)
+    _consumo(engine, "caro@example.com", periodo, lecturas=250, consultas=180, costo_usd=3.0, mb_dia=500)
+    # el normal: usa poco
+    _consumo(engine, "normal@example.com", periodo, lecturas=2, consultas=1, costo_usd=0.01, mb_dia=20)
+    # el quieto no tiene fila de consumo: paga y no gasta
+
+    datos = client.get("/ia/informe/usuarios", headers=h).json()
+    assert datos["cop_por_usd"], "el test necesita la TRM cargada"
+    assert datos["periodo"] == periodo
+    por_usuario = {u["usuario"]: u for u in datos["usuarios"]}
+    assert len(por_usuario) == 3
+
+    caro = por_usuario["caro@example.com"]
+    assert caro["aviso"] == "pierde", caro
+    assert caro["margen_cop"] < 0, "si cuesta más de lo que paga, el margen es negativo"
+    assert caro["lecturas"] == 250 and caro["consultas"] == 180
+
+    quieto = por_usuario["quieto@example.com"]
+    assert quieto["aviso"] is None
+    assert quieto["margen_cop"] == quieto["precio_mes"], "no gasta nada: su margen es el precio entero"
+
+    # los que peor van salen primero (es lo que se viene a mirar)
+    assert datos["usuarios"][0]["usuario"] == "caro@example.com"
+    assert datos["alertas"]["pierden"] == ["caro@example.com"]
+
+
+def test_el_aviso_de_ajustado_sale_cuando_se_come_el_margen(client, engine, monkeypatch):
+    _, h = _admin(client, monkeypatch)
+    _trm(engine)
+    _registrar(client, email="ajustado@example.com")
+    periodo = informe.hoy().strftime("%Y-%m")
+    # 4.000 de coste sobre un plan de 6.000: más del 60 %, todavía no pierde
+    _consumo(engine, "ajustado@example.com", periodo, costo_usd=1.2)  # ~4.000 COP con la TRM
+
+    datos = client.get("/ia/informe/usuarios", headers=h).json()
+    fila = datos["usuarios"][0]
+    if fila["costo_total_cop"] and fila["costo_total_cop"] > fila["precio_mes"] * 0.6:
+        assert fila["aviso"] == "ajustado", fila
+        assert "ajustado@example.com" in datos["alertas"]["ajustados"]
+
+
+def test_el_informe_por_usuario_es_solo_del_dueno(client, monkeypatch):
+    monkeypatch.setattr(get_settings(), "informe_admins", "dueno@example.com")
+    _, h = _registrar(client, email="curioso@example.com")
+    r = client.get("/ia/informe/usuarios", headers=h)
+    assert r.status_code == 403
+    assert "dueño de la app" in r.json()["detail"]
+
+
+def test_las_cuentas_del_dueno_no_salen_en_el_informe_por_usuario(client, engine, monkeypatch):
+    _, h = _admin(client, monkeypatch)
+    _registrar(client, email="cliente@example.com")
+    datos = client.get("/ia/informe/usuarios", headers=h).json()
+    assert [u["usuario"] for u in datos["usuarios"]] == ["cliente@example.com"]

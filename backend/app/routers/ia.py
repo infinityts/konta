@@ -71,6 +71,25 @@ def informe(
     return informe_mod.informe_del_mes(db, periodo)
 
 
+@router.get("/informe/usuarios")
+def informe_por_usuario(
+    periodo: str | None = None,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Cliente por cliente: lo que paga contra lo que cuesta, y quién se está pasando.
+
+    El informe por plan da el promedio; este enseña el caso que se esconde detrás: el cliente que
+    cuesta más de lo que paga. Solo lo ve el dueño.
+    """
+    if not informe_mod.es_admin(user):
+        raise HTTPException(
+            status_code=403,
+            detail="El informe de costes es del dueño de la app (configura FINANZAS_INFORME_ADMINS).",
+        )
+    return informe_mod.informe_por_usuario(db, periodo)
+
+
 @router.get("/planes", response_model=list[PlanOut])
 def listar_planes(db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     """El catálogo de planes: los límites salen de la base, no del código."""
