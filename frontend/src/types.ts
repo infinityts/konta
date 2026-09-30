@@ -939,10 +939,22 @@ export interface PlanIa {
   consultas_asistente: number
 }
 
+/** Algo que el asistente propone y el usuario tiene que confirmar. */
+export interface Propuesta {
+  propuesta_id?: string
+  id?: string
+  tipo?: string
+  resumen?: string
+  que_se_va_a_hacer?: string
+  estado: string
+  resultado?: string | null
+}
+
 /** La respuesta del asistente, con las herramientas que usó para poder comprobarla. */
 export interface RespuestaAsistente {
   respuesta: string
   herramientas_usadas: string[]
+  propuestas?: Propuesta[]
   consultas_restantes: number
   tokens_entrada: number
   tokens_salida: number

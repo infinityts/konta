@@ -14,10 +14,11 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import cuotas, ia, manual
+from . import cuotas, ia, manual, propuestas
 from .models import (
     Categoria,
     ConsultaAsistente,
@@ -41,8 +42,10 @@ SISTEMA = """Eres el asistente de Konta, una app colombiana de finanzas personal
 Reglas que no puedes romper:
 1. Los números salen SIEMPRE de las herramientas. Nunca calcules, estimes ni recuerdes cifras.
 2. Si el dato no está en lo que devolvió una herramienta, di que no lo tienes. No lo inventes.
-3. Solo consultas: no puedes registrar, borrar ni cambiar nada. Si te lo piden, explica en qué
-   pantalla se hace.
+3. No cambias nada por tu cuenta. Puedes **proponer** acciones con la herramienta `proponer`
+   (registrar un movimiento o etiquetar uno existente): quedan pendientes y **el usuario las
+   confirma en la pantalla**. Nunca digas que algo ya quedó hecho: di que está propuesto y que
+   falta su confirmación. Si te falta el monto o la fecha, pregúntalos antes de proponer.
 4. Responde corto y claro, en el idioma del usuario, con los montos en pesos colombianos.
 5. Si te preguntan cómo hacer algo, usa la herramienta `ayuda` y da los pasos numerados. Esa
    herramienta devuelve VARIOS temas candidatos con una puntuación de parecido: **tú decides** si
@@ -134,6 +137,49 @@ HERRAMIENTAS = [
         "Sale del detalle de las facturas.",
         {"mes": {"type": "string", "description": "Mes AAAA-MM (por defecto, el actual)"}},
     ),
+    {
+        "type": "function",
+        "function": {
+            "name": "proponer",
+            "description": (
+                "Propone una acción para que el USUARIO la confirme. No la ejecuta: queda "
+                "pendiente y se ejecuta solo cuando el usuario pulsa confirmar en la pantalla. "
+                "Úsala cuando pidan registrar un gasto o un ingreso, o etiquetar un movimiento "
+                "que ya existe. Antes de proponer, asegúrate de tener el monto y la fecha (si no, "
+                "pregúntalos). Después de proponer, di claramente qué se va a hacer y que falta su "
+                "confirmación: NUNCA digas que ya está hecho."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tipo": {
+                        "type": "string",
+                        "enum": ["registrar_movimiento", "etiquetar_movimiento"],
+                        "description": "Qué se va a hacer",
+                    },
+                    "datos": {
+                        "type": "object",
+                        "description": (
+                            "Para registrar_movimiento: tipo_movimiento (gasto o ingreso), monto, "
+                            "fecha (AAAA-MM-DD), descripcion, categoria y etiqueta por su nombre. "
+                            "Para etiquetar_movimiento: transaccion_id (búscalo antes con "
+                            "`movimientos`), categoria y etiqueta por su nombre."
+                        ),
+                        "properties": {
+                            "tipo_movimiento": {"type": "string", "enum": ["gasto", "ingreso"]},
+                            "monto": {"type": "number"},
+                            "fecha": {"type": "string"},
+                            "descripcion": {"type": "string"},
+                            "categoria": {"type": "string"},
+                            "etiqueta": {"type": "string"},
+                            "transaccion_id": {"type": "string"},
+                        },
+                    },
+                },
+                "required": ["tipo", "datos"],
+            },
+        },
+    },
     _esquema("cuentas", "Las cuentas con su saldo actual y el total.", {}),
     _esquema("tarjetas", "Las tarjetas, su tipo, su cupo y la deuda por movimientos.", {}),
     _esquema("presupuestos", "Los presupuestos activos con su monto.", {}),
@@ -331,6 +377,25 @@ def _productos(db: Session, usuario: Usuario, mes: str | None = None) -> dict:
     }
 
 
+def _proponer(db: Session, usuario: Usuario, argumentos: dict) -> dict:
+    """Deja una propuesta pendiente (no ejecuta nada) y la describe."""
+    datos = dict(argumentos.get("datos") or {})
+    # El modelo a veces manda el tipo de movimiento dentro de `datos`: se acepta
+    if datos.pop("tipo_movimiento", None):
+        datos["tipo"] = argumentos.get("datos", {}).get("tipo_movimiento")
+    propuesta = propuestas.proponer(db, usuario, argumentos.get("tipo") or "", datos)
+    return {
+        "pantalla": "Asistente (aquí mismo, para confirmar)",
+        "propuesta_id": str(propuesta.id),
+        "que_se_va_a_hacer": propuesta.resumen,
+        "estado": "pendiente",
+        "aviso": (
+            "NO se ha ejecutado nada: el usuario tiene que confirmarlo. Díselo así y no des a "
+            "entender que ya está hecho."
+        ),
+    }
+
+
 def _cuentas(db: Session, usuario: Usuario) -> dict:
     datos = saldo_cuentas(db, usuario.id) or {}
     return {
@@ -438,6 +503,8 @@ def ejecutar(db: Session, usuario: Usuario, nombre: str, argumentos: dict) -> ob
         )
     if nombre == "productos":
         return _productos(db, usuario, argumentos.get("mes"))
+    if nombre == "proponer":
+        return _proponer(db, usuario, argumentos)
     if nombre == "cuentas":
         return _cuentas(db, usuario)
     if nombre == "tarjetas":
@@ -468,6 +535,7 @@ def preguntar(db: Session, usuario: Usuario, pregunta: str) -> dict:
         {"role": "user", "content": pregunta},
     ]
     usadas: list[str] = []
+    propuestas_creadas: list[dict] = []
     entrada = salida = 0
     costo = Decimal("0")
 
@@ -504,6 +572,12 @@ def preguntar(db: Session, usuario: Usuario, pregunta: str) -> dict:
             usadas.append(llamada.nombre)
             try:
                 resultado = ejecutar(db, usuario, llamada.nombre, llamada.argumentos)
+                if llamada.nombre == "proponer" and isinstance(resultado, dict):
+                    propuestas_creadas.append(resultado)
+            except HTTPException as error:
+                # Un dato que no cuadra (categoría que no existe, monto raro) se le dice al modelo
+                # para que lo corrija o lo pregunte, en vez de tumbar la respuesta
+                resultado = {"error": str(error.detail)}
             except Exception as error:  # noqa: BLE001 — una herramienta rota no tumba la respuesta
                 resultado = {"error": f"No pude consultar eso ({type(error).__name__})"}
             mensajes.append(
@@ -535,6 +609,7 @@ def preguntar(db: Session, usuario: Usuario, pregunta: str) -> dict:
 
     return {
         "respuesta": texto,
+        "propuestas": propuestas_creadas,
         "herramientas_usadas": sorted(set(usadas)),
         "tokens_entrada": entrada,
         "tokens_salida": salida,

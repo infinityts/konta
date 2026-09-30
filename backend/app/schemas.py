@@ -699,11 +699,35 @@ class PreguntaAsistenteIn(BaseModel):
     pregunta: str = Field(min_length=3, max_length=600)
 
 
+class PropuestaOut(BaseModel):
+    """Algo que el asistente propone y el usuario tiene que confirmar."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tipo: str
+    resumen: str
+    estado: str
+    resultado: str | None = None
+    creada_en: datetime
+    resuelta_en: datetime | None = None
+
+
+class PropuestaCreadaOut(BaseModel):
+    """La propuesta recién creada dentro de una respuesta del asistente."""
+
+    propuesta_id: str
+    que_se_va_a_hacer: str
+    estado: str
+
+
 class RespuestaAsistenteOut(BaseModel):
     """La respuesta, con las herramientas usadas para poder comprobarla."""
 
     respuesta: str
     herramientas_usadas: list[str] = []
+    # Si el asistente propuso algo, va aquí para que la pantalla enseñe el botón de confirmar
+    propuestas: list[PropuestaCreadaOut] = []
     consultas_restantes: int = 0
     tokens_entrada: int = 0
     tokens_salida: int = 0

@@ -581,6 +581,38 @@ class Plan(Base):
     orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
+class Propuesta(Base):
+    """Algo que el asistente propone hacer y **todavía no ha hecho**.
+
+    El asistente no ejecuta nada: deja la propuesta aquí, con los datos ya resueltos y validados, y
+    el usuario confirma en la pantalla. Guardar los datos resueltos (la categoría de verdad, no el
+    nombre que dijo el modelo) es lo que garantiza que se ejecute **exactamente** lo que se mostró.
+    """
+
+    __tablename__ = "propuestas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False
+    )
+    # registrar_movimiento | etiquetar_movimiento
+    tipo: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Lo que se va a ejecutar, ya resuelto (ids incluidos)
+    datos: Mapped[str] = mapped_column(Text, nullable=False)
+    # La frase que ve el usuario antes de confirmar
+    resumen: Mapped[str] = mapped_column(Text, nullable=False)
+    # pendiente | confirmada | rechazada | fallida
+    estado: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pendiente", server_default="pendiente"
+    )
+    # Qué pasó al ejecutarla (o por qué falló)
+    resultado: Mapped[str | None] = mapped_column(Text, nullable=True)
+    creada_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
+    resuelta_en: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+
 class PaqueteLecturas(Base):
     """Un paquete de lecturas con IA que se compra aparte del plan.
 

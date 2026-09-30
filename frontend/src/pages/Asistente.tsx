@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
-import type { CuotaIa, RespuestaAsistente } from '../types'
+import type { CuotaIa, Propuesta, RespuestaAsistente } from '../types'
 
 /** Una vuelta de la conversación (se guarda solo mientras la página está abierta). */
 interface Turno {
@@ -8,6 +8,7 @@ interface Turno {
   pregunta: string
   respuesta?: string
   herramientas?: string[]
+  propuestas?: Propuesta[]
   error?: string
 }
 
@@ -36,6 +37,8 @@ export default function Asistente() {
   const [sugerencias, setSugerencias] = useState<string[]>([])
   const [cuota, setCuota] = useState<CuotaIa | null>(null)
   const [pensando, setPensando] = useState(false)
+  const [pendientes, setPendientes] = useState<Propuesta[]>([])
+  const [resolviendo, setResolviendo] = useState<string | null>(null)
   const finDelHilo = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -45,7 +48,33 @@ export default function Asistente() {
     void api<CuotaIa>('/ia/cuota')
       .then(setCuota)
       .catch(() => setCuota(null))
+    // Lo que el asistente propuso y quedó esperando confirmación (sobrevive a recargar)
+    void api<Propuesta[]>('/asistente/propuestas')
+      .then(setPendientes)
+      .catch(() => setPendientes([]))
   }, [])
+
+  /** Confirmar o descartar una propuesta: hasta que no se confirma, no se ejecuta nada. */
+  async function resolverPropuesta(id: string, accion: 'confirmar' | 'rechazar') {
+    setResolviendo(id)
+    try {
+      const r = await api<{ resultado?: string; estado?: string; ejecutado_ahora?: boolean }>(
+        `/asistente/propuestas/${id}/${accion}`,
+        { method: 'POST' },
+      )
+      const hecho = accion === 'confirmar' ? (r.resultado ?? 'Hecho') : 'Descartada'
+      setPendientes((ps) => ps.filter((p) => (p.propuesta_id ?? p.id) !== id))
+      setTurnos((ts) => [
+        ...ts,
+        { id: Date.now(), pregunta: accion === 'confirmar' ? '✅ Confirmado' : '✋ Descartado', respuesta: hecho },
+      ])
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : 'No pude resolverlo'
+      setTurnos((ts) => [...ts, { id: Date.now(), pregunta: '⚠️', error: mensaje }])
+    } finally {
+      setResolviendo(null)
+    }
+  }
 
   useEffect(() => {
     finDelHilo.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -65,9 +94,14 @@ export default function Asistente() {
       })
       setTurnos((t) =>
         t.map((x) =>
-          x.id === id ? { ...x, respuesta: r.respuesta, herramientas: r.herramientas_usadas } : x,
+          x.id === id
+            ? { ...x, respuesta: r.respuesta, herramientas: r.herramientas_usadas, propuestas: r.propuestas }
+            : x,
         ),
       )
+      if (r.propuestas?.length) {
+        setPendientes((ps) => [...r.propuestas!, ...ps])
+      }
     } catch (error) {
       // El mensaje del servidor explica qué pasó (cupo agotado, sin configurar…)
       const mensaje = error instanceof Error ? error.message : 'No pude responder'
@@ -99,11 +133,43 @@ export default function Asistente() {
       </div>
       <p className="mt-1 text-sm text-slate-500">
         Pregúntale lo que quieras sobre la app o sobre tus finanzas. Consulta <strong>tus</strong>{' '}
-        datos reales y te dice de dónde sale cada cifra; no cambia nada, solo responde. Cada
-        consulta cuenta en tu plan.
+        datos reales y te dice de dónde sale cada cifra. Nada se cambia sin tu permiso: si te
+        propone registrar algo, lo verás y lo confirmas tú. Cada consulta cuenta en tu plan.
       </p>
 
       <div className="mt-4 flex-1 space-y-3 overflow-y-auto">
+        {pendientes.length > 0 && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+            <p className="text-sm font-medium text-amber-900">
+              Tienes {pendientes.length} propuesta{pendientes.length > 1 ? 's' : ''} sin resolver
+            </p>
+            {pendientes.map((p) => {
+              const pid = p.propuesta_id ?? p.id ?? ''
+              return (
+                <div key={pid} className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm text-amber-900">{p.que_se_va_a_hacer ?? p.resumen}</span>
+                  <span className="flex gap-2">
+                    <button
+                      onClick={() => void resolverPropuesta(pid, 'confirmar')}
+                      disabled={resolviendo === pid}
+                      className="rounded-lg bg-amber-600 px-3 py-1 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      onClick={() => void resolverPropuesta(pid, 'rechazar')}
+                      disabled={resolviendo === pid}
+                      className="rounded-lg border border-amber-300 px-3 py-1 text-sm text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      Descartar
+                    </button>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         {turnos.length === 0 && (
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-sm text-slate-600">Prueba con alguna de estas:</p>
@@ -131,6 +197,38 @@ export default function Asistente() {
             {t.respuesta && (
               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
                 <p className="whitespace-pre-wrap text-sm text-slate-700">{t.respuesta}</p>
+                {t.propuestas?.map((p) => {
+                  const pid = p.propuesta_id ?? p.id ?? ''
+                  return (
+                    <div
+                      key={pid}
+                      className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2"
+                    >
+                      <p className="text-sm text-amber-900">
+                        <strong>Te propongo:</strong> {p.que_se_va_a_hacer ?? p.resumen}
+                      </p>
+                      <p className="mt-0.5 text-xs text-amber-700">
+                        Todavía no se ha hecho nada: se registra solo si lo confirmas.
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => void resolverPropuesta(pid, 'confirmar')}
+                          disabled={resolviendo === pid}
+                          className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                        >
+                          {resolviendo === pid ? 'Guardando…' : 'Confirmar'}
+                        </button>
+                        <button
+                          onClick={() => void resolverPropuesta(pid, 'rechazar')}
+                          disabled={resolviendo === pid}
+                          className="rounded-lg border border-amber-300 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                        >
+                          Descartar
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
                 <p className="mt-2 text-xs text-slate-400">
                   {t.herramientas?.length
                     ? `Consultó: ${t.herramientas

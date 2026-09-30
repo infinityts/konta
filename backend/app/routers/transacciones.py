@@ -23,7 +23,6 @@ from ..deps import get_current_user, get_db
 from ..facturas import nombre_factura
 from ..models import (
     Categoria,
-    Cuenta,
     EstadoSuscripcion,
     Etiqueta,
     Factura,
@@ -31,13 +30,15 @@ from ..models import (
     IngresoRecurrente,
     Periodicidad,
     PeriodicidadIngreso,
-    Poliza,
     Suscripcion,
-    Tarjeta,
-    TipoTarjeta,
     TipoTransaccion,
     Transaccion,
     Usuario,
+)
+from ..movimientos import (
+    validar,
+    validar_cuentas,
+    validar_referencias,
 )
 from ..recurrencia import hoy, siguiente_ocurrencia, siguiente_pago
 from ..schemas import MovimientoOut, TransaccionIn, TransaccionOut, TransaccionUpdate
@@ -50,108 +51,12 @@ PERIODICIDAD_INGRESO = {p.value: p for p in PeriodicidadIngreso}
 
 # Lo que una transferencia **no** puede llevar: no tiene categoría (no es un gasto
 # que se clasifique), ni suscripción ni etiqueta.
-CAMPOS_PROHIBIDOS = ("categoria_id", "suscripcion_id", "etiqueta_id")
 
 
-def _validar(datos: dict) -> None:
-    """Coherencia del movimiento resultante (sirve para crear y para editar)."""
-    es_transferencia = datos.get("tipo") == TipoTransaccion.TRANSFERENCIA
-
-    if not es_transferencia:
-        if datos.get("cuenta_destino_id") is not None:
-            raise HTTPException(
-                status_code=422,
-                detail="Solo una transferencia puede tener cuenta de destino",
-            )
-        return
-
-    if not datos.get("cuenta_id"):
-        raise HTTPException(
-            status_code=422, detail="Una transferencia necesita la cuenta de origen"
-        )
-    # El destino es otra cuenta (mover dinero) **o** una tarjeta de crédito (pagar su
-    # deuda): exactamente uno de los dos, nunca los dos ni ninguno.
-    destinos = [
-        d for d in (datos.get("cuenta_destino_id"), datos.get("tarjeta_id")) if d is not None
-    ]
-    if len(destinos) != 1:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "Una transferencia necesita **un** destino: otra cuenta o una tarjeta "
-                "de crédito (pago de la deuda)"
-            ),
-        )
-    if datos.get("cuenta_destino_id") is not None and datos["cuenta_id"] == datos["cuenta_destino_id"]:
-        raise HTTPException(
-            status_code=422, detail="El origen y el destino no pueden ser la misma cuenta"
-        )
-    for campo in CAMPOS_PROHIBIDOS:
-        if datos.get(campo) is not None:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Una transferencia no lleva {campo}: no es un gasto que se clasifique",
-            )
 
 
-def _validar_referencias(db: Session, user: Usuario, datos: dict) -> None:
-    """Todas las referencias deben ser del usuario.
-
-    Faltaba: se podía crear un movimiento apuntando a la **categoría o etiqueta de
-    otro usuario** (el movimiento era tuyo, pero el reporte mostraba su nombre).
-    """
-    for campo, modelo in (
-        ("categoria_id", Categoria),
-        ("etiqueta_id", Etiqueta),
-        ("tarjeta_id", Tarjeta),
-        ("suscripcion_id", Suscripcion),
-        ("ingreso_recurrente_id", IngresoRecurrente),
-        ("poliza_id", Poliza),
-    ):
-        valor = datos.get(campo)
-        if valor is not None:
-            get_owned(db, modelo, valor, user.id)
 
 
-def _validar_cuentas(db: Session, user: Usuario, datos: dict) -> None:
-    """Las cuentas deben ser del usuario y compartir moneda."""
-    origen = destino = None
-    if datos.get("cuenta_id") is not None:
-        origen = get_owned(db, Cuenta, datos["cuenta_id"], user.id)
-    if datos.get("cuenta_destino_id") is not None:
-        destino = get_owned(db, Cuenta, datos["cuenta_destino_id"], user.id)
-
-    # El destino también puede ser una tarjeta de crédito (pagar su deuda)
-    tarjeta = None
-    if datos.get("tarjeta_id") is not None:
-        tarjeta = get_owned(db, Tarjeta, datos["tarjeta_id"], user.id)
-        if (
-            datos.get("tipo") == TipoTransaccion.TRANSFERENCIA
-            and tarjeta.tipo != TipoTarjeta.CREDITO
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    f"«{tarjeta.nombre}» es de débito: su saldo es el de la cuenta "
-                    "asociada, no una deuda que se pague con una transferencia"
-                ),
-            )
-    if origen is not None and tarjeta is not None and origen.moneda != tarjeta.moneda:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"La cuenta está en {origen.moneda} y la tarjeta en {tarjeta.moneda}: "
-                "un pago entre monedas necesita su propia tasa y todavía no existe"
-            ),
-        )
-    if origen is not None and destino is not None and origen.moneda != destino.moneda:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"Las cuentas están en monedas distintas ({origen.moneda} y {destino.moneda}): "
-                "una transferencia entre monedas necesita su propia tasa y todavía no existe"
-            ),
-        )
 
 
 @router.get("", response_model=list[TransaccionOut])
@@ -354,9 +259,9 @@ def _crear_compromiso(db: Session, user: Usuario, datos: dict, periodicidad: str
 def crear(data: TransaccionIn, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     datos = data.model_dump()
     recurrencia = datos.pop("recurrencia", None)
-    _validar(datos)
-    _validar_cuentas(db, user, datos)
-    _validar_referencias(db, user, datos)
+    validar(datos)
+    validar_cuentas(db, user, datos)
+    validar_referencias(db, user, datos)
 
     if recurrencia is not None:
         # Atómico: el movimiento y el compromiso se guardan juntos o no se guarda nada
@@ -389,9 +294,9 @@ def actualizar(id: uuid.UUID, data: TransaccionUpdate, db: Session = Depends(get
         )
     }
     resultante.update(campos)
-    _validar(resultante)
-    _validar_cuentas(db, user, resultante)
-    _validar_referencias(db, user, resultante)
+    validar(resultante)
+    validar_cuentas(db, user, resultante)
+    validar_referencias(db, user, resultante)
 
     for campo, valor in campos.items():
         setattr(obj, campo, valor)

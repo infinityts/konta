@@ -2303,3 +2303,31 @@ creerle a las cifras.
 - Hay tests que lo comprueban en las tres herramientas de informe.
 
 Tests: **348 en verde**.
+
+### v1.83 — El asistente propone acciones (y las ejecuta solo si tú confirmas)
+
+El paso que lo convierte en algo que **hace**, con un límite que no se negocia: **él no cambia
+nada**. Cuando entiende que quieres registrar un gasto o etiquetar un movimiento, deja una
+**propuesta** y espera.
+
+- **Dos acciones**: registrar un movimiento (gasto o ingreso: monto, fecha, descripción, categoría
+  y etiqueta) y etiquetar un movimiento que ya existe.
+- **La propuesta lleva los datos ya resueltos** (la categoría de verdad, no el nombre que dijo el
+  modelo) y una frase que dice exactamente qué va a pasar: *«Registrar un gasto de $45.000 el
+  2026-09-29 (Mercado del día) en Mercado»*.
+- **Nada se ejecuta hasta que confirmas**, y al confirmar se usa **el mismo camino que la
+  pantalla**: las validaciones de un movimiento se movieron a `app/movimientos.py` para que haya
+  **una sola puerta** y no dos (una para la pantalla y otra para el asistente). El movimiento queda
+  igual de bien hecho que a mano.
+- **Confirmar dos veces no duplica** (un doble clic en el botón no registra el gasto dos veces), y
+  nadie puede confirmar la propuesta de otro.
+- **Si el dato no cuadra, no se inventa la propuesta**: una categoría que no existe devuelve el
+  mensaje con las que sí tienes, para que el asistente pregunte en vez de suponer.
+- En la pantalla del **Asistente**: la propuesta aparece en el hilo con **Confirmar** y
+  **Descartar**, y las que quedaron pendientes se ven al volver a entrar (no se pierden al
+  recargar).
+
+`GET /asistente/propuestas`, `POST /asistente/propuestas/{id}/confirmar`, `.../rechazar`.
+
+Tests: **359 en verde** (8 nuevos + los 74 del router de transacciones, que comprueban que el
+refactor no cambió nada).

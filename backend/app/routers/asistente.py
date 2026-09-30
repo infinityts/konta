@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import asistente, cuotas, ia, manual
+from .. import asistente, cuotas, ia, manual, propuestas
 from ..deps import get_current_user, get_db
 from ..models import Usuario
-from ..schemas import PreguntaAsistenteIn, RespuestaAsistenteOut
+from ..schemas import (
+    PreguntaAsistenteIn,
+    PropuestaOut,
+    RespuestaAsistenteOut,
+)
 
 router = APIRouter(prefix="/asistente", tags=["asistente"])
 
@@ -47,6 +53,38 @@ def buscar_en_la_ayuda(q: str, user: Usuario = Depends(get_current_user)):
     return manual.buscar(q)
 
 
+@router.get("/propuestas", response_model=list[PropuestaOut])
+def listar_propuestas(db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    """Lo que el asistente propuso y está esperando tu confirmación."""
+    return propuestas.pendientes(db, user)
+
+
+@router.post("/propuestas/{propuesta_id}/confirmar")
+def confirmar_propuesta(
+    propuesta_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Ejecuta lo propuesto. Solo lo hace si el usuario lo confirma, y solo una vez."""
+    propuesta, resultado, nuevo = propuestas.confirmar(db, user, propuesta_id)
+    return {
+        "estado": propuesta.estado,
+        "resultado": resultado,
+        "ejecutado_ahora": nuevo,
+        "resumen": propuesta.resumen,
+    }
+
+
+@router.post("/propuestas/{propuesta_id}/rechazar", response_model=PropuestaOut)
+def rechazar_propuesta(
+    propuesta_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Descarta lo propuesto: no se ejecuta nada."""
+    return propuestas.rechazar(db, user, propuesta_id)
+
+
 @router.post("/preguntar", response_model=RespuestaAsistenteOut)
 def preguntar(
     data: PreguntaAsistenteIn,
@@ -81,6 +119,7 @@ def preguntar(
     return RespuestaAsistenteOut(
         respuesta=resultado["respuesta"],
         herramientas_usadas=resultado["herramientas_usadas"],
+        propuestas=resultado.get("propuestas", []),
         consultas_restantes=cuota["consultas"]["restantes"],
         tokens_entrada=resultado["tokens_entrada"],
         tokens_salida=resultado["tokens_salida"],
