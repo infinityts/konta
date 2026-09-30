@@ -316,9 +316,24 @@ def parsear(
 
     Es idempotente: al re-parsear se descartan las líneas anteriores **no
     confirmadas** y se conservan las que ya generaron transacción.
+
+    Si llega `texto`, **se guarda como el texto de la factura** y se vuelven a detectar el
+    monto y la fecha: es el paracaídas del lector. Cuando el OCR o la extracción se equivocan
+    (o el documento viene en un formato que no conocemos), el usuario corrige el texto y
+    vuelve a leer, sin depender de que nosotros acertemos.
     """
     factura = get_owned(db, Factura, id, user.id)
-    texto = (data.texto if data and data.texto else factura.texto_extraido) or ""
+    corregido = bool(data and data.texto and data.texto.strip())
+    texto = (data.texto if corregido else factura.texto_extraido) or ""
+    if corregido:
+        factura.texto_extraido = texto
+        monto = detectar_monto(texto)
+        if monto is not None:
+            factura.monto_detectado = monto
+        fecha = detectar_fecha(texto)
+        if fecha is not None:
+            factura.fecha_detectada = fecha
+        db.flush()
     if not texto.strip():
         raise HTTPException(
             status_code=400,

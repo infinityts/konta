@@ -1787,3 +1787,17 @@ exactamente lo mismo que antes (sin regresión). Además:
   para «Registrar el gasto» con el total.
 
 Tests: **245 en verde** (3 nuevos).
+
+## v1.66 — El paracaídas del lector: corregir el texto y volver a leer
+
+No se puede pretender que el lector acierte con **cualquier** formato que imprima cada banco
+o establecimiento. Lo que sí se puede es que un mal lectura **nunca deje al usuario atascado**.
+Esta es la primera pieza de ese plan.
+
+- **«Corregir el texto y volver a leer»** en cada factura: se abre el texto que leyó Konta, se
+  arregla y se vuelve a leer. El backend ya aceptaba un texto, pero **no lo guardaba** (la
+  corrección se perdía y la factura seguía con el texto malo): ahora se guarda como el texto
+  de la factura y se **re-detectan el monto y la fecha** del texto corregido.
+- Lo que ya estaba confirmado no se toca (el re-parseo sigue siendo idempotente).
+
+Tests: **246 en verde** (1 nuevo).

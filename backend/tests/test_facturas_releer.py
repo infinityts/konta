@@ -78,3 +78,28 @@ def test_releer_sin_registrar_sigue_reemplazando(client):
     segunda = _leer(client, h, factura)
     assert len(segunda["lineas"]) == len(primera["lineas"])
     assert segunda["aviso"] is None
+
+
+def test_el_usuario_puede_corregir_el_texto_y_volver_a_leer(client):
+    """El paracaídas: si el lector se equivoca, el usuario arregla el texto y relee.
+
+    El backend ya aceptaba `texto`, pero no lo guardaba: la corrección se perdía y la
+    factura seguía con el texto malo.
+    """
+    _, h = _registrar(client)
+    factura = _factura(client, h, "TEXTO QUE NO SIRVE\n")
+    assert len(_leer(client, h, factura, "TEXTO QUE NO SIRVE\n")["lineas"]) == 0
+
+    corregido = "PILAS AA 7.300\nLECHE ENTERA 4.500\nTOTAL 11.800\n"
+    detalle = _leer(client, h, factura, corregido)
+    assert len(detalle["lineas"]) == 2, "no releyó con el texto corregido"
+
+    # y el texto corregido queda guardado en la factura
+    guardada = client.get(f"/facturas/{factura['id']}", headers=h).json()
+    assert "PILAS AA" in guardada["texto_extraido"]
+    # con el monto y la fecha re-detectados del texto nuevo
+    assert float(guardada["monto_detectado"]) == 11800.0
+
+    # volver a leer sin mandar texto usa el corregido (no el original)
+    otra = _leer(client, h, factura)
+    assert len(otra["lineas"]) == 2

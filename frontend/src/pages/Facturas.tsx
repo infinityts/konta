@@ -50,6 +50,10 @@ export default function Facturas() {
   // El archivo se guarda (no se sube al elegirlo) para poder escribir la contraseña del PDF
   const [archivo, setArchivo] = useState<File | null>(null)
   const [contrasena, setContrasena] = useState('')
+  // Texto que el usuario está corrigiendo (por factura). Es el paracaídas del lector: si el
+  // OCR o la extracción se equivocan, se arregla el texto y se vuelve a leer.
+  const [textoEditando, setTextoEditando] = useState<Record<string, string>>({})
+  const [corrigiendoTexto, setCorrigiendoTexto] = useState<string | null>(null)
   const entradaArchivo = useRef<HTMLInputElement>(null)
   const [aviso, setAviso] = useState('')
 
@@ -108,6 +112,19 @@ export default function Facturas() {
       setSubiendo(false)
     }
   }
+
+  /** Guarda el texto corregido y vuelve a leer la factura con él. */
+  const guardarTextoYLeer = (facturaId: string) =>
+    conOcupado(facturaId, async () => {
+      const detalle = await api<FacturaDetalle>(`/facturas/${facturaId}/lineas`, {
+        method: 'POST',
+        body: JSON.stringify({ texto: textoEditando[facturaId] ?? '' }),
+      })
+      setDetalles((d) => ({ ...d, [facturaId]: detalle }))
+      setCorrigiendoTexto(null)
+      setAviso('✅ Se volvió a leer con tu texto (y se re-detectaron el monto y la fecha).')
+      await cargar()
+    })
 
   async function conOcupado(id: string, fn: () => Promise<void>) {
     setOcupado(id)
@@ -871,13 +888,55 @@ export default function Facturas() {
                     >
                       Copiar todo
                     </button>
+                    <button
+                      onClick={() => {
+                        setTextoEditando((s) => ({ ...s, [f.id]: f.texto_extraido ?? '' }))
+                        setCorrigiendoTexto(f.id)
+                      }}
+                      className="rounded-lg border border-indigo-300 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                    >
+                      ✏️ Corregir el texto y volver a leer
+                    </button>
                     <span className="text-xs text-slate-500">
-                      Es el texto completo que leyó Konta, no un fragmento.
+                      Es el texto completo que leyó Konta, no un fragmento. Si algo salió mal,
+                      arréglalo aquí: es la forma de resolverlo sin depender del lector.
                     </span>
                   </div>
-                  <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-                    {f.texto_extraido}
-                  </pre>
+                  {corrigiendoTexto === f.id ? (
+                    <div className="mt-2">
+                      <textarea
+                        value={textoEditando[f.id] ?? ''}
+                        onChange={(e) =>
+                          setTextoEditando((s) => ({ ...s, [f.id]: e.target.value }))
+                        }
+                        rows={14}
+                        className="w-full rounded-lg border border-slate-300 p-3 font-mono text-xs"
+                      />
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => void guardarTextoYLeer(f.id)}
+                          disabled={ocupado === f.id}
+                          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {ocupado === f.id ? 'Leyendo…' : 'Guardar y volver a leer'}
+                        </button>
+                        <button
+                          onClick={() => setCorrigiendoTexto(null)}
+                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          Cancelar
+                        </button>
+                        <span className="text-xs text-slate-500">
+                          Se guarda como el texto de esta factura y se re-detectan el monto y la
+                          fecha. Lo que ya estaba confirmado no se toca.
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                      {f.texto_extraido}
+                    </pre>
+                  )}
                 </details>
               )}
             </li>
