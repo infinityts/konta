@@ -2055,3 +2055,30 @@ segmentar planes. El único sitio donde el gasto puede crecer de verdad es el as
 que se medirá igual.
 
 Tests: **298 en verde** (8 nuevos).
+
+### v1.73.1 — Validación de la lectura con IA (con clave real)
+
+Siete documentos por los **dos** lectores: 4 reales (confirmación de pago, foto de un recibo,
+PDF de dos columnas y una tabla de mercado) y **3 degradados a propósito** (desenfocado,
+reducido a un tercio y girado 7°).
+
+| Documento | Lector local | IA |
+|---|---|---|
+| tabla limpia | 15.000 ✅ | 15.000 ✅ |
+| **desenfocado** | **18** ✗ | **15.000** ✅ |
+| **reducido a 1/3** | **15** ✗ | **15.000** ✅ |
+| girado 7° | 15.000 ✅ | 15.000 ✅ |
+| confirmación de pago (2 columnas) | 46.477 ✅ | 46.477 ✅ |
+| foto de un recibo | 4.100 ✅ | 4.100 ✅ |
+| PDF de dos columnas | 844.041 ✅ | 844.041 ✅ |
+
+**La IA acierta donde el lector local se rinde** (desenfoque y poca resolución), y empata en el
+resto. Es exactamente el hueco que justifica la función: no reemplaza al lector, lo tapa.
+
+**Coste medido** (7 lecturas): 4.256 tokens de entrada y 14.026 de salida → 0,018108 USD
+≈ **72 COP**, o **≈ 10 COP por lectura** con los precios configurados (tarifa pico; en valle es
+la mitad). El gasto lo manda la **salida** (≈2.000 tokens por documento: el modelo transcribe
+todo el texto, que es justo lo que la app aprovecha). Tiempo: de 3,9 a 21 s según el documento.
+
+Con eso, las 10 lecturas del plan Básico cuestan del orden de **100 pesos al mes**: el margen
+sigue siendo del 98 % y confirma que el precio del plan se pone **por valor**, no por tokens.
