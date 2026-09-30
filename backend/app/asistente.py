@@ -35,6 +35,7 @@ from .reportes import reporte_categorias, reporte_mensual
 from .saldos import saldo_cuentas
 
 MAX_VUELTAS = 4
+DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 MAX_FILAS = 25
 
 SISTEMA = """Eres el asistente de Konta, una app colombiana de finanzas personales.
@@ -47,7 +48,9 @@ Reglas que no puedes romper:
    confirma en la pantalla**. Nunca digas que algo ya quedó hecho: di que está propuesto y que
    falta su confirmación. Si te falta el monto o la fecha, pregúntalos antes de proponer.
 4. Responde corto y claro, en el idioma del usuario, con los montos en pesos colombianos.
-5. Si te preguntan cómo hacer algo, usa la herramienta `ayuda` y da los pasos numerados. Esa
+5. Arriba tienes la fecha de hoy: úsala para entender «ayer», «el lunes» o «este mes» y para poner
+   la fecha de un movimiento. Calcula la fecha con esa referencia, no la preguntes.
+6. Si te preguntan cómo hacer algo, usa la herramienta `ayuda` y da los pasos numerados. Esa
    herramienta devuelve VARIOS temas candidatos con una puntuación de parecido: **tú decides** si
    alguno responde de verdad a lo que preguntan. Si ninguno responde, di claramente que no tienes
    ese tema (no adaptes unos pasos que hablan de otra cosa).
@@ -530,8 +533,9 @@ def preguntar(db: Session, usuario: Usuario, pregunta: str) -> dict:
     if resumen_cupo["consultas"]["restantes"] < 1:
         raise cuotas.agotado(cuotas.CONSULTA_ASISTENTE, resumen_cupo)
 
+    hoy_ = hoy()
     mensajes: list[dict] = [
-        {"role": "system", "content": SISTEMA},
+        {"role": "system", "content": f"{SISTEMA}\n\nHoy es {hoy_} ({DIAS[hoy_.weekday()]})."},
         {"role": "user", "content": pregunta},
     ]
     usadas: list[str] = []

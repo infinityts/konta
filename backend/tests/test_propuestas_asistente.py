@@ -208,3 +208,21 @@ def test_el_asistente_nunca_dice_que_ya_esta_hecho(client, monkeypatch):
     resultado = json.loads(vistos[0])
     assert resultado["estado"] == "pendiente"
     assert "NO se ha ejecutado nada" in resultado["aviso"]
+
+
+def test_el_asistente_sabe_que_dia_es_hoy(client, monkeypatch):
+    """Sin la fecha, «ayer» no se puede resolver y el asistente acaba preguntando lo que ya sabe."""
+    _, h = _registrar(client)
+    vistos: list[list[dict]] = []
+
+    def falso(mensajes, herramientas=None):
+        vistos.append(mensajes)
+        return ChatIa(texto="Ok.", tokens_entrada=100, tokens_salida=10)
+
+    monkeypatch.setattr(ia, "chat", falso)
+    client.post("/asistente/preguntar", headers=h, json={"pregunta": "¿qué día es hoy?"})
+    sistema = vistos[0][0]["content"]
+    from app.recurrencia import hoy as hoy_konta
+
+    assert "Hoy es" in sistema
+    assert str(hoy_konta()) in sistema, "el prompt tiene que traer la fecha de hoy"
