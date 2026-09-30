@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import type { Categoria, Etiqueta, ReglaOcr } from '../types'
+import type { Categoria, Etiqueta, PlantillaLector, ReglaOcr } from '../types'
 
 const empty = { patron: '', categoria_id: '', etiqueta_id: '' }
 
@@ -15,6 +15,8 @@ const empty = { patron: '', categoria_id: '', etiqueta_id: '' }
  */
 export default function ReglasOcr() {
   const [items, setItems] = useState<ReglaOcr[]>([])
+  // Lo que el lector ha aprendido de cada emisor (dónde viene el total y la fecha)
+  const [plantillas, setPlantillas] = useState<PlantillaLector[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [form, setForm] = useState(empty)
@@ -28,6 +30,7 @@ export default function ReglasOcr() {
   async function cargar() {
     try {
       setItems(await api<ReglaOcr[]>('/reglas-ocr'))
+      setPlantillas(await api<PlantillaLector[]>('/facturas/plantillas-lector'))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     }
@@ -102,7 +105,15 @@ export default function ReglasOcr() {
       (r.categoria_nombre ?? '').toLowerCase().includes(q),
   )
 
+  async function borrarPlantilla(id: string) {
+    if (!window.confirm('¿Borrar lo aprendido de este emisor?')) return
+    await api(`/facturas/plantillas-lector/${id}`, { method: 'DELETE' })
+    setPlantillas((ps) => ps.filter((p) => p.id !== id))
+    setAviso('Plantilla borrada: esa casa se vuelve a leer adivinando.')
+  }
+
   return (
+    <>
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Reglas de OCR</h2>
@@ -263,5 +274,59 @@ export default function ReglasOcr() {
         )}
       </ul>
     </div>
+
+    {/* Plantillas por emisor: no se puede ir a cada banco a pedirle un formato, pero la app se
+        aprende el de cada uno. */}
+    <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+      <h2 className="font-medium text-slate-800">Plantillas por emisor</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Cuando corriges el monto o la fecha de una factura, Konta se aprende <strong>dónde
+        venían</strong> en los documentos de ese emisor, y la próxima factura suya sale bien a la
+        primera. Si borras una plantilla, esa casa se vuelve a leer adivinando.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {plantillas.map((p) => (
+          <li
+            key={p.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 p-3"
+          >
+            <div>
+              <p className="font-medium text-slate-800">{p.nombre}</p>
+              <p className="text-sm text-slate-500">
+                {p.campo_monto ? (
+                  <>
+                    total en <span className="font-mono text-xs">{p.campo_monto}</span>
+                  </>
+                ) : (
+                  'total: sin aprender'
+                )}
+                {p.campo_fecha ? (
+                  <>
+                    {' · '}fecha en <span className="font-mono text-xs">{p.campo_fecha}</span>
+                  </>
+                ) : null}
+                {p.tipo_documento ? <> · {p.tipo_documento}</> : null}
+                <span className="ml-2 text-xs text-slate-400">
+                  usada {p.usos} vez(ces) · {p.actualizada_en.slice(0, 10)}
+                </span>
+              </p>
+            </div>
+            <button
+              onClick={() => void borrarPlantilla(p.id)}
+              className="text-sm text-red-600 hover:underline"
+            >
+              Borrar
+            </button>
+          </li>
+        ))}
+        {plantillas.length === 0 && (
+          <li className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+            Todavía no ha aprendido ninguna. Corrige el monto de una factura en{' '}
+            <strong>Facturas</strong> (✏️ Corregir) y aparecerá aquí.
+          </li>
+        )}
+      </ul>
+    </div>
+    </>
   )
 }

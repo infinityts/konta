@@ -1916,3 +1916,32 @@ red que solo se paga cuando la primera falla, que es justo el caso en que hoy to
 arreglarlo a mano.
 
 Tests: **271 en verde** (5 nuevos).
+
+## v1.69 — Plantilla por emisor: la app se aprende el formato de cada casa
+
+**La tarea más importante del plan.** No se puede ir a cada banco o establecimiento a pedirle un
+formato, pero sí se puede aprender: cuando corriges el monto o la fecha de una factura, Konta
+guarda **en qué etiqueta venían** —«en los documentos de este emisor el total está donde dice
+MONTO»— y la próxima factura del mismo emisor sale bien **a la primera**.
+
+- **Se identifica al emisor**: por su **NIT** (`nit:9001234567`, lo único que escribe siempre
+  igual) o, si no lo trae, por su nombre. Queda guardado en la factura.
+- **Lo aprendido manda**: al subir, si hay plantilla para ese emisor se busca el total y la fecha
+  en la etiqueta aprendida antes de adivinar (y el tipo de documento aprendido decide si se
+  registra como un solo gasto o por artículos).
+- **El usuario puede verlo y borrarlo** en *«lo que el OCR ha aprendido»* → **Plantillas por
+  emisor**, con cuántas veces ha servido cada una. Al borrarla, esa casa se vuelve a leer
+  adivinando (que es lo honesto).
+
+Medido en la prueba de producción: un documento donde el lector se equivocaba (tomaba 120.000 en
+vez de 50.000) → se corrige una vez → la factura siguiente del mismo emisor se lee en **60.000**
+sola, sin avisos, y la plantilla cuenta su primer uso.
+
+De paso, dos arreglos que salieron al construirlo:
+
+- El aviso de «monto que sale de un número de documento» miraba 26 caracteres hacia atrás **sin
+  respetar el salto de línea**, así que el NIT del renglón anterior descartaba un monto bueno.
+  Ahora la etiqueta vale para **su** línea.
+- `GET /facturas/plantillas-lector` iba declarado después de `/{id}`, que se lo comía.
+
+Tests: **276 en verde** (5 nuevos).

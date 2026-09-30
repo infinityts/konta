@@ -487,6 +487,10 @@ class Factura(Base):
     # Del QR de la factura electrónica (migración 0031)
     cude: Mapped[str | None] = mapped_column(String(96), nullable=True, index=True)
     url_dian: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Quién emitió el documento: es lo que une las facturas de un mismo emisor para aprender su
+    # formato (`nit:8903990034` o `nombre:CONSORCIO EMCALI`)
+    emisor: Mapped[str | None] = mapped_column(String(140), nullable=True, index=True)
+    emisor_nombre: Mapped[str | None] = mapped_column(String(140), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 
@@ -520,6 +524,46 @@ class FacturaLinea(Base):
     # `*` gravado, `**` exento, sin marca excluido
     iva_tipo: Mapped[str | None] = mapped_column(String(10), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class PlantillaLector(Base):
+    """Aprendizaje por **emisor**: dónde está el total y la fecha en sus documentos.
+
+    No se puede ir a cada banco o establecimiento a pedirles un formato, pero la app sí puede
+    aprenderse el de cada uno: cuando el usuario corrige el monto de un documento de EMCALI, se
+    guarda que en esos documentos el total va en la línea que dice «VALOR DEL PAGO», y la
+    próxima factura de EMCALI sale bien a la primera.
+    """
+
+    __tablename__ = "plantillas_lector"
+
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "emisor", name="uq_plantillas_lector_emisor"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False
+    )
+    # Clave estable del emisor: `nit:8903990034` o `nombre:GASES DE OCCIDENTE`
+    emisor: Mapped[str] = mapped_column(String(140), nullable=False)
+    # Cómo mostrarlo: «Gases de Occidente»
+    nombre: Mapped[str] = mapped_column(String(140), nullable=False)
+    # Lo aprendido: la etiqueta que lleva el total, la que lleva la fecha y el tipo
+    campo_monto: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    campo_fecha: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    tipo_documento: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Cuántas veces ha servido (para que el usuario vea cuáles valen la pena)
+    usos: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    creada_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
+    actualizada_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
 
 class ReglaOcr(Base):

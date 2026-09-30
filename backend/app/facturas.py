@@ -246,7 +246,10 @@ def detectar_monto(texto: str) -> Decimal | None:
         # Ojo: el patrón se come los espacios de delante, así que «pegado a una letra» hay que
         # mirarlo en el carácter justo anterior al **número** (`TOTAL 11.800` no está pegado).
         inicio = m.start(2)
-        antes = texto[max(0, inicio - 26) : inicio]
+        # La etiqueta que convierte un número en documento (Nit, Referencia, CUS…) vale para **su
+        # línea**: mirar más atrás hacía que el NIT del renglón anterior descartara un monto bueno.
+        desde = texto.rfind("\n", 0, inicio) + 1
+        antes = texto[max(desde, inicio - 26) : inicio]
         despues = texto[m.end() : m.end() + 6]
         # Pegado a letras = código (`TR260930020535`), no importe
         if (inicio and texto[inicio - 1].isalpha()) or re.match(r"[A-Za-z]", despues):
@@ -268,6 +271,181 @@ def detectar_monto(texto: str) -> Decimal | None:
     if con_pista:
         return max(con_pista)
     return max((v for v, _ in candidatos), default=None)
+
+
+# ── Quién emitió el documento ─────────────────────────────────────────────────────────
+# Un NIT colombiano: 9 dígitos y el de verificación, con o sin puntos. Los lookaround exigen que
+# no haya más dígitos alrededor: una referencia larga no es un NIT.
+NIT_RE = re.compile(r"(?<!\d)(\d{3})[.\s]?(\d{3})[.\s]?(\d{3})[-\s]?(\d)(?!\d)")
+LABEL_NIT = re.compile(r"(?i)\bnit\b")
+LABEL_NOMBRE = re.compile(
+    r"(?i)\b(?:raz[oó]n\s+social|comercio|emisor|proveedor|establecimiento)\b"
+)
+# Palabras que aparecen en cualquier documento: no identifican a nadie
+RUIDO_EMISOR = (
+    "COMPROBANTE", "FACTURA", "RECIBO", "PAGO", "DOCUMENTO", "DETALLES", "SOPORTE",
+    "CUENTA DE COBRO", "TRANSACCION", "APROBADA", "EXITOSO",
+)
+
+
+def _etiqueta_de_linea(linea: str) -> str | None:
+    """La etiqueta de una línea: «Monto:» -> «MONTO», «Valor del Pago» -> «VALOR DEL PAGO»."""
+    limpio = re.sub(r"[^\w\sÁÉÍÓÚÑáéíóúñ]", " ", linea)
+    limpio = re.sub(r"\s+", " ", limpio).strip()
+    limpio = re.sub(r"\s*\d[\d.,]*\s*$", "", limpio).strip()  # un valor pegado al final
+    palabras = limpio.split()
+    if not palabras or len(palabras) > 4:
+        return None
+    etiqueta = " ".join(palabras).upper()
+    if len(etiqueta) < 3 or not any(c.isalpha() for c in etiqueta):
+        return None
+    return etiqueta[:40]
+
+
+# Etiquetas que el lector ya sabe leer. Al aprender, si una de estas aparece junto al valor, es
+# la que se guarda: es la que la próxima vez se va a buscar.
+ETIQUETAS_CONOCIDAS = (
+    "TOTAL A PAGAR", "VALOR DEL PAGO", "VALOR A PAGAR", "VALOR TOTAL", "MONTO TOTAL",
+    "VALOR PAGO", "IMPORTE TOTAL", "MONTO", "TOTAL", "IMPORTE",
+)
+# Etiquetas de la fecha (se escriben igual en casi todos los documentos)
+ETIQUETAS_FECHA = ("FECHA DE PAGO", "FECHA DE EXPEDICION", "FECHA")
+
+
+def etiqueta_de_valor(texto: str, valor: Decimal) -> str | None:
+    """La etiqueta que acompaña a un valor («MONTO», «VALOR DEL PAGO»).
+
+    Es lo que se **aprende** cuando el usuario corrige el monto: en vez de guardar el número (que
+    cambia en cada factura), se guarda en qué etiqueta viene, y la próxima vez se busca ahí.
+    """
+    formato = detectar_formato([texto])
+    for m in re.finditer(r"(\d[\d.,]*)", texto):
+        if parsear_monto(m.group(1), formato) != valor:
+            continue
+        antes = texto[: m.start()]
+        lineas = antes.split("\n")
+        misma = lineas[-1]
+        arriba = next((ln for ln in reversed(lineas[:-1]) if ln.strip()), "")
+        # 1) Una etiqueta que el lector ya conoce, en la misma línea o en la de arriba (en un
+        #    comprobante de dos columnas la cabecera lleva la etiqueta y el renglón de abajo el
+        #    valor; el texto de la izquierda no pinta nada aquí).
+        for candidata in ETIQUETAS_CONOCIDAS:
+            patron = re.compile(r"(?i)\b" + r"\s+".join(candidata.split()) + r"\b")
+            if patron.search(misma) or patron.search(arriba):
+                return candidata
+        # 2) Si no, la etiqueta que se pueda sacar del texto que precede al valor
+        etiqueta = _etiqueta_de_linea(misma)
+        if etiqueta:
+            return etiqueta
+        if arriba:
+            etiqueta = _etiqueta_de_linea(arriba)
+            if etiqueta:
+                return etiqueta
+    return None
+
+
+def valor_de_campo(texto: str, campo: str) -> Decimal | None:
+    """El número que acompaña a una etiqueta conocida («MONTO», «VALOR DEL PAGO»).
+
+    Se busca la etiqueta y se toma su valor en la misma línea o, si no, en la que sigue: en un
+    comprobante de dos columnas la cabecera y su valor caen en renglones distintos.
+    """
+    formato = detectar_formato([texto])
+    patron = re.compile(r"(?i)" + r"\s+".join(re.escape(p) for p in campo.split()))
+    for m in patron.finditer(texto):
+        resto = texto[m.end() :].split("\n")
+        for linea in resto[:2]:
+            encontrado = re.search(r"(\d[\d.,]*)", linea)
+            if encontrado:
+                valor = parsear_monto(encontrado.group(1), formato)
+                if valor is not None and valor > 0:
+                    return valor
+    return None
+
+
+def fecha_de_campo(texto: str, campo: str) -> date | None:
+    """La fecha que acompaña a una etiqueta conocida («FECHA DE PAGO», «FECHA»)."""
+    patron = re.compile(r"(?i)" + r"\s+".join(re.escape(p) for p in campo.split()))
+    for m in patron.finditer(texto):
+        for linea in texto[m.end() :].split("\n")[:2]:
+            fecha = detectar_fecha(linea)
+            if fecha is not None:
+                return fecha
+    return None
+
+
+def etiqueta_de_fecha(texto: str) -> str | None:
+    """La etiqueta de la fecha del documento («FECHA», «FECHA DE PAGO»).
+
+    A diferencia del monto, la fecha se escribe de muchas formas (`30/09/2026`,
+    `30 Sep 2026`), así que no se busca el valor sino la etiqueta conocida que lo acompaña.
+    """
+    for candidata in ETIQUETAS_FECHA:
+        patron = re.compile(r"(?i)\b" + r"\s+".join(candidata.split()) + r"\b")
+        if patron.search(texto):
+            return candidata
+    return None
+
+
+def _nombre_del_emisor(texto: str) -> str | None:
+    """El nombre del emisor: el valor de «Razón social» o la primera línea con pinta de nombre."""
+    lineas = [ln.strip() for ln in texto.splitlines() if ln.strip()]
+    candidato: str | None = None
+    for i, linea in enumerate(lineas):
+        if LABEL_NOMBRE.search(linea):
+            resto = re.sub(r"^[\s:.\-]+", "", LABEL_NOMBRE.sub(" ", linea)).strip()
+            # Solo si es un nombre: «Referencia 1» (la otra columna de la cabecera) no lo es, y
+            # el texto que habla del documento («documento sin emisor») tampoco.
+            plano = resto.upper()
+            if (
+                len(resto) >= 4
+                and not any(c.isdigit() for c in resto)
+                and not any(ruido in plano for ruido in RUIDO_EMISOR)
+            ):
+                return resto[:140]
+            if i + 1 < len(lineas):
+                # En un documento de dos columnas el valor va en el renglón de abajo, y al lado
+                # puede venir otra cosa (una IP, una fecha): se corta el número del final.
+                siguiente = re.sub(r"\s{2,}.*$", "", lineas[i + 1]).strip()
+                siguiente = re.sub(r"\s*\d[\d.,:\-]*\s*$", "", siguiente).strip()
+                if len(siguiente) >= 4:
+                    return siguiente[:140]
+        if candidato is None:
+            resto = re.sub(r"\s*\d[\d.,:\-]*\s*$", "", linea).strip()
+            plano = resto.upper()
+            if (
+                4 <= len(resto) <= 60
+                and sum(c.isalpha() for c in resto) >= 4
+                and NIT_RE.search(resto) is None
+                and not any(ruido in plano for ruido in RUIDO_EMISOR)
+            ):
+                candidato = resto[:140]
+    return candidato
+
+
+def detectar_emisor(texto: str) -> tuple[str, str] | None:
+    """Quién emitió el documento: (clave estable, nombre para mostrar). `None` si no se sabe.
+
+    Se prefiere el **NIT**, que es lo único que el emisor escribe siempre igual; sin él se usa el
+    nombre. La clave es lo que une las facturas de un mismo emisor para aprender su formato.
+    """
+    candidatos = list(NIT_RE.finditer(texto))
+    elegido = next(
+        (m for m in candidatos if LABEL_NIT.search(texto[max(0, m.start() - 24) : m.start()])),
+        None,
+    )
+    if elegido is None:
+        # Sin la etiqueta «Nit» solo se acepta con el guion del dígito de verificación: un
+        # teléfono no lo lleva, y así no se confunde un celular con un NIT.
+        elegido = next((m for m in candidatos if "-" in m.group(0)), None)
+    if elegido is not None:
+        digitos = "".join(elegido.groups())
+        return f"nit:{digitos}", _nombre_del_emisor(texto) or f"NIT {digitos}"
+
+    nombre = _nombre_del_emisor(texto)
+    if nombre:
+        return f"nombre:{nombre.upper()[:60]}", nombre
+    return None
 
 
 # Un monto por encima de esto no es un recibo ni una factura de consumo: es casi siempre un
@@ -311,7 +489,8 @@ def aviso_del_monto(
                 continue
             apariciones += 1
             inicio = m.start(2)
-            antes = texto[max(0, inicio - 26) : inicio]
+            desde = texto.rfind("\n", 0, inicio) + 1
+            antes = texto[max(desde, inicio - 26) : inicio]
             despues = texto[m.end() : m.end() + 6]
             if (
                 _LABEL_DOCUMENTO.search(antes)

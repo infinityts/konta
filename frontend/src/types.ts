@@ -828,3 +828,15 @@ export interface PanelReporte {
   mercado: { etiquetas: PanelEtiqueta[]; productos: PanelProducto[] }
   impuestos: { mes: number; periodo: number; sobre_compras: number | null }
 }
+
+/** Lo que el lector ha aprendido de un emisor: dónde viene el total y la fecha. */
+export interface PlantillaLector {
+  id: string
+  emisor: string
+  nombre: string
+  campo_monto: string | null
+  campo_fecha: string | null
+  tipo_documento: string | null
+  usos: number
+  actualizada_en: string
+}

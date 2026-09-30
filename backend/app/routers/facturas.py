@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -32,11 +32,16 @@ from ..embeddings import make_embedding
 from ..facturas import (
     aviso_de_la_fecha,
     aviso_del_monto,
+    detectar_emisor,
     detectar_fecha,
     detectar_monto,
     es_imagen,
+    etiqueta_de_fecha,
+    etiqueta_de_valor,
     extraer_texto,
+    fecha_de_campo,
     nombre_factura,
+    valor_de_campo,
 )
 from ..impuestos import a_json, detectar_impuestos
 from ..lineas import detectar_tipo, parsear_lineas
@@ -46,6 +51,7 @@ from ..models import (
     Etiqueta,
     Factura,
     FacturaLinea,
+    PlantillaLector,
     ReglaOcr,
     Tarjeta,
     TipoTarjeta,
@@ -73,10 +79,27 @@ from ..schemas import (
     LineasOrdenIn,
     LineaUpdateIn,
     ParsearLineasIn,
+    PlantillaLectorOut,
     UnificarOut,
 )
 
 router = APIRouter(prefix="/facturas", tags=["facturas"])
+
+
+# Las plantillas van **antes** de `/{id}`: si no, FastAPI toma «plantillas-lector»
+# como el id de una factura.
+@router.get("/plantillas-lector", response_model=list[PlantillaLectorOut])
+def listar_plantillas(
+    db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)
+):
+    """Lo que la app ha aprendido de cada emisor (el usuario puede verlo y borrarlo)."""
+    return db.scalars(
+        select(PlantillaLector)
+        .where(PlantillaLector.usuario_id == user.id)
+        .order_by(PlantillaLector.usos.desc(), PlantillaLector.nombre)
+    ).all()
+
+
 
 
 # --- helpers --------------------------------------------------------------- #
@@ -151,6 +174,10 @@ def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
     detalle.lineas = [FacturaLineaOut.model_validate(li) for li in lineas]
     if factura.texto_extraido or lineas:
         detalle.tipo_documento = detectar_tipo(factura.texto_extraido or "", lineas)
+        # Si ya se aprendió de qué tipo son los documentos de este emisor, manda lo aprendido
+        plantilla = _plantilla(db, factura.usuario_id, factura.emisor)
+        if plantilla is not None and plantilla.tipo_documento:
+            detalle.tipo_documento = plantilla.tipo_documento
     detalle.duplicada = _duplicada(db, factura)
     detalle.aviso_fecha = aviso_de_la_fecha(factura.fecha_detectada, hoy())
     detalle.aviso_monto = aviso_del_monto(
@@ -168,6 +195,54 @@ def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
             else None
         )
     return detalle
+
+
+def _plantilla(db: Session, usuario_id: uuid.UUID, emisor: str | None) -> PlantillaLector | None:
+    if not emisor:
+        return None
+    return db.scalar(
+        select(PlantillaLector).where(
+            PlantillaLector.usuario_id == usuario_id, PlantillaLector.emisor == emisor
+        )
+    )
+
+
+def _aprender_plantilla(
+    db: Session,
+    factura: Factura,
+    monto: Decimal | None = None,
+    fecha: date | None = None,
+) -> PlantillaLector | None:
+    """Guarda lo aprendido de un emisor cuando el usuario corrige un documento suyo.
+
+    No se guarda el número (cambia en cada factura) sino **en qué etiqueta viene**: «en los
+    documentos de este emisor el total está donde dice MONTO». Así, la próxima factura del mismo
+    emisor se lee bien a la primera, sin que el usuario vuelva a corregirla.
+    """
+    emisor = factura.emisor or None
+    if not emisor or not factura.texto_extraido:
+        return None
+    campo_monto = etiqueta_de_valor(factura.texto_extraido, monto) if monto is not None else None
+    campo_fecha = etiqueta_de_fecha(factura.texto_extraido) if fecha is not None else None
+    if campo_monto is None and campo_fecha is None:
+        return None
+
+    plantilla = _plantilla(db, factura.usuario_id, emisor)
+    if plantilla is None:
+        plantilla = PlantillaLector(
+            usuario_id=factura.usuario_id,
+            emisor=emisor,
+            nombre=factura.emisor_nombre or emisor,
+            tipo_documento=detectar_tipo(factura.texto_extraido, _lineas(db, factura.id)) or None,
+        )
+        db.add(plantilla)
+    if campo_monto:
+        plantilla.campo_monto = campo_monto
+    if campo_fecha:
+        plantilla.campo_fecha = campo_fecha
+    if factura.emisor_nombre:
+        plantilla.nombre = factura.emisor_nombre
+    return plantilla
 
 
 def _linea_de(db: Session, factura: Factura, linea_id: uuid.UUID) -> FacturaLinea:
@@ -256,6 +331,23 @@ async def subir(
         # PDF protegido: se dice, en vez de guardar una factura «sin texto»
         raise HTTPException(status_code=400, detail=str(error)) from error
     impuestos = detectar_impuestos(texto) if texto else None
+    # ¿De quién es el documento? Es lo que une las facturas de un mismo emisor para aprender su
+    # formato (y para no volver a corregir la misma casa mes a mes).
+    emisor_detectado = detectar_emisor(texto) if texto else None
+    emisor = emisor_detectado[0] if emisor_detectado else None
+    monto = detectar_monto(texto) if texto else None
+    fecha = detectar_fecha(texto) if texto else None
+    plantilla = _plantilla(db, user.id, emisor) if emisor else None
+    if plantilla is not None and texto:
+        # Lo aprendido manda: si el usuario ya dijo dónde está el total en los documentos de
+        # este emisor, se busca ahí antes que adivinar.
+        del_campo = valor_de_campo(texto, plantilla.campo_monto) if plantilla.campo_monto else None
+        if del_campo is not None:
+            monto, plantilla.usos = del_campo, plantilla.usos + 1
+        if plantilla.campo_fecha:
+            del_campo_fecha = fecha_de_campo(texto, plantilla.campo_fecha)
+            if del_campo_fecha is not None:
+                fecha = del_campo_fecha
     # El QR trae el CUDE/CUFE de la DIAN: no se adivina con OCR
     qr = qr_de_documento(contenido, archivo.filename or "", archivo.content_type)
     cude = cude_de_url(qr)
@@ -263,8 +355,10 @@ async def subir(
         usuario_id=user.id,
         nombre_archivo=archivo.filename or "factura.pdf",
         texto_extraido=texto[:20000] if texto else None,
-        monto_detectado=detectar_monto(texto) if texto else None,
-        fecha_detectada=detectar_fecha(texto) if texto else None,
+        monto_detectado=monto,
+        fecha_detectada=fecha,
+        emisor=emisor,
+        emisor_nombre=emisor_detectado[1] if emisor_detectado else None,
         impuestos_total=impuestos["impuestos_total"] if impuestos else None,
         iva_valor=(
             sum((d["valor"] for d in impuestos["detalle"] if d["nombre"] == "IVA"), Decimal("0"))
@@ -326,6 +420,18 @@ def asociar(
     return AsociarOut(aviso=aviso, descuadre=descuadre)
 
 
+@router.delete("/plantillas-lector/{plantilla_id}", status_code=204)
+def borrar_plantilla(
+    plantilla_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Borra una plantilla: la próxima factura de ese emisor se vuelve a leer adivinando."""
+    plantilla = get_owned(db, PlantillaLector, plantilla_id, user.id)
+    db.delete(plantilla)
+    db.commit()
+
+
 @router.patch("/{id}", response_model=FacturaDetalleOut)
 def corregir(
     id: uuid.UUID,
@@ -348,6 +454,19 @@ def corregir(
         factura.monto_detectado = data.monto_detectado
     if "fecha_detectada" in campos:
         factura.fecha_detectada = data.fecha_detectada
+    # Corregir es enseñar: se aprende en qué etiqueta venía el dato bueno, para la próxima
+    # factura de este mismo emisor.
+    if factura.emisor and factura.emisor_nombre is None:
+        emisor_detectado = detectar_emisor(factura.texto_extraido or "")
+        if emisor_detectado:
+            factura.emisor, factura.emisor_nombre = emisor_detectado
+    if factura.emisor:
+        _aprender_plantilla(
+            db,
+            factura,
+            monto=data.monto_detectado if "monto_detectado" in campos else None,
+            fecha=data.fecha_detectada if "fecha_detectada" in campos else None,
+        )
     db.commit()
     db.refresh(factura)
     return _detalle(db, factura)

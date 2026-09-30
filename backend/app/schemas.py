@@ -625,6 +625,8 @@ class FacturaOut(BaseModel):
     aviso_monto: str | None = None
     # Lo mismo con la fecha (decide en qué mes cae el gasto)
     aviso_fecha: str | None = None
+    # Quién emitió el documento (lo que usa la plantilla aprendida)
+    emisor_nombre: str | None = None
     creada_en: datetime
 
 
@@ -669,6 +671,21 @@ class FacturaDetalleOut(FacturaOut):
     descuadre: Decimal | None = None  # transacción - factura (0 = cuadra)
     # Lo que hay que decirle al usuario de esta lectura (p. ej. «no se duplicaron N líneas»)
     aviso: str | None = None
+
+
+class PlantillaLectorOut(BaseModel):
+    """Lo que la app ha aprendido de un emisor: dónde viene el total y la fecha."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    emisor: str
+    nombre: str
+    campo_monto: str | None = None
+    campo_fecha: str | None = None
+    tipo_documento: str | None = None
+    usos: int = 0
+    actualizada_en: datetime
 
 
 class MovimientoOut(BaseModel):
