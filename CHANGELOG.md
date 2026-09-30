@@ -2123,3 +2123,29 @@ de subir, y como el archivo se sube al elegirlo, para cuando lo veías ya era ta
 - La cabecera muestra el cupo completo: lecturas, archivos guardados, MB y días de retención.
 
 Tests: **307 en verde** (8 nuevos).
+
+### v1.75 — El asistente: responde con las reglas de Konta (fase A, solo lectura)
+
+Un chat dentro de la app que contesta **cualquier** pregunta sobre la aplicación y sobre las
+finanzas del usuario. Lo que lo hace fiable es una regla: **el modelo no sabe los números**.
+
+- **Diez herramientas** que llaman a los **mismos servicios que usan las pantallas**
+  (`reportes.panel`, `saldos.saldo_cuenta`, `reporte_categorias`, `reporte_mensual`, tarjetas,
+  presupuestos, facturas, plan y el manual de ayuda). Por eso lo que responde coincide con lo
+  que se ve: no hay dos verdades.
+- **No inventa**: si el dato no está en ninguna herramienta, lo dice. Y cada respuesta trae
+  **qué herramientas usó**, para poder comprobarla.
+- **No puede ver a otro cliente**: cada herramienta lee con la sesión del usuario que pregunta
+  (hay un test que lo comprueba con dos usuarios).
+- **Ayuda paso a paso**: un manual de 10 temas (registrar un gasto, subir una factura, leer con
+  IA, separar casa y apartamento, presupuestos, tarjetas, planes…) que responde con pasos
+  numerados y el nombre de la pantalla.
+- **Acotado y medido**: máximo 4 vueltas de herramientas por pregunta, el cupo se comprueba
+  **antes** de llamar al modelo, la consulta se cobra **solo si sale bien**, y cada pregunta
+  queda registrada (pregunta, herramientas, tokens y coste) para el informe de promedios.
+- **Es de solo lectura**: no registra ni cambia nada. Si se lo piden, dice dónde se hace (las
+  acciones con confirmación son la fase siguiente).
+
+`POST /asistente/preguntar`, más `GET /asistente/sugerencias` y `GET /asistente/manual`.
+
+Tests: **317 en verde** (8 nuevos).

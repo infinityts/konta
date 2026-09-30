@@ -55,6 +55,26 @@ class LecturaIa:
     costo_usd: Decimal = Decimal("0")
 
 
+@dataclass
+class LlamadaHerramienta:
+    """Una herramienta que el modelo pidió usar."""
+
+    id: str
+    nombre: str
+    argumentos: dict
+
+
+@dataclass
+class ChatIa:
+    """La respuesta del modelo, con lo que costó."""
+
+    texto: str = ""
+    llamadas: list[LlamadaHerramienta] = field(default_factory=list)
+    tokens_entrada: int = 0
+    tokens_salida: int = 0
+    costo_usd: Decimal = Decimal("0")
+
+
 class IaNoConfigurada(RuntimeError):
     """No hay clave del proveedor: la función está apagada, no rota."""
 
@@ -110,6 +130,68 @@ def _decimal(valor) -> Decimal | None:
         return Decimal(str(valor).replace(".", "").replace(",", ".")) if isinstance(valor, str) else Decimal(str(valor))
     except Exception:  # noqa: BLE001 — un valor raro se trata como «no lo sé», no rompe la lectura
         return None
+
+
+def _costo(entrada: int, salida: int) -> Decimal:
+    ajustes = get_settings()
+    total = (entrada / 1_000_000) * ajustes.ia_precio_entrada
+    total += (salida / 1_000_000) * ajustes.ia_precio_salida
+    return Decimal(str(round(total, 6)))
+
+
+def chat(mensajes: list[dict], herramientas: list[dict] | None = None) -> ChatIa:
+    """Una vuelta de conversación con el modelo, con o sin herramientas.
+
+    Es la misma tubería para el asistente: si el modelo pide una herramienta, se devuelve la
+    petición tal cual y quien llama decide qué hacer (aquí no se ejecuta nada por su cuenta).
+    """
+    ajustes = get_settings()
+    if not configurada():
+        raise IaNoConfigurada(
+            "El asistente no está configurado en este servidor (falta la clave del proveedor)."
+        )
+
+    peticion: dict = {"model": ajustes.ia_modelo, "messages": mensajes}
+    if herramientas:
+        peticion["tools"] = herramientas
+        peticion["tool_choice"] = "auto"
+
+    with httpx.Client(timeout=120) as cliente:
+        respuesta = cliente.post(
+            f"{ajustes.ia_base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {ajustes.ia_api_key}"},
+            json=peticion,
+        )
+    respuesta.raise_for_status()
+    cuerpo = respuesta.json()
+
+    uso = cuerpo.get("usage") or {}
+    entrada = int(uso.get("prompt_tokens") or 0)
+    salida = int(uso.get("completion_tokens") or 0)
+    mensaje = (cuerpo.get("choices") or [{}])[0].get("message", {}) or {}
+
+    llamadas = []
+    for peticion_herramienta in mensaje.get("tool_calls") or []:
+        funcion = peticion_herramienta.get("function") or {}
+        try:
+            argumentos = json.loads(funcion.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            argumentos = {}
+        llamadas.append(
+            LlamadaHerramienta(
+                id=peticion_herramienta.get("id") or "",
+                nombre=funcion.get("name") or "",
+                argumentos=argumentos if isinstance(argumentos, dict) else {},
+            )
+        )
+
+    return ChatIa(
+        texto=(mensaje.get("content") or "").strip(),
+        llamadas=llamadas,
+        tokens_entrada=entrada,
+        tokens_salida=salida,
+        costo_usd=_costo(entrada, salida),
+    )
 
 
 def leer_documento(

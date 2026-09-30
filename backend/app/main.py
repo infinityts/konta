@@ -39,6 +39,9 @@ from .routers import (
     transacciones,
 )
 from .routers import (
+    asistente as asistente_router,
+)
+from .routers import (
     ia as ia_router,
 )
 from .scheduler import start_scheduler, stop_scheduler
@@ -74,6 +77,7 @@ app.add_middleware(
 )
 
 app.include_router(ia_router.router)
+app.include_router(asistente_router.router)
 app.include_router(auth.router)
 app.include_router(categorias.router)
 app.include_router(tarjetas.router)

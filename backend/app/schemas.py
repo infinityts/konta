@@ -693,6 +693,23 @@ class PlantillaLectorOut(BaseModel):
     actualizada_en: datetime
 
 
+class PreguntaAsistenteIn(BaseModel):
+    """La pregunta del usuario al asistente."""
+
+    pregunta: str = Field(min_length=3, max_length=600)
+
+
+class RespuestaAsistenteOut(BaseModel):
+    """La respuesta, con las herramientas usadas para poder comprobarla."""
+
+    respuesta: str
+    herramientas_usadas: list[str] = []
+    consultas_restantes: int = 0
+    tokens_entrada: int = 0
+    tokens_salida: int = 0
+    costo_usd: float = 0.0
+
+
 class PlanOut(BaseModel):
     """Un plan del catálogo: lo que cuesta y lo que incluye."""
 

@@ -616,6 +616,31 @@ class ConsumoIa(Base):
     )
 
 
+class ConsultaAsistente(Base):
+    """Una pregunta al asistente: qué se preguntó, qué herramientas se usaron y qué costó.
+
+    Se guarda para poder auditar y para el informe de promedios. **No** se guarda la respuesta
+    entera: con la pregunta y las herramientas basta para saber por dónde fue.
+    """
+
+    __tablename__ = "consultas_asistente"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False
+    )
+    pregunta: Mapped[str] = mapped_column(Text, nullable=False)
+    herramientas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tokens_entrada: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    tokens_salida: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    costo_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=0, server_default="0"
+    )
+    creada_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
 class CasoLector(Base):
     """Un documento que el lector leyó mal, tal como lo vio el usuario.
 
