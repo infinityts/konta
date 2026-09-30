@@ -2432,3 +2432,23 @@ El circuito del cobro ya funcionaba por API; ya se puede hacer desde la app.
   (la lista duplicada que había antes se fue: los planes viven en un solo sitio).
 
 Tests: **377 en verde** (sin cambios en el backend; el frontend no tiene suite: build + CI).
+
+### v1.89 — La pasada de aceptación: ¿sigue funcionando **todo junto**?
+
+Cada pieza tiene sus tests, pero eso no contesta la pregunta que importa después de veinte
+despliegues: **¿sigue funcionando todo a la vez?** Ahora hay un script que lo comprueba contra una
+app de verdad y saca una tabla.
+
+`scripts/aceptacion.py` recorre los caminos que tocan dinero y datos: crear usuario y entrar, el
+catálogo y el cupo, **subir una factura y guardar el archivo**, **releerla con IA**, que el
+asistente consulte y diga qué miró, la ayuda por significado, **proponer una acción y confirmarla**
+(comprobando que proponer no cambia nada y que confirmar dos veces no duplica), **comprar** con la
+pasarela de prueba y su recibo, que el aviso simulado exija sesión, que el informe del dueño no lo
+vea cualquiera, y borrar el archivo dejando la factura.
+
+- Sale con **código 1** si algo falla (sirve en un `if` de un despliegue) y **borra lo que creó**,
+  incluidos los archivos.
+- `--sin-ia` lo corre sin gastar en el modelo.
+- Está en el manual de migración como paso 8: es la comprobación de después de mudarse.
+
+**Resultado contra producción: 21/21** ✅ (*«Todo lo comprobado funciona junto»*).

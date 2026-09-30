@@ -110,7 +110,20 @@ escribir y las facturas no se guardan (pasó, y se ve como «Permission denied»
   `nomic-embed-text`, o la ayuda se queda en la búsqueda por palabras (funciona, pero encuentra
   menos). Se configura con `FINANZAS_OLLAMA_URL`.
 
-## 8. Después de arrancar
+## 8. Después de arrancar: la pasada de aceptación
+
+```bash
+python scripts/aceptacion.py --base http://<ip>:8082/api \
+  --dsn "postgresql+psycopg://finanzas:finanzas@127.0.0.1:5433/finanzas"
+```
+
+Recorre en la app de verdad los caminos que tocan dinero y datos (crear usuario, subir y **releer
+con IA**, el cupo y el almacenamiento, el asistente y su ayuda, **proponer y confirmar** una acción,
+comprar y su recibo, los guardarraíles del informe y el borrado del archivo), saca una tabla y
+**borra lo que creó**. Sale con código 1 si algo falla, así que sirve en un `if`. Con `--sin-ia`
+corre sin gastar en el modelo.
+
+## 9. Y a mano, lo que no se puede automatizar
 
 ```bash
 curl -s localhost:8000/health                 # {"status":"ok",...}
@@ -121,7 +134,7 @@ podman exec konta-backend python -c "from app.archivos import limpiar_archivos_v
 Y a mano, con el usuario de siempre: entrar, ver el resumen, subir una factura y **releerla con
 IA** (que es lo que toca la base, los archivos, la clave de IA y el Ollama, todo a la vez).
 
-## 9. Si algo sale mal
+## 10. Si algo sale mal
 
 La máquina vieja **no se apaga** hasta que la nueva esté comprobada: volver es cambiar el DNS otra
 vez. Los datos no se pierden porque el respaldo sigue ahí y la base vieja queda intacta.
