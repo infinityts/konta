@@ -7,9 +7,11 @@ tokens costaron. Por eso el consumo guarda las dos cosas.
 from __future__ import annotations
 
 import os
+import shutil
 from decimal import Decimal
 
 import psycopg
+import pytest
 from test_api import _pdf_minimo, _registrar
 
 from app import cuotas, ia
@@ -159,6 +161,12 @@ def test_la_contrasena_del_pdf_llega_al_adaptador(client, monkeypatch):
 
 
 def test_el_pdf_se_convierte_en_imagen_para_el_modelo(client):
-    """El proveedor solo acepta imágenes: un PDF se convierte (misma tubería que el OCR)."""
+    """El proveedor solo acepta imágenes: un PDF se convierte (misma tubería que el OCR).
+
+    Necesita poppler, que el CI no instala (igual que tesseract): sin él, el test se salta en
+    vez de fallar, porque lo que prueba es la conversión y esa no es responsabilidad de la app.
+    """
+    if shutil.which("pdftoppm") is None:
+        pytest.skip("poppler no está instalado en este entorno")
     mime, _datos = ia._a_imagen(_pdf_minimo("Monto: $46.477\n"), "application/pdf")
     assert mime == "image/jpeg"
