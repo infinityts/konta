@@ -2355,3 +2355,17 @@ El **precio ($19.900) es provisional**: se ajusta con el informe de promedios de
 justo para lo que se construyó.
 
 Tests: **362 en verde** (5 nuevos).
+
+### v1.85 — La limpieza también barre lo que ya no es de nadie
+
+Me pasó tres veces en las verificaciones: borrar un usuario por fuera de la app deja sus archivos en
+el disco, y desde la pantalla ya nadie puede quitarlos. Ahora el trabajo de limpieza (cada 12 h)
+hace también eso:
+
+- Compara el almacén con las facturas y **borra lo que no referencia nadie**, incluidas las
+  carpetas que quedan vacías.
+- **La base manda**: lo que esté referenciado no se toca, aunque parezca viejo (de eso se encarga la
+  retención, que es otra cosa).
+- Devuelve cuántos borró (vencidos + huérfanos), para poder mirarlo.
+
+Tests: **364 en verde** (2 nuevos).

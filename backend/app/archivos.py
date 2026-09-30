@@ -9,12 +9,14 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import almacen
+from .config import get_settings
 from .db import make_engine, make_session_factory
 from .models import Factura, Plan, Usuario
 from .recurrencia import hoy
@@ -248,12 +250,44 @@ def periodo_actual() -> str:
     return hoy().strftime("%Y-%m")
 
 
+def borrar_huerfanos(s: Session) -> int:
+    """Borra del almacén lo que ya no referencia ninguna factura.
+
+    Pasa cuando se borra un usuario (o una factura) por fuera de la app, o si algo falla a mitad:
+    quedan archivos que nadie puede borrar desde la pantalla y que se van acumulando. La base manda:
+    lo que no esté referenciado, fuera.
+    """
+    raiz = Path(get_settings().almacen_ruta)
+    if not raiz.is_dir():
+        return 0
+    referenciadas = {
+        clave
+        for clave in s.scalars(select(Factura.archivo_clave).where(Factura.archivo_clave.is_not(None)))
+    }
+    borrados = 0
+    for ruta in raiz.rglob("*"):
+        if not ruta.is_file():
+            continue
+        clave = str(ruta.relative_to(raiz))
+        if clave in referenciadas:
+            continue
+        ruta.unlink(missing_ok=True)
+        borrados += 1
+        # si era el último de su carpeta, la carpeta se va también
+        padre = ruta.parent
+        if padre != raiz and padre.is_dir() and not any(padre.iterdir()):
+            padre.rmdir()
+    return borrados
+
+
 def limpiar_archivos_vencidos() -> int:
-    """Trabajo programado: borra del almacén lo que ya cumplió su retención."""
+    """Trabajo programado: borra lo vencido y lo que ya no referencia nadie."""
     engine = make_engine()
     sf = make_session_factory(engine)
     try:
         with sf.begin() as s:
-            return borrar_archivos_vencidos(s)
+            vencidos = borrar_archivos_vencidos(s)
+            huerfanos = borrar_huerfanos(s)
+            return vencidos + huerfanos
     finally:
         engine.dispose()

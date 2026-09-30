@@ -269,3 +269,34 @@ def test_un_usuario_sin_archivos_no_se_mide(client, engine):
     with sf.begin() as s:
         assert archivos.medir_almacenamiento(s, cuando=date(2026, 9, 30)) == 0
     assert client.get("/ia/cuota", headers=h).json()["dias_medidos"] == 0
+
+
+def test_el_trabajo_borra_los_archivos_que_ya_no_referencia_nadie(client, engine):
+    """Archivos de usuarios borrados por fuera de la app: nadie puede quitarlos desde la pantalla."""
+    from app.db import make_session_factory
+
+    _, h = _registrar(client)
+    _factura(client, h)  # uno legítimo, que NO se puede tocar
+    raiz = pathlib.Path(get_settings().almacen_ruta)
+    suelto = raiz / "usuario-que-ya-no-existe" / "viejo.pdf"
+    suelto.parent.mkdir(parents=True, exist_ok=True)
+    suelto.write_bytes(b"%PDF-1.4 fantasma")
+
+    sf = make_session_factory(engine)
+    with sf.begin() as s:
+        assert archivos.borrar_huerfanos(s) == 1
+    assert not suelto.exists()
+    assert not suelto.parent.exists(), "la carpeta vacía también se va"
+    # y lo que sí está referenciado sigue donde estaba
+    detalle = client.get("/facturas", headers=h).json()[0]
+    assert client.get(f"/facturas/{detalle['id']}", headers=h).json()["archivo_guardado"] is True
+
+
+def test_un_almacen_limpio_no_reporta_borrados(client, engine):
+    from app.db import make_session_factory
+
+    _, h = _registrar(client)
+    _factura(client, h)
+    sf = make_session_factory(engine)
+    with sf.begin() as s:
+        assert archivos.borrar_huerfanos(s) == 0
