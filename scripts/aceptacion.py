@@ -83,6 +83,7 @@ def main() -> int:
     parser.add_argument("--base", default="http://11.0.0.3:8082/api")
     parser.add_argument("--dsn", default="", help="para borrar el usuario de prueba y sus archivos")
     parser.add_argument("--sin-ia", action="store_true", help="salta lo que cuesta dinero real")
+    parser.add_argument("--disco", default="", help="ruta local para mirar el espacio libre")
     args = parser.parse_args()
 
     app = App(args.base)
@@ -99,6 +100,22 @@ def main() -> int:
     if not revisar("se puede crear un usuario y entrar", codigo == 200 and "access_token" in sesion, str(sesion)[:80]):
         return 1
     app.token = sesion["access_token"]
+
+    # 0b. el disco: un disco lleno no rompe la app, pero rompe los despliegues en silencio (el
+    # build falla y sigue corriendo la imagen vieja). Mejor verlo aquí.
+    codigo, salud = app.pedir("/health", metodo="GET")
+    libre = None
+    if args.disco:
+        try:
+            import shutil
+
+            uso = shutil.disk_usage(args.disco)
+            libre = uso.free / 1024**3
+        except Exception:  # noqa: BLE001 — si no se puede mirar, no se inventa
+            libre = None
+    if libre is not None:
+        revisar("queda sitio en el disco (los despliegues lo necesitan)", libre >= 1.0,
+                f"{libre:.2f} GB libres")
 
     # 1. catálogo y cupo
     codigo, planes = app.pedir("/ia/planes", metodo="GET")
