@@ -80,6 +80,13 @@ export default function Facturas() {
   async function cargar() {
     setItems(await api<Factura[]>('/facturas'))
     setTransacciones(await api<Transaccion[]>('/transacciones'))
+    // El cupo de IA se pide aparte y a prueba de fallos: si esta llamada falla, la lista se ve
+    // igual y el interruptor sigue en su sitio (el servidor comprueba el cupo de todas formas).
+    try {
+      setCuota(await api<CuotaIa>('/ia/cuota'))
+    } catch {
+      setCuota(null)
+    }
   }
 
   useEffect(() => {
@@ -506,16 +513,20 @@ export default function Facturas() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-xl font-semibold">Facturas (PDF)</h2>
-          {cuota && (
-            <p className="text-sm text-slate-500">
-              🤖 Leer con IA:{' '}
-              <span className={cuota.lecturas_restantes > 0 ? 'text-slate-700' : 'text-amber-700'}>
-                {cuota.lecturas_restantes > 0
-                  ? `te quedan ${cuota.lecturas_restantes} de ${cuota.lecturas_incluidas} lecturas este mes`
+          <p className="text-sm text-slate-500">
+            🤖 Leer con IA:{' '}
+            <span
+              className={
+                !cuota || cuota?.lecturas_restantes > 0 ? 'text-slate-700' : 'text-amber-700'
+              }
+            >
+              {!cuota
+                ? 'consultando tu cupo…'
+                : cuota?.lecturas_restantes > 0
+                  ? `te quedan ${cuota?.lecturas_restantes} de ${cuota?.lecturas_incluidas} lecturas este mes`
                   : 'sin lecturas este mes (puedes comprar o subir de plan)'}
-              </span>
-            </p>
-          )}
+            </span>
+          </p>
         </div>
         <Link to="/reglas-ocr" className="text-sm text-indigo-600 hover:underline">
           Ver lo que el OCR ha aprendido →
@@ -535,26 +546,27 @@ export default function Facturas() {
           de Konta. Si el documento es difícil (manuscrito, foto borrosa, formato raro), enciende
           antes <strong>Leer con IA</strong> y lo lee el modelo de visión.
         </p>
-        {cuota && (
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
                 <input
                   type="checkbox"
                   checked={usarIa}
-                  disabled={cuota.lecturas_restantes === 0}
+                  disabled={cuota?.lecturas_restantes === 0}
                   onChange={(e) => setUsarIa(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300"
                 />
                 <span className="font-medium">🤖 Leer con IA</span>
                 <span className="text-slate-500">
-                  {cuota.lecturas_restantes > 0
-                    ? `te quedan ${cuota.lecturas_restantes} de ${cuota.lecturas_incluidas} este mes${
-                        cuota.lecturas_extra > 0 ? ` (+${cuota.lecturas_extra} compradas)` : ''
-                      }`
-                    : `se acabaron las ${cuota.lecturas_incluidas} lecturas de tu plan ${
-                        cuota.plan_nombre ?? ''
-                      }`}
+                  {!cuota
+                    ? 'cuesta una lectura de tu plan y el servidor comprueba el cupo'
+                    : cuota?.lecturas_restantes > 0
+                      ? `te quedan ${cuota?.lecturas_restantes} de ${cuota?.lecturas_incluidas} este mes${
+                          cuota?.lecturas_extra > 0 ? ` (+${cuota?.lecturas_extra} compradas)` : ''
+                        }`
+                      : `se acabaron las ${cuota?.lecturas_incluidas} lecturas de tu plan ${
+                          cuota?.plan_nombre ?? ''
+                        }`}
                 </span>
               </label>
               <button
@@ -570,7 +582,7 @@ export default function Facturas() {
               </button>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              {cuota.lecturas_restantes > 0
+              {!cuota || cuota?.lecturas_restantes > 0
                 ? 'Sirve para documentos que el lector normal no puede: manuscritos, fotos borrosas o formatos raros. Cuesta una lectura y se descuenta solo si sale bien.'
                 : 'Puedes comprar lecturas sueltas o subir de plan. Mientras tanto, el lector normal sigue funcionando igual.'}
             </p>
@@ -580,14 +592,14 @@ export default function Facturas() {
                   <li
                     key={pl.codigo}
                     className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-xs ${
-                      pl.codigo === cuota.plan
+                      pl.codigo === cuota?.plan
                         ? 'border-indigo-300 bg-white'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
                     <span className="font-medium text-slate-700">
                       {pl.nombre}
-                      {pl.codigo === cuota.plan ? ' · tu plan' : ''}
+                      {pl.codigo === cuota?.plan ? ' · tu plan' : ''}
                     </span>
                     <span className="text-slate-500">
                       ${Number(pl.precio_mes).toLocaleString('es-CO')}/mes · {pl.lecturas_ia}{' '}
@@ -601,8 +613,7 @@ export default function Facturas() {
                 </li>
               </ul>
             )}
-          </div>
-        )}
+        </div>
         <input
           ref={entradaArchivo}
           type="file"
