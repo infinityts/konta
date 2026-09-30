@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     # ── Informe de promedios y margen (solo para el dueño de la app) ─────────────────────
     # Correos separados por coma que pueden ver el informe de todos los clientes.
     informe_admins: str = ""
+    # ── Ayuda paso a paso ────────────────────────────────────────────────────────────────
+    # Por debajo de esta similitud, la ayuda dice que no tiene el tema (mejor que inventar).
+    # Usa los embeddings de Ollama de arriba (`ollama_url`): si no está, busca por palabras.
+    ayuda_similitud_minima: float = 0.45
+    # Indexar el manual es trabajo de una sola vez: se le da más margen que al clasificador
+    ayuda_ollama_timeout: float = 20.0
+
     # ── Cobro ────────────────────────────────────────────────────────────────────────────
     # Qué pasarela se usa. Hoy solo `simulada` (para probar el circuito completo sin llaves);
     # Wompi, MercadoPago o PayU se enchufan en `app/pasarelas.py` con sus llaves.

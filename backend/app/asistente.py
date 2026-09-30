@@ -17,7 +17,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import cuotas, ia
+from . import cuotas, ia, manual
 from .models import (
     ConsultaAsistente,
     Factura,
@@ -47,66 +47,6 @@ Reglas que no puedes romper:
 Cuando uses una herramienta, apóyate en su resultado y di de dónde sale el dato
 («según tus movimientos de septiembre», «según el Resumen»).
 """
-
-MANUAL = {
-    "registrar un gasto": [
-        "Entra en Movimientos y pulsa «Nuevo movimiento».",
-        "Elige el tipo (gasto), el monto, la fecha y la descripción.",
-        "Asígnale categoría y etiqueta: la categoría es el lugar (Casa, Apartamento) y la "
-        "etiqueta el servicio o el tipo de gasto.",
-        "Guarda: el saldo y los reportes se actualizan solos.",
-    ],
-    "subir una factura o un recibo": [
-        "Entra en Facturas y elige el archivo (PDF o foto): se lee al instante.",
-        "Si trae artículos, pulsa «Leer líneas» para partirla en productos.",
-        "Revisa el panel «Revisa antes de registrar»: monto, fecha y artículos.",
-        "Registra la compra (un solo gasto con el detalle) o confirma las líneas.",
-    ],
-    "leer una factura con IA": [
-        "Sube la factura normalmente: el lector de Konta la lee gratis.",
-        "Si la lectura queda dudosa, en esa misma factura aparece «Leer con IA» en ámbar.",
-        "Púlsalo: cuesta una lectura de tu plan y reemplaza la lectura de esa factura.",
-        "Si te quedas sin lecturas, puedes comprar o subir de plan.",
-    ],
-    "separar los gastos de casa y apartamento": [
-        "Usa dos categorías: «Casa» y «Apartamento».",
-        "Dentro de cada una, pon etiquetas por servicio: Acueducto, Energía, Gas, Internet.",
-        "Al registrar el gasto, elige la categoría del lugar y la etiqueta del servicio.",
-        "En Reportes puedes ver el total por categoría y comparar los dos lugares.",
-    ],
-    "saber por qué mi saldo cambió": [
-        "Entra en Cuentas y mira el saldo de cada una.",
-        "Abre Movimientos y filtra por esa cuenta y el mes.",
-        "Ojo: el saldo solo cuenta lo que ya pasó (una transacción con fecha futura no entra "
-        "hasta ese día).",
-        "Si el saldo inicial no es el de tu banco, corrígelo en la cuenta.",
-    ],
-    "hacer un presupuesto": [
-        "Entra en Presupuestos y crea uno por categoría o etiqueta.",
-        "Pon el monto del mes y el periodo.",
-        "La app te avisa cuando te acercas o te pasas.",
-    ],
-    "entender el gasto fijo del mes": [
-        "Konta suma tus suscripciones y pólizas activas y reparte las anuales por mes.",
-        "Lo ves en el Resumen, en la tarjeta «Gasto fijo / mes».",
-        "Los cobros que están por venir aparecen en «Próximos pagos».",
-    ],
-    "mirar mis tarjetas y lo que debo": [
-        "Entra en Tarjetas.",
-        "Cada tarjeta muestra su cupo y su deuda por movimientos.",
-        "Las compras con tarjeta de crédito no bajan tu saldo hasta que pagas la tarjeta.",
-    ],
-    "exportar o respaldar mis datos": [
-        "Entra en Ajustes y busca «Respaldo».",
-        "Puedes descargar tus datos para tenerlos o pasarlos a otro lado.",
-    ],
-    "cambiar de plan o comprar lecturas": [
-        "En Facturas, arriba, tienes el cupo del mes y el botón «Ver planes».",
-        "Ahí ves qué incluye cada plan y cuál tienes.",
-        "El cobro en línea está en camino: por ahora se cambia escribiendo a soporte.",
-    ],
-}
-
 
 def _esquema(nombre: str, descripcion: str, propiedades: dict, requeridos: list[str] | None = None):
     return {
@@ -165,7 +105,9 @@ HERRAMIENTAS = [
     _esquema("mi_plan", "El plan del usuario: lecturas con IA, consultas, archivos y su coste.", {}),
     _esquema(
         "ayuda",
-        "Los pasos para hacer algo en la app. Úsala para preguntas de «cómo hago…».",
+        "Los pasos para hacer algo en la app. Úsala para preguntas de «cómo hago…». Busca por "
+        "significado, así que no hace falta acertar las palabras: si devuelve la lista de temas "
+        "sin resultados, es que no tienes ese tema y hay que decirlo.",
         {
             "tema": {
                 "type": "string",
@@ -296,16 +238,8 @@ def _mi_plan(db: Session, usuario: Usuario) -> dict:
 
 
 def _ayuda(tema: str | None = None) -> dict:
-    if not tema:
-        return {"temas": list(MANUAL)}
-    buscado = tema.lower().strip()
-    for clave, pasos in MANUAL.items():
-        if buscado in clave or clave in buscado or any(p in clave for p in buscado.split()):
-            return {"tema": clave, "pasos": pasos}
-    return {
-        "temas": list(MANUAL),
-        "nota": "No tengo ese tema en el manual; dile al usuario que no lo tienes.",
-    }
+    """Los pasos de un tema, buscando por significado (embeddings locales)."""
+    return manual.buscar(tema)
 
 
 def ejecutar(db: Session, usuario: Usuario, nombre: str, argumentos: dict) -> object:

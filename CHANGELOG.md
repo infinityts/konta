@@ -2237,3 +2237,29 @@ MercadoPago o PayU cambiando una variable:
 entorno no se alcanza la de Wompi, y no invento su API). Queda registrado como tarea siguiente.
 
 Tests: **335 en verde** (11 nuevos).
+
+### v1.80 — La ayuda del asistente busca por **significado** (embeddings locales)
+
+Antes buscaba por palabras: preguntar *«no me cuadra la plata que me queda»* no encontraba «saber
+por qué mi saldo cambió». Ahora sí, y sin pagar un peso de API: los vectores los calcula el
+**Ollama de la propia máquina** (`nomic-embed-text`, 768 dimensiones) y ningún dato sale del
+servidor.
+
+- **El manual pasa de 10 a 25 temas** y los pasos nombran las pantallas **como se llaman en el
+  menú** («Movimientos → Transacciones», «Análisis → Presupuestos», «Configuración → Respaldo»),
+  porque quien pregunta está mirando la app.
+- **Busca por sentido y dice cuánto se parece**: cada resultado trae su similitud, y por debajo de
+  un umbral la respuesta es «no lo tengo» — mejor eso que inventarse los pasos.
+- **Nunca se queda sin responder**: si el Ollama está caído o apagado, cae a la búsqueda por
+  palabras de antes. La ayuda no depende de que un servicio esté vivo.
+- **El índice se prepara al arrancar en segundo plano** (son 25 temas con el modelo local), así la
+  primera pregunta no se lo encuentra frío.
+
+`GET /asistente/buscar?q=…` enseña la misma búsqueda que usa el asistente por dentro, para poder
+ver por qué respondió lo que respondió.
+
+Un aviso honesto: esta indexación en memoria (comparar el vector de la pregunta contra los 25 del
+manual) es perfecta para un manual, pero **no** escala a miles de documentos: cuando haga falta
+eso, tocará un índice de verdad.
+
+Tests: **342 en verde** (7 nuevos).

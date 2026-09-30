@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from . import manual
 from .config import get_settings
 from .deps import get_db
 from .recurrencia import procesar_ingresos_vencidos
@@ -82,6 +83,12 @@ app.add_middleware(
 app.include_router(ia_router.router)
 app.include_router(asistente_router.router)
 app.include_router(pagos_router.router)
+
+
+@app.on_event("startup")
+def _precalentar_ayuda() -> None:
+    """Deja listo el índice del manual de ayuda sin hacer esperar a nadie."""
+    manual.precalentar()
 app.include_router(auth.router)
 app.include_router(categorias.router)
 app.include_router(tarjetas.router)

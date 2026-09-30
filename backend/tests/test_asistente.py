@@ -133,9 +133,10 @@ def test_el_manual_responde_con_pasos(client, monkeypatch):
     monkeypatch.setattr(ia, "chat", falso)
     r = client.post("/asistente/preguntar", headers=h, json={"pregunta": "¿cómo subo una factura?"})
     assert r.status_code == 200, r.text
-    pasos = json.loads(vistos[1][-1]["content"])
-    assert pasos["tema"] == "subir una factura o un recibo"
-    assert len(pasos["pasos"]) >= 3
+    ayuda = json.loads(vistos[1][-1]["content"])
+    primero = ayuda["resultados"][0]
+    assert primero["tema"] == "subir una factura o un recibo"
+    assert len(primero["pasos"]) >= 3
 
 
 def test_una_herramienta_que_falla_no_tumba_la_respuesta(client, monkeypatch):

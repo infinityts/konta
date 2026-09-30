@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import asistente, cuotas, ia
+from .. import asistente, cuotas, ia, manual
 from ..deps import get_current_user, get_db
 from ..models import Usuario
 from ..schemas import PreguntaAsistenteIn, RespuestaAsistenteOut
@@ -30,9 +30,19 @@ def sugerencias():
 
 
 @router.get("/manual")
-def manual():
+def ver_manual():
     """Los temas que el asistente sabe explicar paso a paso."""
-    return {"temas": list(asistente.MANUAL)}
+    return {"temas": manual.temas(), "cuantos": len(manual.temas())}
+
+
+@router.get("/buscar")
+def buscar_en_la_ayuda(q: str):
+    """Qué temas responden a una pregunta y con qué similitud.
+
+    Es la misma búsqueda que usa el asistente por dentro: sirve para ver por qué respondió lo que
+    respondió (y para comprobar que encuentra por significado y no por palabras).
+    """
+    return manual.buscar(q)
 
 
 @router.post("/preguntar", response_model=RespuestaAsistenteOut)
