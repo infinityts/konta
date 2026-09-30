@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from sqlalchemy.orm import sessionmaker
 from test_api import _registrar
 
@@ -113,3 +115,49 @@ def test_las_lecturas_de_ia_tambien_cuentan(client, engine):
     assert resumen["dinero"]["lecturas_ia"] == 7
     huella = resumen["huellas"]["consumos_ia"]
     assert isinstance(huella, str) and len(huella) == 32, "la huella es un md5"
+
+
+def test_una_tabla_que_deberia_estar_y_no_esta_se_avisa(client, engine, monkeypatch):
+    """Saltarse en silencio lo que no se encuentra da confianza falsa: es lo que hay que evitar."""
+    from sqlalchemy.orm import sessionmaker
+
+    monkeypatch.setattr(
+        verificacion, "TABLAS", (*verificacion.TABLAS, "tabla_que_no_existe")
+    )
+    _con_datos(client)
+    sf = sessionmaker(bind=engine)
+    with sf.begin() as s:
+        resumen = verificacion.resumen_de(s)
+    assert resumen["tablas_faltantes"] == ["tabla_que_no_existe"]
+    assert any("¿nombre cambiado?" in p for p in verificacion.comparar(resumen, resumen))
+
+
+def test_las_lineas_de_factura_se_cuentan(client, engine):
+    """Los artículos del mercado son dinero: tienen que viajar con la copia."""
+    from sqlalchemy.orm import sessionmaker
+    from test_api import RECIBO
+
+    from app.models import Factura
+
+    _, h = _registrar(client, email="u@example.com")
+    from datetime import date
+
+    with sessionmaker(bind=engine).begin() as s:
+        from app.models import Usuario
+
+        usuario = s.query(Usuario).filter(Usuario.email == "u@example.com").one()
+        factura = Factura(
+            usuario_id=usuario.id, nombre_archivo="m.txt", texto_extraido=RECIBO,
+            monto_detectado=Decimal("32416"), fecha_detectada=date(2026, 9, 20),
+        )
+        s.add(factura)
+        s.flush()
+        fid = str(factura.id)
+    assert client.post(f"/facturas/{fid}/lineas", headers=h, json={}).status_code == 200
+
+    sf = sessionmaker(bind=engine)
+    with sf.begin() as s:
+        resumen = verificacion.resumen_de(s)
+    assert resumen["tablas"]["factura_lineas"] > 0, "las líneas tienen que contarse"
+    assert "factura_lineas" in resumen["huellas"], "y llevar huella"
+    assert resumen["tablas"]["metas_ahorro"] == 0, "y las metas también se miran"

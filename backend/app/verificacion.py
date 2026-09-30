@@ -27,10 +27,13 @@ TABLAS = (
     "suscripciones",
     "ingresos_recurrentes",
     "polizas",
+    "poliza_asegurados",
     "presupuestos",
-    "metas",
+    "metas_ahorro",
+    "aportes_meta",
+    "pagos_tarjeta",
     "facturas",
-    "facturas_lineas",
+    "factura_lineas",
     "consumos_ia",
     "pagos",
     "propuestas",
@@ -45,6 +48,9 @@ HUELLAS = {
     "cuentas": "nombre, saldo_inicial, moneda",
     "pagos": "referencia, monto, estado, aplicado",
     "consumos_ia": "periodo, lecturas, consultas, tokens_entrada, tokens_salida, costo_usd, mb_dia",
+    "factura_lineas": "coalesce(descripcion, ''), coalesce(valor_total, 0), coalesce(cantidad, 0)",
+    "pagos_tarjeta": "coalesce(monto, 0), fecha",
+    "aportes_meta": "coalesce(monto, 0), fecha",
 }
 
 
@@ -52,13 +58,18 @@ def resumen_de(db: Session) -> dict:
     """Los números que tienen que cuadrar en cualquier copia de esta base."""
     resumen: dict = {"tablas": {}, "dinero": {}, "huellas": {}, "saldos": {}}
 
+    faltantes = []
     for tabla in TABLAS:
         existe = db.scalar(
             text("select to_regclass(:t) is not null"), {"t": f"public.{tabla}"}
         )
         if not existe:
+            # No se salta en silencio: una tabla que debería estar y no está es justo lo que una
+            # migración mal hecha produce. Saltársela daría una confianza falsa.
+            faltantes.append(tabla)
             continue
         resumen["tablas"][tabla] = int(db.scalar(text(f"select count(*) from {tabla}")) or 0)
+    resumen["tablas_faltantes"] = faltantes
 
     filas = db.execute(
         text(
@@ -107,6 +118,11 @@ def resumen_de(db: Session) -> dict:
 def comparar(original: dict, copia: dict) -> list[str]:
     """Qué no cuadra entre las dos. Lista vacía = la copia es fiel."""
     problemas: list[str] = []
+
+    for tabla in original.get("tablas_faltantes") or []:
+        problemas.append(f"En el original no existe la tabla {tabla} (¿nombre cambiado?)")
+    for tabla in copia.get("tablas_faltantes") or []:
+        problemas.append(f"Falta la tabla {tabla} en la copia")
 
     for tabla, filas in (original.get("tablas") or {}).items():
         en_copia = (copia.get("tablas") or {}).get(tabla)
