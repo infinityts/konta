@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..clasificador import clasificar
+from ..config import get_settings
 from ..crud_utils import get_owned
 from ..deps import get_current_user, get_db
 from ..embeddings import make_embedding
@@ -140,6 +141,15 @@ def subir_extracto(
     if not nombre.lower().endswith(EXTENSIONES):
         raise HTTPException(400, "Se espera un PDF o un Excel del extracto (.pdf, .xlsx, .csv)")
     contenido = archivo.file.read()
+    limite = get_settings().tamano_maximo_archivo_mb * 1024 * 1024
+    if len(contenido) > limite:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"El archivo pesa más de {get_settings().tamano_maximo_archivo_mb} MB. "
+                "Bájale la calidad o recórtalo y vuelve a intentarlo."
+            ),
+        )
     if not contenido:
         raise HTTPException(400, "El archivo está vacío")
     if len(contenido) > TAMANO_MAXIMO:

@@ -1599,3 +1599,22 @@ IVA (el impuesto de una importación lo cobra la DIAN en la aduana, no el vended
 del cambio va como parte del costo, con su etiqueta, no como impuesto.
 
 Tests: **229 en verde** (5 nuevos).
+
+## v1.57 — Las fotos grandes ya suben (el 413 invisible)
+
+El síntoma: se elegía una foto, se pulsaba «Subir factura» y **no aparecía nada** — ni la
+factura, ni el botón «Leer líneas», ni un error que explicara nada.
+
+La causa: **nginx corta las subidas en 1 MB por defecto** y una foto de móvil pesa más. Las
+fotos de WhatsApp sí entraban porque WhatsApp las comprime mucho; una captura o una foto
+normal no. Y como nginx responde con una **página HTML**, el frontend no podía leer el
+`detail` y el mensaje se quedaba en «HTTP 413», que no dice qué hacer.
+
+- **nginx**: `client_max_body_size 15m`.
+- **Backend**: el mismo límite en `FINANZAS_TAMANO_MAXIMO_ARCHIVO_MB` (15 por defecto) con un
+  aviso claro: *«El archivo pesa más de 15 MB. Bájale la calidad a la foto o recórtala»*.
+  Vale para facturas **y** extractos.
+- **Frontend**: un 413 se traduce a ese mismo mensaje en vez de «HTTP 413».
+
+Los dos límites tienen que ir juntos y están comentados en los dos sitios para que no se
+separen. Tests: **231 en verde** (2 nuevos).

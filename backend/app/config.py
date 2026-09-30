@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     # Zona horaria para calcular "hoy" en los ingresos recurrentes
     timezone: str = "America/Bogota"
 
+    # Tamaño máximo de un archivo que se sube (facturas, extractos). **Tiene que coincidir
+    # con `client_max_body_size` de nginx**: si nginx corta antes, el navegador recibe un
+    # 413 en HTML y el usuario ve un error que no le dice nada.
+    tamano_maximo_archivo_mb: int = 15
+
     # Scheduler de ingresos recurrentes (deshabilitar en tests)
     scheduler_enabled: bool = True
 

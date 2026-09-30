@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..clasificador import clasificar, normalizar
+from ..config import get_settings
 from ..crud_utils import get_owned
 from ..defaults import sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
@@ -195,6 +196,15 @@ async def subir(
     user: Usuario = Depends(get_current_user),
 ):
     contenido = await archivo.read()
+    limite = get_settings().tamano_maximo_archivo_mb * 1024 * 1024
+    if len(contenido) > limite:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"El archivo pesa más de {get_settings().tamano_maximo_archivo_mb} MB. "
+                "Bájale la calidad a la foto o recórtala y vuelve a intentarlo."
+            ),
+        )
     if not contenido:
         raise HTTPException(status_code=400, detail="El archivo está vacío")
     if len(contenido) > 10 * 1024 * 1024:

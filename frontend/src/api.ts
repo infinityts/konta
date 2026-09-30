@@ -30,6 +30,13 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
+    // Si el que corta es nginx, la respuesta es una página HTML: `res.json()` falla y el
+    // usuario acabaría viendo «HTTP 413», que no le dice qué hacer.
+    if (res.status === 413) {
+      throw new Error(
+        'El archivo es muy grande (máximo 15 MB). Bájale la calidad a la foto o recórtala.'
+      )
+    }
     throw new Error(body.detail ?? `HTTP ${res.status}`)
   }
   return res.json() as Promise<T>
