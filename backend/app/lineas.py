@@ -55,7 +55,17 @@ IGNORAR_RE = re.compile(r"\b(?:" + "|".join(re.escape(p) for p in IGNORAR) + r")
 # Palabras que solo descartan la línea si son **la etiqueta** (van al principio). «Cambio» en
 # medio de una descripción es legítimo: «Cuota de garantía del tipo de cambio» es una comisión
 # que sí se pagó, y con la palabra en la lista general se la comía.
-IGNORAR_ETIQUETA = ("CAMBIO", "VUELTAS")
+# Renglones que **no** son artículos: datos del documento (NIT, cajero, resolución) o totales
+# que la app ya lee aparte (subtotal, IVA, propina). Se comparan como **prefijo** de la línea,
+# así que solo van aquí palabras que no pueden empezar el nombre de un producto.
+IGNORAR_ETIQUETA = (
+    "CAMBIO", "VUELTAS",
+    "NIT", "CEDULA", "CAJERO", "TERMINAL", "POS", "AUTORIZACION", "RESOLUCION",
+    "FACTURA No", "FACTURA N", "No FACTURA", "SUBTOTAL", "IVA", "IMPUESTO",
+    "BASE GRAVABLE", "DESCUENTO", "PROPINA", "REDONDEO", "EFECTIVO",
+    "TOTAL", "VALOR A PAGAR", "VALOR TOTAL", "MONTO", "FECHA", "HORA",
+    "CLIENTE", "VENDEDOR", "GRACIAS",
+)
 IGNORAR_ETIQUETA_RE = re.compile(
     r"^\s*(?:" + "|".join(re.escape(p) for p in IGNORAR_ETIQUETA) + r")\b"
 )

@@ -688,6 +688,18 @@ class PlantillaLectorOut(BaseModel):
     actualizada_en: datetime
 
 
+class PatronIgnoradoOut(BaseModel):
+    """Un renglón que el usuario borra siempre: no es un artículo."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    patron: str
+    ejemplo: str
+    veces: int
+    actualizada_en: datetime
+
+
 class MovimientoOut(BaseModel):
     """Un movimiento del listado: una transacción suelta o una compra agrupada.
 

@@ -14,6 +14,7 @@ transacción por línea**.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from collections import Counter
 from datetime import UTC, date, datetime
@@ -51,6 +52,7 @@ from ..models import (
     Etiqueta,
     Factura,
     FacturaLinea,
+    PatronIgnorado,
     PlantillaLector,
     ReglaOcr,
     Tarjeta,
@@ -79,11 +81,36 @@ from ..schemas import (
     LineasOrdenIn,
     LineaUpdateIn,
     ParsearLineasIn,
+    PatronIgnoradoOut,
     PlantillaLectorOut,
     UnificarOut,
 )
 
 router = APIRouter(prefix="/facturas", tags=["facturas"])
+
+
+@router.get("/patrones-ignorados", response_model=list[PatronIgnoradoOut])
+def listar_patrones(
+    db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)
+):
+    """Los renglones que el usuario borró y ya se descartan solos."""
+    return db.scalars(
+        select(PatronIgnorado)
+        .where(PatronIgnorado.usuario_id == user.id)
+        .order_by(PatronIgnorado.veces.desc(), PatronIgnorado.patron)
+    ).all()
+
+
+@router.delete("/patrones-ignorados/{patron_id}", status_code=204)
+def borrar_patron(
+    patron_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Deja de descartar un renglón (si el usuario borró algo que sí era un artículo)."""
+    patron = get_owned(db, PatronIgnorado, patron_id, user.id)
+    db.delete(patron)
+    db.commit()
 
 
 # Las plantillas van **antes** de `/{id}`: si no, FastAPI toma «plantillas-lector»
@@ -195,6 +222,40 @@ def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
             else None
         )
     return detalle
+
+
+# Cuántas veces hay que borrar el mismo renglón para que se descarte solo. Una vez podría ser un
+# error; dos es un patrón.
+VECES_PARA_IGNORAR = 2
+
+
+def _patron_de_linea(descripcion: str) -> str | None:
+    """El patrón de un renglón que no es artículo: «Cajero: 12» -> «CAJERO».
+
+    Se normaliza (mayúsculas, sin acentos ni códigos) y se quitan los números: lo que cambia en
+    cada recibo no puede formar parte del patrón.
+    """
+    limpio = re.sub(r"\d[\d.,:\-/]*", " ", normalizar(descripcion))
+    palabras = [p for p in re.split(r"\s+", limpio) if len(p) > 1][:3]
+    patron = " ".join(palabras).strip()
+    return patron if len(patron) >= 4 else None
+
+
+def _ignorados(db: Session, usuario_id: uuid.UUID) -> list[PatronIgnorado]:
+    """Los patrones que ya se descartan solos (borrados dos veces o más)."""
+    return list(
+        db.scalars(
+            select(PatronIgnorado).where(
+                PatronIgnorado.usuario_id == usuario_id,
+                PatronIgnorado.veces >= VECES_PARA_IGNORAR,
+            )
+        ).all()
+    )
+
+
+def _es_ignorado(descripcion: str, patrones: list[PatronIgnorado]) -> bool:
+    plano = re.sub(r"\s+", " ", normalizar(descripcion)).strip()
+    return any(plano.startswith(p.patron) for p in patrones)
 
 
 def _plantilla(db: Session, usuario_id: uuid.UUID, emisor: str | None) -> PlantillaLector | None:
@@ -552,6 +613,12 @@ def parsear(
     articulos = parsear_lineas(texto)
     if detectar_tipo(texto, articulos) in ("parqueadero", "servicios"):
         articulos = []
+    # Y los renglones que el usuario ya borró otras veces (un NIT, el cajero, el cambio) no
+    # vuelven a colarse como artículos.
+    patrones = _ignorados(db, user.id)
+    descartados = [a for a in articulos if _es_ignorado(a["descripcion"], patrones)]
+    if descartados:
+        articulos = [a for a in articulos if not _es_ignorado(a["descripcion"], patrones)]
 
     # Y las que ya estaban registradas se **omiten** en vez de volver a insertarse: era el
     # bug — al releer una factura ya registrada quedaban las 120 viejas más las 120 nuevas.
@@ -581,11 +648,19 @@ def parsear(
     db.commit()
     db.refresh(factura)
     detalle = _detalle(db, factura)
+    avisos = []
     if ya:
-        detalle.aviso = (
+        avisos.append(
             f"{len(ya)} de los {len(articulos)} artículos ya estaban dentro de un "
             "movimiento: no se duplicaron."
         )
+    if descartados:
+        avisos.append(
+            f"Se descartaron {len(descartados)} renglón(es) que no son artículos "
+            f"({', '.join(sorted({a['descripcion'][:18] for a in descartados}))[:80]})."
+        )
+    if avisos:
+        detalle.aviso = " ".join(avisos)
     return detalle
 
 
@@ -639,6 +714,21 @@ def descartar_linea(
             status_code=409,
             detail="La línea ya generó una transacción; borra la transacción primero",
         )
+    # Borrar un renglón es enseñar: si vuelve a aparecer (y lo vuelve a borrar), se descarta solo.
+    patron = _patron_de_linea(linea.descripcion)
+    if patron:
+        existente = db.scalar(
+            select(PatronIgnorado).where(
+                PatronIgnorado.usuario_id == user.id, PatronIgnorado.patron == patron
+            )
+        )
+        if existente is None:
+            db.add(
+                PatronIgnorado(usuario_id=user.id, patron=patron, ejemplo=linea.descripcion[:120])
+            )
+        else:
+            existente.veces += 1
+            existente.ejemplo = linea.descripcion[:120]
     db.delete(linea)
     db.commit()
 

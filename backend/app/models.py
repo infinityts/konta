@@ -526,6 +526,40 @@ class FacturaLinea(Base):
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 
+class PatronIgnorado(Base):
+    """Renglones que el usuario borra **siempre**: no son artículos.
+
+    Un recibo trae «Nit: 900123456», «Cajero: 12» o «Cambio: 0» entre los renglones, y el lector
+    los puede tomar por productos. Cuando el usuario los borra, se guarda el patrón; a la segunda
+    vez se descartan solos (una vez podría ser un error, «siempre» es un patrón).
+    """
+
+    __tablename__ = "patrones_ignorados"
+
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "patron", name="uq_patrones_ignorados_patron"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False
+    )
+    # Texto normalizado del renglón, sin números ni códigos: «CAJERO», «NIT», «CAMBIO»
+    patron: Mapped[str] = mapped_column(String(80), nullable=False)
+    # Un ejemplo de lo que se borró, para que el usuario reconozca de qué se trata
+    ejemplo: Mapped[str] = mapped_column(String(120), nullable=False)
+    veces: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    creada_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
+    actualizada_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
 class PlantillaLector(Base):
     """Aprendizaje por **emisor**: dónde está el total y la fecha en sus documentos.
 

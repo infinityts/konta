@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import type { Categoria, Etiqueta, PlantillaLector, ReglaOcr } from '../types'
+import type { Categoria, Etiqueta, PatronIgnorado, PlantillaLector, ReglaOcr } from '../types'
 
 const empty = { patron: '', categoria_id: '', etiqueta_id: '' }
 
@@ -17,6 +17,8 @@ export default function ReglasOcr() {
   const [items, setItems] = useState<ReglaOcr[]>([])
   // Lo que el lector ha aprendido de cada emisor (dónde viene el total y la fecha)
   const [plantillas, setPlantillas] = useState<PlantillaLector[]>([])
+  // Renglones que el usuario borró y ya se descartan solos (no son artículos)
+  const [patrones, setPatrones] = useState<PatronIgnorado[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [form, setForm] = useState(empty)
@@ -31,6 +33,7 @@ export default function ReglasOcr() {
     try {
       setItems(await api<ReglaOcr[]>('/reglas-ocr'))
       setPlantillas(await api<PlantillaLector[]>('/facturas/plantillas-lector'))
+      setPatrones(await api<PatronIgnorado[]>('/facturas/patrones-ignorados'))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     }
@@ -104,6 +107,13 @@ export default function ReglasOcr() {
       (r.etiqueta_nombre ?? '').toLowerCase().includes(q) ||
       (r.categoria_nombre ?? '').toLowerCase().includes(q),
   )
+
+  async function borrarPatron(id: string) {
+    if (!window.confirm('¿Volver a tener en cuenta este renglón?')) return
+    await api(`/facturas/patrones-ignorados/${id}`, { method: 'DELETE' })
+    setPatrones((ps) => ps.filter((p) => p.id !== id))
+    setAviso('Ese renglón vuelve a leerse como artículo.')
+  }
 
   async function borrarPlantilla(id: string) {
     if (!window.confirm('¿Borrar lo aprendido de este emisor?')) return
@@ -323,6 +333,43 @@ export default function ReglasOcr() {
           <li className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
             Todavía no ha aprendido ninguna. Corrige el monto de una factura en{' '}
             <strong>Facturas</strong> (✏️ Corregir) y aparecerá aquí.
+          </li>
+        )}
+      </ul>
+    </div>
+
+    {/* Renglones que no son artículos: se aprenden de lo que el usuario borra. */}
+    <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+      <h2 className="font-medium text-slate-800">Renglones que no son artículos</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Recibos y facturas traen renglones que parecen productos pero no lo son (el NIT, el
+        cajero, el cambio, el IVA). Konta ya descarta los más comunes, y aprende los demás
+        cuando los borras: <strong>a la segunda vez</strong> deja de proponerlos.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {patrones.map((pat) => (
+          <li
+            key={pat.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 p-3"
+          >
+            <div>
+              <p className="font-mono text-sm text-slate-800">{pat.patron}</p>
+              <p className="text-xs text-slate-500">
+                descartado {pat.veces} vez(ces) · lo que borraste: «{pat.ejemplo}»
+              </p>
+            </div>
+            <button
+              onClick={() => void borrarPatron(pat.id)}
+              className="text-sm text-red-600 hover:underline"
+            >
+              Volver a tenerlo en cuenta
+            </button>
+          </li>
+        ))}
+        {patrones.length === 0 && (
+          <li className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+            Todavía no has borrado ningún renglón repetido. Los del documento (NIT, cajero,
+            cambio, IVA, totales) ya se descartan siempre.
           </li>
         )}
       </ul>

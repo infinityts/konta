@@ -840,3 +840,12 @@ export interface PlantillaLector {
   usos: number
   actualizada_en: string
 }
+
+/** Un renglón que el usuario borra siempre: no es un artículo. */
+export interface PatronIgnorado {
+  id: string
+  patron: string
+  ejemplo: string
+  veces: number
+  actualizada_en: string
+}

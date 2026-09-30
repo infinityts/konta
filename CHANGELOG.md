@@ -1945,3 +1945,27 @@ De paso, dos arreglos que salieron al construirlo:
 - `GET /facturas/plantillas-lector` iba declarado después de `/{id}`, que se lo comía.
 
 Tests: **276 en verde** (5 nuevos).
+
+### v1.70 — Los renglones que no son artículos (cierra el Nivel 2)
+
+Un recibo trae «Nit: 900123456», «Cajero: 12», «Cambio: 0» o el IVA entre los renglones, y el
+lector los podía tomar por productos: el detalle quedaba con basura y la suma no cuadraba.
+
+- **Los comunes ya se descartan siempre**: NIT, cédula, cajero, terminal, POS, autorización,
+  resolución, «Factura No», subtotal, IVA, impuesto, base gravable, descuento, propina,
+  redondeo, efectivo, total, monto, fecha, hora, cliente, vendedor, cambio, vueltas. Se
+  comparan como **prefijo** de la línea, así que la lista solo lleva palabras que no pueden
+  empezar el nombre de un producto.
+- **Y aprende los demás**: cuando borras un renglón, Konta guarda su patrón (normalizado y sin
+  números: «PUNTOS GANADOS 150» → `PUNTOS GANADOS`). **A la segunda vez** que lo borras, deja de
+  proponerlo — una vez podría ser un error, dos es un patrón — y lo dice en el aviso de la
+  factura.
+- **Puedes verlo y deshacerlo** en *«lo que el OCR ha aprendido»* → **Renglones que no son
+  artículos**, con «Volver a tenerlo en cuenta» por si borraste algo que sí era un artículo.
+
+Aviso de alcance: de los tres criterios de esta tarea, el **total** y el **tipo de documento**
+por emisor ya quedaron aprendidos en la tarea anterior (en `plantillas_lector`, que es más
+preciso que `reglas_ocr` porque distingue por emisor). Lo que faltaba de verdad eran los
+renglones, y es lo que trae esta versión.
+
+Tests: **280 en verde** (4 nuevos).
