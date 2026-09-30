@@ -116,6 +116,9 @@ class Usuario(Base):
         String(24), nullable=False, default="basico", server_default="basico"
     )
     lecturas_extra: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # Hasta cuándo vale el plan de pago. NULL = plan base (sin vencimiento). Un pago lo pone a 30
+    # días; si se renueva antes, se extiende desde donde estaba.
+    plan_hasta: Mapped[date | None] = mapped_column(Date, nullable=True)
     moneda_principal: Mapped[str] = mapped_column(
         ForeignKey("monedas.codigo"), nullable=False, default="COP"
     )

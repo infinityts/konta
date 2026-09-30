@@ -19,8 +19,11 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .config import get_settings
+from .db import make_engine, make_session_factory
 from .models import Pago, PaqueteLecturas, Plan, Usuario
 from .pasarelas import pasarela_actual
+from .recurrencia import hoy
 
 PLAN = "plan"
 PAQUETE = "paquete"
@@ -76,6 +79,67 @@ def crear_orden(db: Session, usuario: Usuario, tipo: str, codigo: str) -> tuple[
     return pago, datos
 
 
+def plan_base() -> str:
+    """El plan al que se vuelve cuando vence el de pago."""
+    return (get_settings().plan_base or "basico").strip()
+
+
+def activar_plan(db: Session, usuario: Usuario, codigo: str) -> str:
+    """Pone el plan y le da su mes. Si renueva **antes** de vencer, se extiende desde donde estaba.
+
+    Extender desde `plan_hasta` (y no desde hoy) es lo justo: quien renueva el día 20 no pierde los
+    10 días que le quedaban.
+    """
+    from datetime import timedelta
+
+    usuario.plan_codigo = codigo
+    desde = usuario.plan_hasta if (usuario.plan_hasta and usuario.plan_hasta > hoy()) else hoy()
+    usuario.plan_hasta = desde + timedelta(days=get_settings().dias_de_plan)
+    return f"Plan {codigo} activo hasta el {usuario.plan_hasta}"
+
+
+def estado_del_plan(usuario: Usuario) -> dict:
+    """En qué plan está, hasta cuándo y si está por vencer."""
+    if not usuario.plan_hasta:
+        return {"plan": usuario.plan_codigo, "hasta": None, "dias": None, "por_vencer": False}
+    dias = (usuario.plan_hasta - hoy()).days
+    return {
+        "plan": usuario.plan_codigo,
+        "hasta": usuario.plan_hasta,
+        "dias": dias,
+        "por_vencer": dias <= get_settings().dias_aviso_plan,
+    }
+
+
+def vencer_planes(s: Session) -> list[str]:
+    """Devuelve al plan base a quien se le venció el de pago. Devuelve a quiénes afectó.
+
+    Las **lecturas compradas aparte se respetan**: se pagaron y no tienen por qué caducar con el
+    plan. Y es idempotente: al vencer se limpia la fecha, así que correrlo dos veces no hace nada.
+    """
+    vencidos = list(
+        s.scalars(
+            select(Usuario).where(Usuario.plan_hasta.is_not(None), Usuario.plan_hasta < hoy())
+        ).all()
+    )
+    base = plan_base()
+    for usuario in vencidos:
+        usuario.plan_codigo = base
+        usuario.plan_hasta = None
+    return [usuario.email or str(usuario.id) for usuario in vencidos]
+
+
+def limpiar_planes_vencidos() -> int:
+    """Trabajo programado: devuelve al plan base los planes de pago vencidos."""
+    engine = make_engine()
+    sf = make_session_factory(engine)
+    try:
+        with sf.begin() as s:
+            return len(vencer_planes(s))
+    finally:
+        engine.dispose()
+
+
 def _acreditar(db: Session, pago: Pago) -> str:
     """Suma lo comprado: el plan, o las lecturas al saldo."""
     usuario = db.get(Usuario, pago.usuario_id)
@@ -83,8 +147,7 @@ def _acreditar(db: Session, pago: Pago) -> str:
         raise HTTPException(status_code=404, detail="El usuario del pago ya no existe")
 
     if pago.tipo == PLAN:
-        usuario.plan_codigo = pago.codigo
-        return f"Plan cambiado a {pago.codigo}"
+        return activar_plan(db, usuario, pago.codigo)
     paquete = db.get(PaqueteLecturas, pago.codigo)
     lecturas = paquete.lecturas if paquete else 0
     usuario.lecturas_extra = (usuario.lecturas_extra or 0) + lecturas

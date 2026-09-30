@@ -68,6 +68,10 @@ def resumen(db: Session, usuario: Usuario) -> dict:
     from .archivos import resumen as resumen_almacen
 
     almacen_resumen = resumen_almacen(db, usuario)
+    # En qué plan está y hasta cuándo (importa aquí dentro para no crear un ciclo)
+    from .pagos import estado_del_plan
+
+    plan_estado = estado_del_plan(usuario)
     return {
         "periodo": consumo.periodo,
         "plan": plan.codigo if plan else None,
@@ -88,6 +92,9 @@ def resumen(db: Session, usuario: Usuario) -> dict:
         "tokens_entrada": consumo.tokens_entrada,
         "tokens_salida": consumo.tokens_salida,
         "costo_usd": float(consumo.costo_usd),
+        "plan_hasta": plan_estado["hasta"],
+        "dias_de_plan": plan_estado["dias"],
+        "plan_por_vencer": plan_estado["por_vencer"],
         **almacen_resumen,
     }
 

@@ -6,6 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from .archivos import limpiar_archivos_vencidos, medir_almacenamiento_diario
 from .notificaciones import procesar_notificaciones
+from .pagos import limpiar_planes_vencidos
 from .recurrencia import (
     procesar_ingresos_vencidos,
     procesar_polizas_vencidas,
@@ -44,6 +45,16 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         hours=1,
         id="polizas-vencidas",
+        max_instances=1,
+        coalesce=True,
+    )
+    # Los planes de pago vencen: se vuelve al plan base (00:10 en Colombia)
+    _scheduler.add_job(
+        limpiar_planes_vencidos,
+        "cron",
+        hour=5,
+        minute=10,
+        id="vencer-planes",
         max_instances=1,
         coalesce=True,
     )

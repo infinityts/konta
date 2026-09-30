@@ -156,3 +156,110 @@ def test_el_aviso_simulado_sin_sesion_no_acredita(client):
     )
     assert sin_sesion.status_code == 401, sin_sesion.text
     assert client.get("/ia/cuota", headers=h).json()["lecturas_restantes"] == 10
+
+
+def test_un_pago_de_plan_da_un_mes_y_no_para_siempre(client):
+    """Sin vencimiento, una sola compra dejaría el plan para siempre (y el coste seguiría corriendo)."""
+    _, h = _registrar(client)
+    orden = _orden(client, h, "plan", "pro")
+    assert client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h).status_code == 200
+
+    cuota = client.get("/ia/cuota", headers=h).json()
+    assert cuota["plan"] == "pro"
+    assert cuota["plan_hasta"] is not None, "el plan tiene que tener fecha de vencimiento"
+    assert cuota["dias_de_plan"] == 30
+    assert cuota["plan_por_vencer"] is False
+
+
+def test_renovar_antes_de_vencer_extiende_desde_donde_estaba(client, engine):
+    """Quien renueva el día 20 no pierde los 10 días que le quedaban."""
+    from sqlalchemy import text as sql_text
+
+    from app.recurrencia import hoy
+
+    _, h = _registrar(client)
+    for _ in range(2):
+        orden = _orden(client, h, "plan", "personal")
+        assert client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h).status_code == 200
+
+    cuota = client.get("/ia/cuota", headers=h).json()
+    assert cuota["dias_de_plan"] == 60, f"dos pagos seguidos son dos meses: {cuota['dias_de_plan']}"
+
+    # y si estaba a punto de vencer, se extiende desde ahí
+    with engine.begin() as conn:
+        conn.execute(
+            sql_text("update usuarios set plan_hasta = :hasta where plan_hasta is not null"),
+            {"hasta": hoy()},
+        )
+    orden = _orden(client, h, "plan", "personal")
+    client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h)
+    assert client.get("/ia/cuota", headers=h).json()["dias_de_plan"] == 30
+
+
+def test_al_vencer_el_plan_se_vuelve_al_base_y_las_lecturas_compradas_se_respetan(client, engine):
+    from sqlalchemy import text as sql_text
+
+    from app.pagos import vencer_planes
+    from app.recurrencia import hoy
+
+    _, h = _registrar(client)
+    # compra un plan y un paquete de lecturas
+    orden = _orden(client, h, "plan", "pro")
+    client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h)
+    paquete = _orden(client, h, "paquete", "lecturas10")
+    client.post(f"/pagos/simular-pago/{paquete['referencia']}", headers=h)
+    assert client.get("/ia/cuota", headers=h).json()["lecturas_restantes"] == 110  # 100 + 10
+
+    # pasa el tiempo
+    with engine.begin() as conn:
+        conn.execute(
+            sql_text("update usuarios set plan_hasta = :ayer where plan_hasta is not null"),
+            {"ayer": hoy() - __import__("datetime").timedelta(days=1)},
+        )
+
+    from sqlalchemy.orm import sessionmaker
+
+    sf = sessionmaker(bind=engine)
+    with sf.begin() as s:
+        vencidos = vencer_planes(s)
+    assert len(vencidos) == 1
+
+    cuota = client.get("/ia/cuota", headers=h).json()
+    assert cuota["plan"] == "basico", "vuelve al plan base"
+    assert cuota["plan_hasta"] is None, "y sin fecha: no hay nada más que vencer"
+    assert cuota["lecturas_restantes"] == 20, "las 10 compradas se quedan (se pagaron) + 10 del base"
+
+    # idempotente: correrlo otra vez no cambia nada
+    with sf.begin() as s:
+        assert vencer_planes(s) == []
+
+
+def test_avisa_antes_de_que_venza_el_plan(client, engine):
+    """Que el cliente se entere antes, no cuando ya perdió el plan."""
+    from datetime import timedelta
+
+    from sqlalchemy import text as sql_text
+
+    from app.alertas import calcular_alertas
+    from app.recurrencia import hoy
+
+    _, h = _registrar(client)
+    orden = _orden(client, h, "plan", "personal")
+    client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h)
+
+    with engine.begin() as conn:
+        usuario_id = conn.execute(
+            sql_text("select id from usuarios order by creado_en desc limit 1")
+        ).scalar()
+        conn.execute(
+            sql_text("update usuarios set plan_hasta = :hasta where id = :id"),
+            {"hasta": hoy() + timedelta(days=3), "id": usuario_id},
+        )
+    from sqlalchemy.orm import sessionmaker
+
+    with sessionmaker(bind=engine).begin() as s:
+        alertas = calcular_alertas(s, usuario_id)
+    planes = [a for a in alertas if a["tipo"] == "plan_por_vencer"]
+    assert planes, [a["tipo"] for a in alertas]
+    assert "vence" in planes[0]["titulo"]
+    assert planes[0]["dias_restantes"] == 3

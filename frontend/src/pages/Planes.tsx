@@ -107,6 +107,21 @@ export default function Planes() {
             {cuota.retencion_dias} días).
           </p>
         )}
+        {cuota?.plan_hasta && (
+          <p
+            className={`mt-1 text-sm ${
+              cuota.plan_por_vencer ? 'font-medium text-amber-700' : 'text-slate-500'
+            }`}
+          >
+            {cuota.plan_por_vencer ? '⏳' : '📅'} Tu plan {cuota.plan} vence el{' '}
+            {cuota.plan_hasta.slice(0, 10)}
+            {cuota.dias_de_plan != null && cuota.dias_de_plan >= 0
+              ? ` (en ${cuota.dias_de_plan} días)`
+              : ' (vencido)'}
+            {cuota.plan_por_vencer &&
+              ' — renuévalo aquí abajo para no volver al plan base.'}
+          </p>
+        )}
       </div>
 
       {aviso && (

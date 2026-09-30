@@ -18,7 +18,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import EstadoSuscripcion, Extracto, Poliza, Suscripcion, Tarjeta
+from .models import EstadoSuscripcion, Extracto, Poliza, Suscripcion, Tarjeta, Usuario
 from .recurrencia import hoy
 
 
@@ -154,4 +154,26 @@ def calcular_alertas(db: Session, usuario_id, dias: int = 15) -> list[dict]:
                 )
 
     alertas.sort(key=lambda a: a["fecha"])
+    # El plan de pago: avisar antes de que venza (si no, el cliente se entera al perderlo)
+    usuario = db.get(Usuario, usuario_id)
+    if usuario is not None and usuario.plan_hasta is not None:
+        from .pagos import estado_del_plan
+
+        estado = estado_del_plan(usuario)
+        dias_plan = estado["dias"] if estado["dias"] is not None else 0
+        if dias_plan <= dias:
+            alertas.append(
+                {
+                    "tipo": "plan_por_vencer",
+                    "titulo": f"Tu plan {usuario.plan_codigo} vence el {usuario.plan_hasta}",
+                    "fecha": usuario.plan_hasta,
+                    "dias_restantes": dias_plan,
+                    "descripcion": (
+                        "Renuévalo desde Planes y lecturas para no volver al plan base."
+                        if dias_plan >= 0
+                        else "El plan ya venció: vuelve al plan base hasta que lo renueves."
+                    ),
+                }
+            )
+
     return alertas

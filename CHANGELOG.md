@@ -2452,3 +2452,26 @@ vea cualquiera, y borrar el archivo dejando la factura.
 - Está en el manual de migración como paso 8: es la comprobación de después de mudarse.
 
 **Resultado contra producción: 21/21** ✅ (*«Todo lo comprobado funciona junto»*).
+
+### v1.90 — El plan de pago **vence** (antes era para siempre)
+
+Revisando lo construido encontré un hueco serio: **un pago dejaba el plan para siempre**. No había
+vencimiento ni renovación, así que un cliente pagaba una vez y seguía con el plan de $29.000
+mientras el coste de IA y almacenamiento corría todos los meses. Ingreso único con coste mensual.
+
+- **Un plan de pago vale 30 días**: `usuarios.plan_hasta` guarda hasta cuándo, y la cuota lo
+  enseña (*«tu plan vence el 2026-10-30 (en 22 días)»*).
+- **Renovar antes de vencer extiende desde donde estaba**, no desde hoy: quien renueva el día 20 no
+  pierde los 10 días que le quedaban (hay test).
+- **Al vencer se vuelve al plan base** (`FINANZAS_PLAN_BASE`, por defecto el Básico) con un trabajo
+  diario a las 00:10 de Colombia. Es idempotente: al vencer se limpia la fecha, así que correrlo
+  dos veces no hace nada.
+- **Las lecturas compradas aparte se respetan**: esas se pagaron y no caducan con el plan (test:
+  al vencer un Pro con un paquete de 10, quedan las 10 + las 10 del Básico).
+- **Aviso antes de que venza** (5 días): entra por el sistema de avisos que ya existía, así que
+  llega por Telegram, correo o WhatsApp según lo tenga configurado el usuario. Que se entere
+  **antes**, no cuando ya perdió el plan.
+- En la pantalla: el vencimiento se ve en Facturas y en Planes, en ámbar cuando está por vencer y
+  con el recordatorio de renovar.
+
+Tests: **381 en verde** (4 nuevos).

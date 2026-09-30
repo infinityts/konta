@@ -822,6 +822,10 @@ class CuotaOut(BaseModel):
     mb_incluidos: int = 0
     retencion_dias: int = 7
     # Lo medido del mes (MB-día): lo que de verdad ocupa y lo que se cobra
+    # Hasta cuándo vale el plan de pago (None = plan base, sin vencimiento)
+    plan_hasta: date | None = None
+    dias_de_plan: int | None = None
+    plan_por_vencer: bool = False
     archivos_promedio: float = 0.0
     mb_promedio: float = 0.0
     mb_dia: float = 0.0

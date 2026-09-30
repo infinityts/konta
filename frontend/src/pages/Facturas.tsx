@@ -528,6 +528,18 @@ export default function Facturas() {
                   ? `te quedan ${cuota?.lecturas_restantes} de ${cuota?.lecturas_incluidas} lecturas este mes`
                   : 'sin lecturas este mes (puedes comprar o subir de plan)'}
             </span>
+            {cuota?.plan_hasta && (
+              <>
+                {' · '}
+                <span className={cuota.plan_por_vencer ? 'text-amber-700' : 'text-slate-500'}>
+                  {cuota.plan_por_vencer ? '⏳' : '📅'} tu plan vence el{' '}
+                  {cuota.plan_hasta.slice(0, 10)}
+                  {cuota.dias_de_plan != null && cuota.dias_de_plan >= 0
+                    ? ` (en ${cuota.dias_de_plan} días)`
+                    : ' (vencido)'}
+                </span>
+              </>
+            )}
             {cuota && (
               <>
                 {' · '}

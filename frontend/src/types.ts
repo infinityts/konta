@@ -923,6 +923,10 @@ export interface CuotaIa {
   consultas_usadas: number
   consultas_restantes: number
   costo_usd: number
+  /** Hasta cuándo vale el plan de pago (null = plan base, sin vencimiento) */
+  plan_hasta?: string | null
+  dias_de_plan?: number | null
+  plan_por_vencer?: boolean
   archivos_usados: number
   archivos_incluidos: number | null
   mb_usados: number

@@ -34,7 +34,12 @@ class Settings(BaseSettings):
     # Preguntar no puede hacer esperar a nadie: si el modelo está frío, se busca por palabras
     ayuda_consulta_timeout: float = 8.0
 
-    # ── Cobro ────────────────────────────────────────────────────────────────────────────
+    # ── Cobro ──
+    # A qué plan se vuelve cuando vence el de pago (y cuántos días dura un pago)
+    plan_base: str = "basico"
+    dias_de_plan: int = 30
+    # Con cuántos días de antelación se avisa de que el plan vence
+    dias_aviso_plan: int = 5
     # Qué pasarela se usa. Hoy solo `simulada` (para probar el circuito completo sin llaves);
     # Wompi, MercadoPago o PayU se enchufan en `app/pasarelas.py` con sus llaves.
     pasarela: str = "simulada"
