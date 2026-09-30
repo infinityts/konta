@@ -504,7 +504,19 @@ export default function Facturas() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">Facturas (PDF)</h2>
+        <div>
+          <h2 className="text-xl font-semibold">Facturas (PDF)</h2>
+          {cuota && (
+            <p className="text-sm text-slate-500">
+              🤖 Leer con IA:{' '}
+              <span className={cuota.lecturas_restantes > 0 ? 'text-slate-700' : 'text-amber-700'}>
+                {cuota.lecturas_restantes > 0
+                  ? `te quedan ${cuota.lecturas_restantes} de ${cuota.lecturas_incluidas} lecturas este mes`
+                  : 'sin lecturas este mes (puedes comprar o subir de plan)'}
+              </span>
+            </p>
+          )}
+        </div>
         <Link to="/reglas-ocr" className="text-sm text-indigo-600 hover:underline">
           Ver lo que el OCR ha aprendido →
         </Link>
@@ -518,23 +530,11 @@ export default function Facturas() {
           texto (con OCR si es escaneada), se detectan el monto y la fecha, y con{' '}
           <strong>Leer líneas</strong> se parte en artículos: uno por transacción.
         </p>
-        <input
-          ref={entradaArchivo}
-          type="file"
-          accept="application/pdf,image/*"
-          onChange={(e: ChangeEvent<HTMLInputElement>) => {
-            const elegido = e.target.files?.[0] ?? null
-            setArchivo(elegido)
-            setError('')
-            setAviso('')
-            // Sube al elegirlo (un solo paso). Si el PDF viene protegido, el aviso lo dice,
-            // el archivo se queda elegido y solo hay que escribir la contraseña y pulsar
-            // «Subir factura».
-            if (elegido) void subir(elegido)
-          }}
-          disabled={subiendo}
-          className="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700"
-        />
+        <p className="mt-3 text-sm text-slate-700">
+          Elige el archivo aquí abajo: <strong>se sube al instante</strong> con el lector normal
+          de Konta. Si el documento es difícil (manuscrito, foto borrosa, formato raro), enciende
+          antes <strong>Leer con IA</strong> y lo lee el modelo de visión.
+        </p>
         {cuota && (
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -603,6 +603,23 @@ export default function Facturas() {
             )}
           </div>
         )}
+        <input
+          ref={entradaArchivo}
+          type="file"
+          accept="application/pdf,image/*"
+          onChange={(e: ChangeEvent<HTMLInputElement>) => {
+            const elegido = e.target.files?.[0] ?? null
+            setArchivo(elegido)
+            setError('')
+            setAviso('')
+            // Sube al elegirlo (un solo paso). Si el PDF viene protegido, el aviso lo dice,
+            // el archivo se queda elegido y solo hay que escribir la contraseña y pulsar
+            // «Subir factura».
+            if (elegido) void subir(elegido)
+          }}
+          disabled={subiendo}
+          className="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700"
+        />
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
             type="password"
