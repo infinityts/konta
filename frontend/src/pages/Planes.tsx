@@ -82,10 +82,10 @@ export default function Planes() {
   async function confirmarSimulado(referencia: string) {
     setOcupado(referencia)
     try {
-      const r = await api<{ resultado: string }>(`/pagos/simular-pago/${referencia}`, {
+      const r = await api<{ mensaje: string }>(`/pagos/simular-pago/${referencia}`, {
         method: 'POST',
       })
-      setAviso(r.resultado)
+      setAviso(r.mensaje ?? 'Pago confirmado.')
       setOrden(null)
       await cargar()
     } catch (e) {
