@@ -74,3 +74,27 @@ def test_los_impuestos_no_disparan_el_aviso(client):
     client.patch(f"/facturas/{factura['id']}", headers=h, json={"monto_detectado": "119000"})
     detalle = client.get(f"/facturas/{factura['id']}", headers=h).json()
     assert detalle["aviso_monto"] is None, detalle["aviso_monto"]
+
+
+def test_un_monto_que_no_cabe_se_explica_no_revienta(client):
+    """16 dígitos no caben en NUMERIC(14,2): antes era un 500, ahora un 422 que lo explica."""
+    _, h = _registrar(client)
+    factura = _factura(client, h, "Monto: $46.477\n")
+    r = client.patch(
+        f"/facturas/{factura['id']}", headers=h, json={"monto_detectado": "5753155975914591"}
+    )
+    assert r.status_code == 422, r.text
+    assert "no puede pasar" in r.text
+
+    # y lo mismo al registrar un gasto con ese monto
+    r = client.post(
+        "/transacciones",
+        headers=h,
+        json={"tipo": "gasto", "monto": "5753155975914591", "fecha": "2026-09-30"},
+    )
+    assert r.status_code == 422, r.text
+
+    # un monto grande pero real sigue pasando
+    assert client.patch(
+        f"/facturas/{factura['id']}", headers=h, json={"monto_detectado": "99999999999.99"}
+    ).status_code == 200

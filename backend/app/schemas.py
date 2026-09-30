@@ -22,6 +22,21 @@ from .recurrencia import hoy
 # --- auth ---
 
 
+# Las columnas de dinero son NUMERIC(14,2): hasta 999.999.999.999,99. Un número más grande no
+# cabe en la base de datos, y hasta ahora eso reventaba con un **500** en vez de decir qué
+# pasa (pasa con facilidad: una referencia o un CUS tienen más dígitos que un precio).
+MONTO_MAXIMO = Decimal("999999999999.99")
+
+
+def _cabe_en_la_columna(valor: Decimal | None) -> Decimal | None:
+    if valor is not None and valor > MONTO_MAXIMO:
+        raise ValueError(
+            f"El monto no puede pasar de {MONTO_MAXIMO:,.2f}. Revisa que no sea un número de "
+            "documento (NIT, referencia, comprobante) en vez del valor."
+        )
+    return valor
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     nombre: str = Field(min_length=1, max_length=120)
@@ -291,6 +306,8 @@ class RecurrenciaIn(BaseModel):
 class TransaccionBase(BaseModel):
     tipo: TipoTransaccion
     monto: Decimal = Field(gt=0)
+
+    _validar_monto = field_validator("monto")(_cabe_en_la_columna)
     moneda: str = "COP"
     fecha: date
     descripcion: str | None = None
@@ -314,6 +331,8 @@ class TransaccionIn(TransaccionBase):
 class TransaccionUpdate(BaseModel):
     tipo: TipoTransaccion | None = None
     monto: Decimal | None = Field(None, gt=0)
+
+    _validar_monto = field_validator("monto")(_cabe_en_la_columna)
     moneda: str | None = None
     fecha: date | None = None
     descripcion: str | None = None
@@ -733,6 +752,8 @@ class FacturaPatchIn(BaseModel):
     monto_detectado: Decimal | None = Field(default=None, gt=0)
     fecha_detectada: date | None = None
 
+    _validar_monto = field_validator("monto_detectado")(_cabe_en_la_columna)
+
 
 class LineaUpdateIn(BaseModel):
     """Editar una línea. `etiqueta_id` corregida se aprende en `reglas_ocr`."""
@@ -740,6 +761,8 @@ class LineaUpdateIn(BaseModel):
     descripcion: str | None = None
     valor_total: Decimal | None = Field(default=None, gt=0)
     etiqueta_id: uuid.UUID | None = None
+
+    _validar_monto = field_validator("valor_total")(_cabe_en_la_columna)
 
 
 class LineaNuevaIn(BaseModel):
@@ -754,6 +777,8 @@ class LineaNuevaIn(BaseModel):
     cantidad: Decimal | None = Field(default=None, gt=0)
     valor_unitario: Decimal | None = Field(default=None, gt=0)
     etiqueta_id: uuid.UUID | None = None
+
+    _validar_montos = field_validator("valor_total", "valor_unitario")(_cabe_en_la_columna)
 
 
 class LineasOrdenIn(BaseModel):

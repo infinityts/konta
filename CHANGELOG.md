@@ -1853,3 +1853,17 @@ miraba el carácter anterior a los **espacios**, así que `TOTAL 11.800` contaba
 monto se descartaba. Ahora mira el carácter justo anterior al número.
 
 Tests: **260 en verde** (5 nuevos).
+
+### v1.66.4 — Un monto que no cabe se explica (antes era un 500)
+
+Persiguiendo el aviso del monto salió un fallo de fondo: **ningún** campo de dinero validaba el
+tamaño. Las columnas son `NUMERIC(14,2)` (hasta 999.999.999.999,99) y un número más grande no
+cabe — la petición reventaba con un **500** en vez de decir qué pasaba. Y pasa con facilidad:
+una referencia o un CUS tienen más dígitos que un precio.
+
+Ahora se valida antes de tocar la base, con un mensaje que orienta: *«El monto no puede pasar
+de 999.999.999.999,99. Revisa que no sea un número de documento (NIT, referencia,
+comprobante)»*. Aplica a corregir el monto de una factura, a registrar un gasto, a editarlo y
+a las líneas de una factura.
+
+Tests: **261 en verde** (1 nuevo).
