@@ -28,7 +28,10 @@ MB_POR_DEFECTO = 60
 
 
 def plan_de(db: Session, usuario: Usuario) -> Plan | None:
-    return db.get(Plan, usuario.plan_codigo) if usuario.plan_codigo else None
+    """El plan del usuario, con el **mismo** criterio que la cuota (importa aquí para no crear ciclo)."""
+    from .cuotas import plan_de as plan_de_cuotas
+
+    return plan_de_cuotas(db, usuario)
 
 
 def limites(db: Session, usuario: Usuario) -> tuple[int | None, int, int]:

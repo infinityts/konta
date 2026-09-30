@@ -247,3 +247,33 @@ def test_lo_cobrado_no_cuenta_los_pagos_pendientes(client, engine, monkeypatch):
 
     datos = client.get("/ia/informe", headers=h).json()
     assert datos["cobrado_cop"] == 0.0, "la orden quedó pendiente: no hay dinero"
+
+
+def test_un_plan_que_ya_no_existe_no_deja_al_cliente_a_cero_ni_lo_esconde(client, engine, monkeypatch):
+    """El mismo caso se comportaba de dos maneras: cuota a cero, almacén con 30 archivos, informe callado."""
+    from sqlalchemy import text
+
+
+    _, h = _admin(client, monkeypatch)
+    _trm(engine)
+    _, h_cliente = _registrar(client, email="cliente@example.com")
+    with engine.begin() as conn:
+        conn.execute(
+            text("update usuarios set plan_codigo = 'plan_fantasma' where email = 'cliente@example.com'")
+        )
+
+    # 1) la cuota aplica el plan base (10 lecturas), no cero
+    cuota = client.get("/ia/cuota", headers=h_cliente).json()
+    assert cuota["plan"] == "basico", cuota["plan"]
+    assert cuota["lecturas_incluidas"] == 10, "antes se quedaba en 0"
+    assert cuota["consultas_incluidas"] == 10
+    # 2) y el almacenamiento dice lo mismo (mismo criterio)
+    assert cuota["archivos_incluidos"] == 30
+    assert cuota["retencion_dias"] == 7
+    assert cuota["mb_incluidos"] == 60
+
+    # 3) el informe no lo esconde: lo cuenta y lo dice
+    datos = client.get("/ia/informe/usuarios", headers=h).json()
+    assert datos["planes_inexistentes"] == ["cliente@example.com"]
+    assert any("cliente@example.com" in u["usuario"] for u in datos["usuarios"])
+    assert any("plan base" in n for n in datos["notas"]), datos["notas"]

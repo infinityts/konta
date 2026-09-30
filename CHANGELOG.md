@@ -2575,3 +2575,26 @@ La regla que saco de esto, para que no vuelva: **un límite, y en los ajustes** 
 número a mano al lado de un ajuste, uno de los dos está mintiendo ✗.
 
 Tests: **391 en verde** (1 nuevo).
+
+### v1.96 — Un caso, tres verdades distintas (el plan que ya no existe)
+
+Probé primero **en producción** qué pasa si un cliente tiene un plan que ya no está en el catálogo
+(como si se borrara por error): **no revienta** ✅, pero la app decía **tres cosas distintas** del
+mismo hecho ✗:
+
+| dónde | qué decía |
+|---|---|
+| la **cuota** | **0 lecturas y 0 consultas** ✗ (lo dejaba sin nada) |
+| el **almacenamiento** | **30 archivos, 7 días, 60 MB** ✗ (le mantenía un plan entero) |
+| el **informe** | **lo escondía** ✗ (no aparecía, y el total de clientes mentía) |
+
+- **Un solo criterio** ✅: se le aplica el **plan base**, que es el mismo sitio al que se vuelve
+  cuando un plan vence (v1.92). Vale para la cuota y para el almacenamiento ✅, y queda **un aviso
+  en el registro** diciendo qué plan no se encontró y a quién se le aplicó el base ✅.
+- **Y deja de estar duplicado** ✗→✅: el almacenamiento tenía **su propia** búsqueda del plan ✗ (por
+  eso podía divergir de la cuota ✗); ahora usa la misma ✅.
+- **El informe ya no esconde a nadie** ✅: cuenta a esos clientes con el plan base, los **nombra**
+  (`planes_inexistentes`) y lo dice en una nota ✅ — un informe que se calla clientes está mintiendo
+  en el total ✗.
+
+Tests: **392 en verde** (1 nuevo).

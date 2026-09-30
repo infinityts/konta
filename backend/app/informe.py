@@ -84,10 +84,15 @@ def informe_por_usuario(db: Session, periodo: str | None = None, limite: int | N
     precio_gb = get_settings().costo_gb_mes_usd
 
     filas = []
+    sin_plan = []
     for usuario in usuarios.values():
         plan = planes.get(usuario.plan_codigo or "")
         if plan is None:
-            continue
+            # No se esconde: se cuenta con el plan base (que es lo que la app le aplica) y se dice
+            sin_plan.append(usuario.email)
+            plan = planes.get(get_settings().plan_base or "basico")
+            if plan is None:
+                continue
         consumo = consumos.get(usuario.id)
         costo_ia_usd = float(consumo.costo_usd or 0) if consumo else 0.0
         mb_dia = float(consumo.mb_dia or 0) if consumo else 0.0
@@ -143,6 +148,7 @@ def informe_por_usuario(db: Session, periodo: str | None = None, limite: int | N
         ),
         "cop_por_usd": round(cop_por_usd, 2) if cop_por_usd else None,
         "umbral_ajustado": UMBRAL_AJUSTADO,
+        "planes_inexistentes": sin_plan,
         "usuarios": filas,
         "alertas": {
             "pierden": [f["usuario"] for f in alertas if f["aviso"] == "pierde"],
@@ -157,6 +163,14 @@ def informe_por_usuario(db: Session, periodo: str | None = None, limite: int | N
             []
             if precio_gb
             else ["Sin precio por GB-mes el almacenamiento se informa en volumen, no en dinero."]
+        )
+        + (
+            [
+                f"{len(sin_plan)} cliente(s) tenían un plan que ya no está en el catálogo "
+                f"({', '.join(sin_plan[:5])}): se les aplica el plan base."
+            ]
+            if sin_plan
+            else []
         ),
     }
 

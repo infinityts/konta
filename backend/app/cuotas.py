@@ -10,14 +10,18 @@ deja ganancia no es cuántas lecturas hizo el usuario sino cuánto costaron.
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .config import get_settings
 from .models import ConsumoIa, Plan, Usuario
 from .recurrencia import hoy
+
+logger = logging.getLogger(__name__)
 
 # Recursos que se pueden agotar
 LECTURA_IA = "lectura_ia"
@@ -32,7 +36,23 @@ def periodo_actual() -> str:
 
 
 def plan_de(db: Session, usuario: Usuario) -> Plan | None:
-    return db.get(Plan, usuario.plan_codigo or PLAN_POR_DEFECTO)
+    """El plan del usuario. Si su código no está en el catálogo, se aplica el **plan base**.
+
+    Antes esto devolvía None, y de ahí salían dos comportamientos distintos para el mismo caso: la
+    cuota le dejaba **cero** lecturas y el almacenamiento le mantenía 30 archivos, mientras el
+    informe lo escondía. Un solo criterio: el mismo sitio al que se vuelve cuando un plan vence.
+    """
+    codigo = usuario.plan_codigo or PLAN_POR_DEFECTO
+    plan = db.get(Plan, codigo)
+    if plan is not None:
+        return plan
+    base = get_settings().plan_base or PLAN_POR_DEFECTO
+    if codigo != base:
+        logger.warning(
+            "plan %r no está en el catálogo: al usuario %s se le aplica el plan base %r",
+            codigo, usuario.email, base,
+        )
+    return db.get(Plan, base)
 
 
 def consumo_de(db: Session, usuario: Usuario, periodo: str | None = None) -> ConsumoIa:
@@ -52,7 +72,7 @@ def consumo_de(db: Session, usuario: Usuario, periodo: str | None = None) -> Con
 
 def _limite(db: Session, usuario: Usuario, recurso: str) -> int:
     plan = plan_de(db, usuario)
-    if plan is None:
+    if plan is None:  # ni el plan base está en el catálogo: no hay nada que dar
         return 0
     return plan.lecturas_ia if recurso == LECTURA_IA else plan.consultas_asistente
 
