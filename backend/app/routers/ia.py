@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import cuotas, ia
+from .. import informe as informe_mod
 from ..config import get_settings
 from ..deps import get_current_user, get_db
 from ..facturas import aviso_de_la_fecha, aviso_del_monto, detectar_emisor, detectar_monto
@@ -49,6 +50,25 @@ def _cuota_out(resumen: dict) -> CuotaOut:
         mb_dia=resumen.get("mb_dia", 0.0),
         dias_medidos=resumen.get("dias_medidos", 0),
     )
+
+
+@router.get("/informe")
+def informe(
+    periodo: str | None = None,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Informe del mes: promedios, percentiles y margen por plan (solo para el dueño).
+
+    No es un dato de cada cliente sino de **todos**: lo que cuesta de verdad cada plan. Por eso
+    solo lo ve quien esté en `FINANZAS_INFORME_ADMINS`.
+    """
+    if not informe_mod.es_admin(user):
+        raise HTTPException(
+            status_code=403,
+            detail="El informe de promedios es del dueño de la app (configura FINANZAS_INFORME_ADMINS).",
+        )
+    return informe_mod.informe_del_mes(db, periodo)
 
 
 @router.get("/planes", response_model=list[PlanOut])

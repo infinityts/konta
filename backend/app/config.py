@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     ia_precio_entrada: float = 0.30
     ia_precio_salida: float = 1.20
 
+    # ── Informe de promedios y margen (solo para el dueño de la app) ─────────────────────
+    # Correos separados por coma que pueden ver el informe de todos los clientes.
+    informe_admins: str = ""
+    # Precio del espacio, en dólares por GB-mes. Si es 0, el informe da el volumen consumido
+    # pero no lo convierte a dinero (mejor decir «falta el precio» que inventarlo).
+    costo_gb_mes_usd: float = 0.0
+
     # Seguridad (JWT)
     secret_key: str = "cambiar-por-un-secreto-largo-y-aleatorio"
     access_token_expire_minutes: int = 1440  # 24 h

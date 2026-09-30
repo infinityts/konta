@@ -2188,3 +2188,24 @@ acumula del orden de **150 MB-día**: es la cifra con la que se compara cada pla
 alimenta el informe de promedios.
 
 Tests: **319 en verde** (2 nuevos).
+
+### v1.78 — El informe del mes: cuánto cuesta cada cliente y qué margen deja
+
+La pieza que permite poner precios con datos en vez de a ojo. Junta lo que ya se mide —lecturas
+con IA, consultas, tokens, coste facturado por el proveedor y **MB-día** de almacenamiento— y lo
+compara con lo que pagan los clientes.
+
+- **Promedios y percentiles (p50 y p90)** por plan, no solo la media: un cliente pesado mueve el
+  promedio y casi no mueve el p50, y el p90 es el que dice cuánto cuesta el 10 % que más usa la
+  app (hay un test con el caso `[1×9, 100]`: promedio 10,9 · p50 1 · p90 10,9).
+- **Margen por plan**: ingreso en pesos contra coste real (en dólares, convertido con la **TRM**
+  que la app ya mantiene al día). Con eso se ve si un plan deja ganancia y cuánta.
+- **Honesto cuando falta un dato**: si no hay precio por GB-mes configurado, da el volumen
+  consumido y **dice que falta el precio** en vez de inventar un coste.
+- **Solo lo ve el dueño** (`FINANZAS_INFORME_ADMINS`): es información de todos los clientes, no de
+  uno. Y las **cuentas del dueño quedan fuera**: no se pagan a sí mismas, así que no inflan el
+  ingreso (se informa cuántas se excluyeron).
+
+`GET /ia/informe?periodo=AAAA-MM`.
+
+Tests: **324 en verde** (5 nuevos).
