@@ -5,11 +5,13 @@ import SelectBuscable, { type Opcion } from '../components/SelectBuscable'
 import {
   fmtMoney,
   type Categoria,
+  type CuotaIa,
   type Cuenta,
   type Etiqueta,
   type Factura,
   type FacturaDetalle,
   type FacturaLinea,
+  type PlanIa,
   type SaldoResumen,
   type Tarjeta,
   type Transaccion,
@@ -51,6 +53,11 @@ export default function Facturas() {
   const [error, setError] = useState('')
   // El archivo se guarda (no se sube al elegirlo) para poder escribir la contraseña del PDF
   const [archivo, setArchivo] = useState<File | null>(null)
+  // Lectura con IA: es de pago, así que se elige a propósito y con el cupo a la vista
+  const [usarIa, setUsarIa] = useState(false)
+  const [cuota, setCuota] = useState<CuotaIa | null>(null)
+  const [planes, setPlanes] = useState<PlanIa[]>([])
+  const [verPlanes, setVerPlanes] = useState(false)
   const [contrasena, setContrasena] = useState('')
   // Texto que el usuario está corrigiendo (por factura). Es el paracaídas del lector: si el
   // OCR o la extracción se equivocan, se arregla el texto y se vuelve a leer.
@@ -103,6 +110,25 @@ export default function Facturas() {
       // Las facturas electrónicas suelen venir en PDF protegido (la clave es el NIT del
       // emisor). Si el PDF no está protegido, la contraseña se ignora.
       if (contrasena) fd.append('contrasena', contrasena)
+
+      // Con el interruptor puesto, el documento lo lee el modelo de visión. Cuesta una lectura
+      // del plan, así que el cupo se comprueba antes y el aviso lo dice si se agotó.
+      if (usarIa) {
+        const detalle = await apiUpload<FacturaDetalle>('/ia/leer', fd)
+        setDetalles((d) => ({ ...d, [detalle.id]: detalle }))
+        setCuota(await api<CuotaIa>('/ia/cuota'))
+        setAviso(
+          detalle.aviso
+            ? `🤖 Leído con IA. ${detalle.aviso}`
+            : '🤖 Leído con IA. Revisa el monto y los artículos antes de registrarlo.',
+        )
+        setArchivo(null)
+        setContrasena('')
+        if (entradaArchivo.current) entradaArchivo.current.value = ''
+        await cargar()
+        return
+      }
+
       const subida = await apiUpload<Factura>('/facturas', fd)
       // Decir siempre el resultado y el paso siguiente: antes, si todo iba bien, no se decía
       // nada y no había forma de saber si la subida había entrado.
@@ -509,6 +535,74 @@ export default function Facturas() {
           disabled={subiendo}
           className="mt-3 block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700"
         />
+        {cuota && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={usarIa}
+                  disabled={cuota.lecturas_restantes === 0}
+                  onChange={(e) => setUsarIa(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                <span className="font-medium">🤖 Leer con IA</span>
+                <span className="text-slate-500">
+                  {cuota.lecturas_restantes > 0
+                    ? `te quedan ${cuota.lecturas_restantes} de ${cuota.lecturas_incluidas} este mes${
+                        cuota.lecturas_extra > 0 ? ` (+${cuota.lecturas_extra} compradas)` : ''
+                      }`
+                    : `se acabaron las ${cuota.lecturas_incluidas} lecturas de tu plan ${
+                        cuota.plan_nombre ?? ''
+                      }`}
+                </span>
+              </label>
+              <button
+                onClick={() => {
+                  setVerPlanes((v) => !v)
+                  if (planes.length === 0) {
+                    void api<PlanIa[]>('/ia/planes').then(setPlanes)
+                  }
+                }}
+                className="text-xs text-indigo-600 hover:underline"
+              >
+                {verPlanes ? 'Ocultar planes' : 'Ver planes'}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              {cuota.lecturas_restantes > 0
+                ? 'Sirve para documentos que el lector normal no puede: manuscritos, fotos borrosas o formatos raros. Cuesta una lectura y se descuenta solo si sale bien.'
+                : 'Puedes comprar lecturas sueltas o subir de plan. Mientras tanto, el lector normal sigue funcionando igual.'}
+            </p>
+            {verPlanes && planes.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {planes.map((pl) => (
+                  <li
+                    key={pl.codigo}
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-xs ${
+                      pl.codigo === cuota.plan
+                        ? 'border-indigo-300 bg-white'
+                        : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <span className="font-medium text-slate-700">
+                      {pl.nombre}
+                      {pl.codigo === cuota.plan ? ' · tu plan' : ''}
+                    </span>
+                    <span className="text-slate-500">
+                      ${Number(pl.precio_mes).toLocaleString('es-CO')}/mes · {pl.lecturas_ia}{' '}
+                      lecturas IA · {pl.consultas_asistente} consultas
+                    </span>
+                  </li>
+                ))}
+                <li className="pt-1 text-xs text-slate-400">
+                  Para cambiar de plan o comprar lecturas sueltas, escríbenos: el cobro en línea
+                  está en camino.
+                </li>
+              </ul>
+            )}
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
             type="password"

@@ -62,7 +62,7 @@ def configurada() -> bool:
     return bool(get_settings().ia_api_key.strip())
 
 
-def _a_imagen(contenido: bytes, tipo: str | None) -> tuple[str, str]:
+def _a_imagen(contenido: bytes, tipo: str | None, contrasena: str | None = None) -> tuple[str, str]:
     """Devuelve (mime, base64). El proveedor solo acepta imágenes: un PDF se convierte.
 
     Se reutiliza el mismo `pdf2image` que el OCR local (ya está instalado por él), con la
@@ -73,7 +73,9 @@ def _a_imagen(contenido: bytes, tipo: str | None) -> tuple[str, str]:
 
     from pdf2image import convert_from_bytes
 
-    paginas = convert_from_bytes(contenido, dpi=150, last_page=1)
+    paginas = convert_from_bytes(
+        contenido, dpi=150, last_page=1, **({"userpw": contrasena} if contrasena else {})
+    )
     if not paginas:
         raise ValueError("No pudimos convertir el documento en una imagen")
     buffer = io.BytesIO()
@@ -99,7 +101,9 @@ def _decimal(valor) -> Decimal | None:
         return None
 
 
-def leer_documento(contenido: bytes, nombre: str, tipo: str | None) -> LecturaIa:
+def leer_documento(
+    contenido: bytes, nombre: str, tipo: str | None, contrasena: str | None = None
+) -> LecturaIa:
     """Manda el documento al modelo de visión y devuelve su lectura.
 
     Lanza `IaNoConfigurada` si no hay clave. Un fallo del proveedor se propaga como error: el
@@ -112,7 +116,7 @@ def leer_documento(contenido: bytes, nombre: str, tipo: str | None) -> LecturaIa
             "proveedor). El lector normal de Konta sigue funcionando."
         )
 
-    mime, datos = _a_imagen(contenido, tipo)
+    mime, datos = _a_imagen(contenido, tipo, contrasena)
     peticion = {
         "model": ajustes.ia_modelo,
         "messages": [

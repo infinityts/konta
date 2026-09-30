@@ -903,3 +903,28 @@ export interface CalidadLector {
   con_plantilla: number
   casos_abiertos: number
 }
+
+/** Lo que le queda al usuario este mes de lecturas con IA y consultas al asistente. */
+export interface CuotaIa {
+  periodo: string
+  plan: string | null
+  plan_nombre: string | null
+  precio_mes: number
+  lecturas_incluidas: number
+  lecturas_usadas: number
+  lecturas_extra: number
+  lecturas_restantes: number
+  consultas_incluidas: number
+  consultas_usadas: number
+  consultas_restantes: number
+  costo_usd: number
+}
+
+/** Un plan del catálogo, tal como lo lee la app (los límites viven en la base). */
+export interface PlanIa {
+  codigo: string
+  nombre: string
+  precio_mes: string
+  lecturas_ia: number
+  consultas_asistente: number
+}

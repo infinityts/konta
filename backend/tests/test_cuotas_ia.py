@@ -25,7 +25,7 @@ def _dar_lecturas_extra(email: str, cuantas: int) -> None:
 
 
 def _stub(monkeypatch, monto="46477", tokens=(1500, 400), costo="0.0007") -> None:
-    def falso(contenido, nombre, tipo):
+    def falso(contenido, nombre, tipo, contrasena=None):
         return LecturaIa(
             texto="Gases de Occidente S.A. ESP\nMonto: $46.477\nFecha: 30/09/2026\n",
             campos={
@@ -137,6 +137,25 @@ def test_el_costo_se_calcula_con_los_precios_del_momento(client):
     """1.500 de entrada y 400 de salida a 0,30 y 1,20 por millón."""
     costo = cuotas.costo_de_lectura(1500, 400, 0.30, 1.20)
     assert costo == Decimal("0.00093")
+
+
+def test_la_contrasena_del_pdf_llega_al_adaptador(client, monkeypatch):
+    """Las facturas electrónicas vienen protegidas: la clave tiene que llegar hasta el PDF."""
+    _, h = _registrar(client)
+    vistas = []
+
+    def espia(contenido, nombre, tipo, contrasena=None):
+        vistas.append(contrasena)
+        return LecturaIa(texto="Monto: $1.000\n", campos={"monto": Decimal("1000")})
+
+    monkeypatch.setattr(ia, "leer_documento", espia)
+    client.post(
+        "/ia/leer",
+        headers=h,
+        files={"archivo": ("f.pdf", b"%PDF-1.4", "application/pdf")},
+        data={"contrasena": "900123456"},
+    )
+    assert vistas == ["900123456"]
 
 
 def test_el_pdf_se_convierte_en_imagen_para_el_modelo(client):

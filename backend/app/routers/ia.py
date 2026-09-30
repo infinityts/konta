@@ -7,7 +7,7 @@ más), se descuenta **solo si la lectura sale bien** y se anota lo que costó de
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -59,6 +59,8 @@ def ver_cuota(db: Session = Depends(get_db), user: Usuario = Depends(get_current
 @router.post("/leer", response_model=FacturaDetalleOut, status_code=201)
 async def leer_con_ia(
     archivo: UploadFile = File(...),
+    # Las facturas electrónicas suelen venir protegidas (la clave es el NIT del emisor)
+    contrasena: str | None = Form(None),
     db: Session = Depends(get_db),
     user: Usuario = Depends(get_current_user),
 ):
@@ -83,7 +85,9 @@ async def leer_con_ia(
 
     # 2) La lectura
     try:
-        lectura = ia.leer_documento(contenido, archivo.filename or "documento", archivo.content_type)
+        lectura = ia.leer_documento(
+            contenido, archivo.filename or "documento", archivo.content_type, contrasena
+        )
     except ia.IaNoConfigurada as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except Exception as error:

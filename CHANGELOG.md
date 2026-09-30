@@ -2082,3 +2082,22 @@ todo el texto, que es justo lo que la app aprovecha). Tiempo: de 3,9 a 21 s seg�
 
 Con eso, las 10 lecturas del plan Básico cuestan del orden de **100 pesos al mes**: el margen
 sigue siendo del 98 % y confirma que el precio del plan se pone **por valor**, no por tokens.
+
+### v1.73.2 — «Leer con IA» en la pantalla, con el cupo a la vista
+
+La lectura con IA ya se puede usar desde la app: en la zona de subida hay un interruptor
+**«🤖 Leer con IA»** con las lecturas que quedan este mes y, al lado, **Ver planes** con el
+catálogo y cuál es el tuyo.
+
+- **Es a propósito**: el interruptor se enciende cuando quieres, porque cuesta una lectura. No
+  se duplica nada: con el interruptor puesto, el mismo archivo va por el camino de la IA en vez
+  del lector normal.
+- **Se ve antes de gastar**: «te quedan 7 de 10 este mes» (y las compradas aparte, si las hay).
+- **Al agotarse se explica**: el interruptor se apaga y el texto dice qué hacer — comprar
+  lecturas sueltas o subir de plan — aclarando que el lector normal sigue funcionando.
+- **Los planes salen de la base** (nombre, precio, lecturas y consultas), así que cambiar el
+  catálogo no toca la pantalla.
+- Y el camino de IA ahora acepta **PDF protegido** con la contraseña (las facturas electrónicas
+  suelen venir así), igual que el lector normal.
+
+Tests: **299 en verde** (1 nuevo).
