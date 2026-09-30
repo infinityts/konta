@@ -1740,3 +1740,29 @@ Ahora las compras con tarjeta de crédito quedan fuera de «sin cuenta» (del ne
 de la alerta). Las de **débito** y el efectivo sí cuentan: ese dinero sí sale.
 
 Tests: **236 en verde** (1 nuevo).
+
+## v1.65 — Que tome cualquier factura: PDF de dos columnas y montos con sentido
+
+Con un **comprobante de pago de EMCALI** (PDF digital de dos columnas) la app hacía tres
+cosas mal:
+
+| Lo que pasaba | Lo que debía |
+|---|---|
+| Monto: **260.930.020.535** ✗ (del consecutivo `TR260930020535rBgAnc`) | **844.041** (el «Valor del Pago») |
+| Tipo: «mercado», con 2 artículos inventados (una fecha y `**** 0571`) | «servicios», sin artículos |
+| Texto: 405 caracteres mezclados | 740 ✂, con cada etiqueta junto a su valor |
+
+- **Se extrae el texto en modo `layout`** (como ya hacían los extractos): respeta las columnas,
+  así que la etiqueta y su valor quedan en la misma línea. Es la mejora de fondo: sirve para
+  cualquier factura o comprobante de dos columnas, no solo para esta.
+- **El monto ya no es «el número más grande»**: ahora se buscan las etiquetas de total
+  (`Total`, `Valor del Pago`, `Valor Pago`, `Valor a pagar`…) y, si no hay, se prefiere lo que
+  está escrito **como dinero** (con `$` o con centavos) descartando lo que es un número de
+  **documento**: lo que va pegado a letras, lo que lleva dígito de verificación (`890399003-4`)
+  y lo que está junto a `Nit`, `Referencia`, `Consecutivo`, `CUS`, `Comprobante`, `IP`…
+- **Se reconoce el comprobante de pago de un servicio** (`EMCALI`, `Pago PSE`,
+  `Transacción Aprobada`, `Consecutivo Comercio`…) → se guarda **sin artículos**, listo para
+  «Registrar el gasto» con el total.
+- **`**** 0571`** (cuenta enmascarada) ya no se toma por un artículo de 571.
+
+Tests: **242 en verde** (6 nuevos).

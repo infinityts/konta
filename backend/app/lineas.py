@@ -276,6 +276,10 @@ def parsear_lineas(texto: str, formato: Formato | None = None) -> list[dict]:
         if len(t) < 3:
             continue
         plano = sin_acentos(t).upper()
+        # `**** 0571` es una cuenta enmascarada, no un artículo de 571
+        if "****" in t or "····" in t:
+            pendiente = ""
+            continue
         if IGNORAR_RE.search(plano) or IGNORAR_ETIQUETA_RE.match(plano) or TASA_RE.search(t):
             pendiente = ""
             continue
@@ -344,7 +348,14 @@ CLAVES_TIPO: list[tuple[str, tuple[str, ...]]] = [
     # heurístico de «muchas líneas» lo tomaría por un mercado.
     ("parqueadero", ("PARKING", "PARQUEADERO", "ESTACIONAMIENTO", "MATRICULA:", "DURACION:")),
     ("gasolina", ("GASOLINA", "COMBUSTIBLE", "DIESEL", "TERPEL", "PRIMAX", "TEXACO", "EDS ", "GALONES", "BIODIESEL")),
-    ("servicios", ("ENERGIA", "ELECTRICIDAD", "ACUEDUCTO", "ALCANTARILLADO", "GAS NATURAL", "EPM", "ENEL", "CODENSA", "VANTI", "ETB", "CLARO", "MOVISTAR", "TIGO")),
+    ("servicios", (
+        "ENERGIA", "ELECTRICIDAD", "ACUEDUCTO", "ALCANTARILLADO", "GAS NATURAL", "EPM",
+        "ENEL", "CODENSA", "VANTI", "ETB", "CLARO", "MOVISTAR", "TIGO",
+        # Comprobantes de **pago** de un servicio (PSE o pasarela): traen el comprobante y el
+        # «Valor del Pago», no artículos. Sin esto, el pago de EMCALI se tomaba por mercado.
+        "EMCALI", "SERVICIOS PUBLICOS", "PAGO PSE", "TRANSACCION APROBADA",
+        "CONSECUTIVO COMERCIO", "NUMERO DE COMPROBANTE", "COMPROBANTE EN LINEA",
+    )),
     ("restaurante", ("RESTAURANTE", "CORRIENTAZO", "COCINA", "PARRILLA", "PIZZERIA", "CAFETERIA")),
     ("mercado", ("D1", "ARA", "EXITO", "OLIMPICA", "JUMBO", "CARULLA", "MAKRO", "MERCADO", "SUPERMERCADO", "ALMACEN", "TIENDA", "EURO", "JUSTO & BUENO", "LA 14")),
 ]

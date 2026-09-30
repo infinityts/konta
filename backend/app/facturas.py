@@ -92,7 +92,16 @@ def extraer_texto(
         reader = PdfReader(io.BytesIO(contenido))
         if reader.is_encrypted and not (password and reader.decrypt(password)):
             raise ValueError("El PDF está protegido y la contraseña no es correcta")
-        texto = "\n".join((pagina.extract_text() or "") for pagina in reader.pages)
+        # El modo `layout` respeta las **columnas**: en una factura o un comprobante de pago
+        # la etiqueta y su valor quedan en la misma línea. Sin esto, un PDF de dos columnas
+        # sale mezclado y el monto se acaba leyendo de un número de referencia.
+        partes: list[str] = []
+        for pagina in reader.pages:
+            try:
+                partes.append(pagina.extract_text(extraction_mode="layout") or "")
+            except Exception:  # noqa: BLE001 — si el modo layout falla, sirve el normal
+                partes.append(pagina.extract_text() or "")
+        texto = "\n".join(partes)
     except ValueError:
         raise  # la contraseña es un dato de la subida, no un PDF raro
     except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
@@ -121,6 +130,16 @@ def extraer_texto(
         return texto
 
 
+# Etiquetas cuyo número al lado es un **documento**, no dinero: NIT, referencias, códigos,
+# comprobantes, IP… Sin esto, el mayor número del texto gana y un pago de 844.041 se lee como
+# 890.399.003 (el NIT) o como 260.930.020.535 (un consecutivo).
+_LABEL_DOCUMENTO = re.compile(
+    r"(?i)\b(?:nit|c[eé]dula|cc|referencia|consecutivo|c[oó]digo|cus|comprobante|factura|"
+    r"resoluci[oó]n|autorizaci[oó]n|radicado|contrato|transacci[oó]n|aprobaci[oó]n|hash|"
+    r"ip|tel[eé]fono|celular|whatsapp|sucursal|cajero|terminal|punto\s+de\s+venta)\b"
+)
+
+
 def detectar_monto(texto: str) -> Decimal | None:
     """Monto total del documento.
 
@@ -140,6 +159,10 @@ def detectar_monto(texto: str) -> Decimal | None:
         for patron in (
             r"(?i)\btotal(?:\s+a\s+pagar|\s+general|\s+neto)?\b[^\d]{0,25}(\d[\d.,]*)",
             r"(?i)\b(?:valor\s+total|importe\s+total|monto\s+total)\b[^\d]{0,25}(\d[\d.,]*)",
+            # «Valor del Pago» / «Valor Pago» / «Valor a pagar»: así lo llaman los
+            # comprobantes de pago de servicios (PSE, pasarelas)
+            r"(?i)\bvalor\s+(?:del\s+)?pag(?:o|ar)\b[^\d]{0,25}(\d[\d.,]*)",
+            r"(?i)\b(?:total\s+a\s+pagar|importe\s+a\s+pagar|monto\s+a\s+pagar)\b[^\d]{0,25}(\d[\d.,]*)",
         ):
             encontrados = []
             for m in re.finditer(patron, fuente):
@@ -152,10 +175,37 @@ def detectar_monto(texto: str) -> Decimal | None:
                 valor = parsear_monto(encontrados[-1], formato)
                 if valor is not None:
                     return valor
-    # Fallback: el número con formato de dinero más grande
-    candidatos = re.findall(r"\d[\d.,]{2,}", texto)
-    valores = [v for v in (parsear_monto(c, formato) for c in candidatos) if v is not None]
-    return max(valores) if valores else None
+    # 2) Sin etiqueta de total: se prefiere lo que esté escrito **como dinero** (con `$` o
+    #    con centavos) y se descarta lo que es un número de **documento**.
+    #
+    #    Antes se tomaba el número más grande del texto, y en un comprobante de pago eso es
+    #    un desastre: de `TR260930020535rBgAnc` salía 260.930.020.535 y del NIT
+    #    `890399003-4` salía 890.399.003, mientras el pago real era 844.041.
+    candidatos: list[tuple[Decimal, bool]] = []
+    for m in re.finditer(r"(\$)?\s*(\d[\d.,]*)", texto):
+        crudo = m.group(2)
+        antes = texto[max(0, m.start() - 26) : m.start()]
+        despues = texto[m.end() : m.end() + 6]
+        # Pegado a letras = código (`TR260930020535`), no importe
+        if re.search(r"[A-Za-z]$", antes) or re.match(r"[A-Za-z]", despues):
+            continue
+        # `890399003-4`: el guion es el dígito de verificación de un NIT
+        if re.match(r"\s*-\s*\d", despues):
+            continue
+        # Cerca de una etiqueta de documento (Nit, Referencia, Consecutivo, CUS, IP…)
+        if _LABEL_DOCUMENTO.search(antes):
+            continue
+        valor = parsear_monto(crudo, formato)
+        if valor is None or valor <= 0:
+            continue
+        # Una pista de que es dinero: el símbolo o los centavos
+        pista = bool(m.group(1)) or bool(re.search(r"[.,]\d{2}$", crudo))
+        candidatos.append((valor, pista))
+
+    con_pista = [v for v, pista in candidatos if pista]
+    if con_pista:
+        return max(con_pista)
+    return max((v for v, _ in candidatos), default=None)
 
 
 def detectar_fecha(texto: str) -> date | None:
