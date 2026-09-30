@@ -57,6 +57,9 @@ export default function Facturas() {
   const [datosEditando, setDatosEditando] = useState<string | null>(null)
   const [montoEditado, setMontoEditado] = useState<Record<string, string>>({})
   const [fechaEditada, setFechaEditada] = useState<Record<string, string>>({})
+  // Artículo que el usuario añade a mano (el lector se lo saltó)
+  const [agregando, setAgregando] = useState<string | null>(null)
+  const [nuevaLinea, setNuevaLinea] = useState<Record<string, { descripcion: string; valor: string; etiqueta: string }>>({})
   const [corrigiendoTexto, setCorrigiendoTexto] = useState<string | null>(null)
   const entradaArchivo = useRef<HTMLInputElement>(null)
   const [aviso, setAviso] = useState('')
@@ -132,6 +135,43 @@ export default function Facturas() {
       setAviso('✅ Monto y fecha corregidos (la auditoría y «Registrar el gasto» usan el monto bueno).')
       await cargar()
     })
+
+  /** Añade a mano un artículo que el lector se saltó. */
+  const agregarLinea = (facturaId: string) =>
+    conOcupado(facturaId, async () => {
+      const campos = nuevaLinea[facturaId] ?? { descripcion: '', valor: '', etiqueta: '' }
+      const detalle = await api<FacturaDetalle>(`/facturas/${facturaId}/lineas/agregar`, {
+        method: 'POST',
+        body: JSON.stringify({
+          descripcion: campos.descripcion.trim(),
+          valor_total: campos.valor.replace(/[^\d.]/g, '') || '0',
+          etiqueta_id: campos.etiqueta || null,
+        }),
+      })
+      setDetalles((d) => ({ ...d, [facturaId]: detalle }))
+      setAgregando(null)
+      setNuevaLinea((s) => ({ ...s, [facturaId]: { descripcion: '', valor: '', etiqueta: '' } }))
+      setAviso('✅ Artículo añadido (queda como manual: un re-leer no se lo lleva).')
+      await cargar()
+    })
+
+  /** Sube o baja una línea en el orden de la factura. */
+  const moverLinea = (facturaId: string, lineaId: string, salto: number) => {
+    const detalle = detalles[facturaId]
+    if (!detalle) return
+    const ids = detalle.lineas.map((l) => l.id)
+    const desde = ids.indexOf(lineaId)
+    const hasta = desde + salto
+    if (desde < 0 || hasta < 0 || hasta >= ids.length) return
+    ;[ids[desde], ids[hasta]] = [ids[hasta], ids[desde]]
+    return conOcupado(facturaId, async () => {
+      const nuevo = await api<FacturaDetalle>(`/facturas/${facturaId}/lineas/orden`, {
+        method: 'PUT',
+        body: JSON.stringify({ linea_ids: ids }),
+      })
+      setDetalles((d) => ({ ...d, [facturaId]: nuevo }))
+    })
+  }
 
   /** Guarda el texto corregido y vuelve a leer la factura con él. */
   const guardarTextoYLeer = (facturaId: string) =>
@@ -854,6 +894,7 @@ export default function Facturas() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                            <th className="py-1 pr-2" />
                             <th className="py-1 pr-3">Artículo</th>
                             <th className="py-1 pr-3">Valor</th>
                             <th className="py-1 pr-3">Etiqueta</th>
@@ -862,8 +903,28 @@ export default function Facturas() {
                           </tr>
                         </thead>
                         <tbody>
-                          {detalle.lineas.map((l) => (
+                          {detalle.lineas.map((l, i) => (
                             <tr key={l.id} className="border-t border-slate-200">
+                              <td className="py-2 pr-2 align-top">
+                                <div className="flex flex-col">
+                                  <button
+                                    onClick={() => void moverLinea(f.id, l.id, -1)}
+                                    disabled={i === 0 || ocupado === f.id}
+                                    title="Subir"
+                                    className="text-xs leading-none text-slate-400 hover:text-indigo-600 disabled:opacity-30"
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    onClick={() => void moverLinea(f.id, l.id, 1)}
+                                    disabled={i === detalle.lineas.length - 1 || ocupado === f.id}
+                                    title="Bajar"
+                                    className="text-xs leading-none text-slate-400 hover:text-indigo-600 disabled:opacity-30"
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
+                              </td>
                               <td className="py-2 pr-3">
                                 <span className="text-slate-700">{l.descripcion}</span>
                                 {l.cantidad != null && (
@@ -919,9 +980,82 @@ export default function Facturas() {
                     </div>
                   ) : (
                     <p className="mt-2 text-sm text-slate-500">
-                      No se detectaron artículos. Prueba con una foto más nítida o revisa el texto
-                      extraído.
+                      No se detectaron artículos. Prueba con una foto más nítida, revisa el texto
+                      extraído o añádelos a mano.
                     </p>
+                  )}
+
+                  {agregando === f.id ? (
+                    <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
+                      <label className="text-xs text-slate-600">
+                        Artículo
+                        <input
+                          value={nuevaLinea[f.id]?.descripcion ?? ''}
+                          onChange={(e) =>
+                            setNuevaLinea((s) => ({
+                              ...s,
+                              [f.id]: { ...(s[f.id] ?? { valor: '', etiqueta: '' }), descripcion: e.target.value },
+                            }))
+                          }
+                          placeholder="Ej. PAN TAJADO"
+                          className="mt-1 block w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-600">
+                        Valor
+                        <input
+                          value={nuevaLinea[f.id]?.valor ?? ''}
+                          onChange={(e) =>
+                            setNuevaLinea((s) => ({
+                              ...s,
+                              [f.id]: { ...(s[f.id] ?? { descripcion: '', etiqueta: '' }), valor: e.target.value },
+                            }))
+                          }
+                          inputMode="decimal"
+                          placeholder="3200"
+                          className="mt-1 block w-32 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-600">
+                        Etiqueta
+                        <div className="mt-1 w-56">
+                          <SelectBuscable
+                            opciones={opcionesEtiquetas}
+                            value={nuevaLinea[f.id]?.etiqueta ?? ''}
+                            onChange={(id) =>
+                              setNuevaLinea((s) => ({
+                                ...s,
+                                [f.id]: { ...(s[f.id] ?? { descripcion: '', valor: '' }), etiqueta: id },
+                              }))
+                            }
+                            textoVacio="Sin etiqueta"
+                          />
+                        </div>
+                      </label>
+                      <button
+                        onClick={() => void agregarLinea(f.id)}
+                        disabled={ocupado === f.id || !(nuevaLinea[f.id]?.descripcion ?? '').trim()}
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {ocupado === f.id ? 'Añadiendo…' : 'Añadir artículo'}
+                      </button>
+                      <button
+                        onClick={() => setAgregando(null)}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-white"
+                      >
+                        Cancelar
+                      </button>
+                      <span className="text-xs text-slate-500">
+                        Queda como manual: volver a leer la factura no lo borra.
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAgregando(f.id)}
+                      className="mt-3 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      ➕ Añadir artículo a mano
+                    </button>
                   )}
                 </div>
               )}

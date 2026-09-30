@@ -1815,3 +1815,18 @@ auditoría marcaba un descuadre que no existía.
 - Y lo importante: la **auditoría** y «Registrar el gasto» pasan a usar el monto corregido.
 
 Tests: **250 en verde** (4 nuevos).
+
+### v1.66.2 — Añadir artículos a mano y reordenarlos
+
+Tercera pata del «no me quedo atascado»: ya se podía corregir y borrar una línea, pero **no
+añadir** la que el lector se saltó — con el detalle mintiendo (una suma que no daba el total).
+
+- **`POST /facturas/{id}/lineas/agregar`**: añade un artículo con descripción, valor, cantidad
+  y etiqueta. Sin etiqueta, la sugiere el clasificador (como a cualquier línea).
+- **`PUT /facturas/{id}/lineas/orden`**: guarda el orden nuevo de las líneas.
+- **En la factura**: «➕ Añadir artículo a mano» (con su formulario) y flechas **▲▼** en cada
+  renglón para subirlo o bajarlo.
+- Y un detalle que hacía falta para que esto sirviera: **un re-leer ya no borra lo que pusiste a
+  mano**. Las líneas manuales se conservan (y no se duplican).
+
+Tests: **255 en verde** (5 nuevos).

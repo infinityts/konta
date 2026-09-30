@@ -740,6 +740,26 @@ class LineaUpdateIn(BaseModel):
     etiqueta_id: uuid.UUID | None = None
 
 
+class LineaNuevaIn(BaseModel):
+    """Un artículo que el usuario **añade a mano** (el lector se lo saltó).
+
+    Si no se indica `etiqueta_id`, se clasifica como cualquier otra línea; si se indica, se
+    guarda como `manual` y se aprende la regla.
+    """
+
+    descripcion: str = Field(min_length=1, max_length=200)
+    valor_total: Decimal = Field(gt=0)
+    cantidad: Decimal | None = Field(default=None, gt=0)
+    valor_unitario: Decimal | None = Field(default=None, gt=0)
+    etiqueta_id: uuid.UUID | None = None
+
+
+class LineasOrdenIn(BaseModel):
+    """El orden nuevo de las líneas (todos los ids de la factura, en orden)."""
+
+    linea_ids: list[uuid.UUID]
+
+
 class AsignarEtiquetaIn(BaseModel):
     """Asignar **una etiqueta a muchas líneas** de una vez.
 

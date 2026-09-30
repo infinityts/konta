@@ -61,6 +61,8 @@ from ..schemas import (
     FacturaOut,
     FacturaPatchIn,
     GrupoDetalleOut,
+    LineaNuevaIn,
+    LineasOrdenIn,
     LineaUpdateIn,
     ParsearLineasIn,
     UnificarOut,
@@ -374,11 +376,14 @@ def parsear(
         )
 
     # Las líneas que ya están dentro de un movimiento **no se borran** (el usuario las
-    # corrigió y las registró): se borran solo las que quedaron pendientes.
+    # corrigió y las registró) y las que puso **a mano** tampoco: son su trabajo. Se borran
+    # solo las que quedaron pendientes y las generó el lector.
     todas = _lineas(db, factura.id)
-    registradas = [li for li in todas if li.transaccion_id is not None]
+    registradas = [
+        li for li in todas if li.transaccion_id is not None or li.origen == "manual"
+    ]
     for linea in todas:
-        if linea.transaccion_id is None:
+        if linea.transaccion_id is None and linea.origen != "manual":
             db.delete(linea)
     db.flush()
 
@@ -488,6 +493,72 @@ def descartar_linea(
         )
     db.delete(linea)
     db.commit()
+
+
+@router.post("/{id}/lineas/agregar", response_model=FacturaDetalleOut)
+def agregar_linea(
+    id: uuid.UUID,
+    data: LineaNuevaIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Añade un artículo a mano: el que el lector se saltó.
+
+    Sin esto, una factura a la que le falta un renglón no se podía completar desde la app (y
+    el detalle quedaba mintiendo, con una suma que no daba el total).
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    orden = max((li.orden for li in _lineas(db, factura.id)), default=-1) + 1
+
+    if data.etiqueta_id is not None:
+        etiqueta = get_owned(db, Etiqueta, data.etiqueta_id, user.id)
+        etiqueta_id, origen, confianza = etiqueta.id, "manual", Decimal("1")
+        _aprender(db, user.id, data.descripcion, etiqueta.id)
+    else:
+        etiquetas = list(db.scalars(select(Etiqueta).where(Etiqueta.usuario_id == user.id)).all())
+        # La etiqueta la puede sugerir el clasificador, pero el renglón lo puso el usuario:
+        # se marca `manual` para que un re-parseo no se lo lleve por delante.
+        etiqueta_id, _, confianza = clasificar(
+            db, user.id, data.descripcion, etiquetas, make_embedding()
+        )
+        origen = "manual"
+
+    db.add(
+        FacturaLinea(
+            factura_id=factura.id,
+            orden=orden,
+            descripcion=data.descripcion.strip()[:200],
+            cantidad=data.cantidad,
+            valor_unitario=data.valor_unitario,
+            valor_total=data.valor_total,
+            etiqueta_id=etiqueta_id,
+            origen=origen,
+            confianza=confianza,
+        )
+    )
+    db.commit()
+    db.refresh(factura)
+    return _detalle(db, factura)
+
+
+@router.put("/{id}/lineas/orden", response_model=FacturaDetalleOut)
+def reordenar_lineas(
+    id: uuid.UUID,
+    data: LineasOrdenIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Reordena las líneas de la factura (el orden en que se muestran y se confirman)."""
+    factura = get_owned(db, Factura, id, user.id)
+    por_id = {li.id: li for li in _lineas(db, factura.id)}
+    desconocidas = [lid for lid in data.linea_ids if lid not in por_id]
+    if desconocidas:
+        raise HTTPException(status_code=404, detail="Alguna línea no es de esta factura")
+    for posicion, linea_id in enumerate(data.linea_ids):
+        por_id[linea_id].orden = posicion
+    db.commit()
+    db.refresh(factura)
+    return _detalle(db, factura)
 
 
 @router.patch("/{id}/lineas", response_model=FacturaDetalleOut)
