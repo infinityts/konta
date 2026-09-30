@@ -1766,3 +1766,24 @@ cosas mal:
 - **`**** 0571`** (cuenta enmascarada) ya no se toma por un artículo de 571.
 
 Tests: **242 en verde** (6 nuevos).
+
+### v1.65.1 — El OCR lee una sola columna (confirmaciones de pago)
+
+Con la **confirmación de pago de Gases de Occidente** (una imagen), el OCR leía las **dos
+columnas por separado**: primero todas las etiquetas y luego todos los valores, así que se
+perdía qué iba con qué. Medido con la imagen real:
+
+| | antes (automático) | ahora (`--psm 4`) |
+|---|---|---|
+| Líneas del OCR | 24 sueltas | 14, cada etiqueta con su valor |
+| «Monto: $46.477» | no existía como línea | en su sitio ✅ |
+
+`--psm 4` dice «una sola columna de texto». En la **foto del recibo de parqueadero** da
+exactamente lo mismo que antes (sin regresión). Además:
+
+- **«Monto»** es una etiqueta de total reconocida (antes solo `Total`, `Valor del Pago`…).
+- Las **confirmaciones de pago** (`¡Pago realizado con éxito!`, `Detalles del pago`,
+  `Gases de Occidente`…) se reconocen como **servicio** → se guardan sin artículos, listas
+  para «Registrar el gasto» con el total.
+
+Tests: **245 en verde** (3 nuevos).

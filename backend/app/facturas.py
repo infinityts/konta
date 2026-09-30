@@ -52,10 +52,20 @@ def _preprocesar(imagen):
     return img.point(lambda p: 255 if p > 140 else 0)
 
 
+# Modo de segmentación del OCR: **una sola columna de texto**.
+#
+# Con el automático, Tesseract detecta dos columnas en una confirmación de pago (etiqueta a la
+# izquierda, valor a la derecha) y las lee **por separado**: primero todas las etiquetas y
+# luego todos los valores, así que se pierde qué va con qué. Medido con una confirmación real:
+# 24 líneas sueltas y ninguna con el valor junto a su texto; con `--psm 4`, 14 líneas y el
+# «Monto: $46.477» en su sitio. En la foto de un recibo de parqueadero da lo mismo que antes.
+PSM_COLUMNA_UNICA = "--psm 4"
+
+
 def _ocr_imagen(imagen) -> str:
     import pytesseract
 
-    return pytesseract.image_to_string(_preprocesar(imagen), lang="spa")
+    return pytesseract.image_to_string(_preprocesar(imagen), lang="spa", config=PSM_COLUMNA_UNICA)
 
 
 # Tope de páginas que se rasterizan para OCR (ver `extraer_texto`). El texto digital no
@@ -125,7 +135,10 @@ def extraer_texto(
         if password:
             opciones["userpw"] = password
         paginas = convert_from_bytes(contenido, **opciones)
-        return "\n".join(pytesseract.image_to_string(_preprocesar(p), lang="spa") for p in paginas)
+        return "\n".join(
+            pytesseract.image_to_string(_preprocesar(p), lang="spa", config=PSM_COLUMNA_UNICA)
+            for p in paginas
+        )
     except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
         return texto
 
@@ -163,6 +176,10 @@ def detectar_monto(texto: str) -> Decimal | None:
             # comprobantes de pago de servicios (PSE, pasarelas)
             r"(?i)\bvalor\s+(?:del\s+)?pag(?:o|ar)\b[^\d]{0,25}(\d[\d.,]*)",
             r"(?i)\b(?:total\s+a\s+pagar|importe\s+a\s+pagar|monto\s+a\s+pagar)\b[^\d]{0,25}(\d[\d.,]*)",
+            # «Monto:» / «Monto total» / «Monto del pago»: así lo llaman las confirmaciones
+            # de pago («Monto: $46.477»). No se incluye «valor» a secas: «valor unitario» es
+            # el precio de un artículo, no el total.
+            r"(?i)\bmonto\b(?:\s+(?:total|del\s+pago|a\s+pagar))?[^\d]{0,25}(\d[\d.,]*)",
         ):
             encontrados = []
             for m in re.finditer(patron, fuente):

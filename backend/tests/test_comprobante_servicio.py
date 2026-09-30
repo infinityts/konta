@@ -99,3 +99,57 @@ def test_la_extraccion_de_pdf_respeta_las_columnas(monkeypatch):
 
     extraer_texto(_pdf_minimo("TOTAL 1.000"), "f.pdf", "application/pdf")
     assert "layout" in modos, "la extracción del PDF tiene que usar el modo layout"
+
+
+# Confirmación de pago de un servicio (Gases de Occidente, una **imagen**): es lo que devuelve
+# el OCR con `--psm 4`, que mantiene cada etiqueta junto a su valor. Con el modo automático
+# Tesseract leía las dos columnas por separado y no se sabía qué valor iba con qué etiqueta.
+CONFIRMACION_GAS = """O)
+¡Pago realizado con éxito!
+Hola Jose, tu pago fue exitoso. Te enviamos un correo con los detalles.
+Detalles del pago:
+Nite 800167643-5
+Razón social: Gases de Occidente S.A. ESP
+Estado Transacció Aprobado
+Referencia de pago: 5753155975914591
+Transacción/CUS: 695417658
+Tipo de usuario: Persona
+Concepto: Pago de factura
+Número de referencia: 393730364
+Monto: $46.477
+Fecha: 30/09/2026 02:27:31
+"""
+
+
+def test_la_confirmacion_de_pago_no_toma_un_numero_de_documento():
+    """El NIT, la referencia y el CUS son documentos; el pago son 46.477."""
+    from app.facturas import detectar_monto
+
+    assert detectar_monto(CONFIRMACION_GAS) == Decimal("46477")
+
+
+def test_la_confirmacion_de_pago_es_un_servicio():
+    from app.lineas import detectar_tipo, parsear_lineas
+
+    assert detectar_tipo(CONFIRMACION_GAS, parsear_lineas(CONFIRMACION_GAS)) == "servicios"
+
+
+def test_el_ocr_lee_una_sola_columna(monkeypatch):
+    """`--psm 4`: sin esto, Tesseract separa las dos columnas y pierde el emparejamiento."""
+    import pytesseract
+
+    configuraciones: list = []
+
+    def espia(imagen, *args, **kwargs):
+        # No se ejecuta Tesseract: en CI no está instalado y aquí solo se comprueba **con qué
+        # configuración se llama** (que es lo que decide si lee una columna o dos).
+        configuraciones.append(kwargs.get("config"))
+        return ""
+
+    monkeypatch.setattr(pytesseract, "image_to_string", espia)
+    from PIL import Image
+
+    from app.facturas import _ocr_imagen
+
+    _ocr_imagen(Image.new("RGB", (60, 20), "white"))
+    assert "--psm 4" in configuraciones, "el OCR tiene que leer una sola columna"

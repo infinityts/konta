@@ -355,6 +355,11 @@ CLAVES_TIPO: list[tuple[str, tuple[str, ...]]] = [
         # «Valor del Pago», no artículos. Sin esto, el pago de EMCALI se tomaba por mercado.
         "EMCALI", "SERVICIOS PUBLICOS", "PAGO PSE", "TRANSACCION APROBADA",
         "CONSECUTIVO COMERCIO", "NUMERO DE COMPROBANTE", "COMPROBANTE EN LINEA",
+        # Confirmaciones de pago («¡Pago realizado con éxito!», «Detalles del pago»): traen
+        # etiquetas y valores, no artículos. Sin esto se tomaban por mercado y el «Monto»
+        # acababa siendo un artículo.
+        "PAGO REALIZADO CON EXITO", "DETALLES DEL PAGO", "PAGO DE FACTURA",
+        "REFERENCIA DE PAGO", "ESTADO TRANSACCION", "GASES DE OCCIDENTE",
     )),
     ("restaurante", ("RESTAURANTE", "CORRIENTAZO", "COCINA", "PARRILLA", "PIZZERIA", "CAFETERIA")),
     ("mercado", ("D1", "ARA", "EXITO", "OLIMPICA", "JUMBO", "CARULLA", "MAKRO", "MERCADO", "SUPERMERCADO", "ALMACEN", "TIENDA", "EURO", "JUSTO & BUENO", "LA 14")),
