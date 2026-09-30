@@ -62,10 +62,56 @@ def _preprocesar(imagen):
 PSM_COLUMNA_UNICA = "--psm 4"
 
 
-def _ocr_imagen(imagen) -> str:
+# Si la primera lectura no encuentra un monto de fiar, se lee otra vez con el modo automático
+# (que separa columnas) y se conserva la mejor. 8 = encontró un monto y es plausible.
+UMBRAL_REINTENTO = 8
+
+
+def puntaje_de_lectura(texto: str) -> int:
+    """Cuánta confianza merece una lectura del OCR (a más, mejor).
+
+    Lo que más importa es el **monto**: encontrarlo son 4 puntos y que además sea de fiar
+    (sin aviso de número de documento ni de cifra inverosímil) otros 4. Después, que haya
+    sacado artículos (2) y que reconozca el tipo de documento (1).
+    """
+    from .lineas import detectar_tipo, parsear_lineas
+
+    puntaje = 0
+    monto = detectar_monto(texto)
+    if monto is not None:
+        puntaje += 4
+        if aviso_del_monto(monto, texto) is None:
+            puntaje += 4
+    lineas = parsear_lineas(texto)
+    if lineas:
+        puntaje += 2
+    if detectar_tipo(texto, lineas) != "otro":
+        puntaje += 1
+    return puntaje
+
+
+def _mejor_lectura(imagen) -> str:
+    """Lee una imagen y, si la lectura no es de fiar, la reintenta con otro modo del OCR.
+
+    No se puede pretender que un solo modo del OCR acierte con todos los documentos: el de una
+    columna (`--psm 4`) mantiene cada etiqueta con su valor —lo que hace falta en una
+    confirmación de pago— pero el automático separa mejor las columnas de una tabla. Como el
+    OCR tarda décimas de segundo, cuando la primera lectura no trae un monto de fiar se pide
+    una **segunda opinión** y se conserva la que más confianza merece. Si la primera ya está
+    bien, no se lee dos veces.
+    """
     import pytesseract
 
-    return pytesseract.image_to_string(_preprocesar(imagen), lang="spa", config=PSM_COLUMNA_UNICA)
+    preparada = _preprocesar(imagen)
+    primera = pytesseract.image_to_string(preparada, lang="spa", config=PSM_COLUMNA_UNICA)
+    if puntaje_de_lectura(primera) >= UMBRAL_REINTENTO:
+        return primera
+    segunda = pytesseract.image_to_string(preparada, lang="spa")
+    return segunda if puntaje_de_lectura(segunda) > puntaje_de_lectura(primera) else primera
+
+
+def _ocr_imagen(imagen) -> str:
+    return _mejor_lectura(imagen)
 
 
 # Tope de páginas que se rasterizan para OCR (ver `extraer_texto`). El texto digital no
@@ -128,17 +174,13 @@ def extraer_texto(
     # sobra en ese tope; el texto **digital** (el caso normal) no pasa por aquí y no tiene
     # límite de páginas.
     try:
-        import pytesseract
         from pdf2image import convert_from_bytes
 
         opciones = {"dpi": 150, "last_page": PAGINAS_OCR}
         if password:
             opciones["userpw"] = password
         paginas = convert_from_bytes(contenido, **opciones)
-        return "\n".join(
-            pytesseract.image_to_string(_preprocesar(p), lang="spa", config=PSM_COLUMNA_UNICA)
-            for p in paginas
-        )
+        return "\n".join(_mejor_lectura(p) for p in paginas)
     except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
         return texto
 

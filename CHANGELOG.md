@@ -1888,3 +1888,31 @@ falta o que está en el futuro descoloca los reportes sin que se note. Ahora tam
 ningún artículo, el panel lo advierte en vez de registrarla vacía.
 
 Tests: **266 en verde** (4 nuevos).
+
+### v1.68 — La segunda opinión del OCR (empieza el Nivel 2)
+
+Un solo modo del OCR no acierta con todos los documentos: el de **una columna** (`--psm 4`)
+mantiene cada etiqueta con su valor —lo que hace falta en una confirmación de pago— pero el
+**automático** separa mejor las columnas de una tabla. Ahora, cuando la primera lectura **no
+trae un monto de fiar**, se pide una segunda opinión y se conserva la que más confianza
+merece. Si la primera ya está bien, no se lee dos veces (nada de pagar el doble por gusto).
+
+**Cómo se puntúa una lectura**: encontrar el monto son 4 puntos, y que además sea de fiar
+(sin aviso de número de documento ni de cifra inverosímil) otros 4; sacar artículos, 2; y
+reconocer el tipo de documento, 1. Por debajo de 8 se reintenta.
+
+**Medido con los documentos reales** (la confirmación de Gases de Occidente, que es una captura
+de dos columnas):
+
+| Modo | Puntaje | Monto | Artículos | ¿Aviso? |
+|---|---|---|---|---|
+| `--psm 4` (1 columna) | **11** | **46.477** ✅ | 1 | no |
+| `auto` (separa columnas) | 5 | 800.167.643 ✗ (el NIT) | 0 | sí |
+
+Y en una tabla de mercado (imagen sintética, columnas de artículo/cantidad/valor) **empatan**
+(11 y 11: monto 15.000 y 3 artículos), así que el reintento no rompe nada donde ya iba bien.
+Dicho con honestidad: en las muestras medidas **gana la primera lectura**; el reintento es una
+red que solo se paga cuando la primera falla, que es justo el caso en que hoy tocaría
+arreglarlo a mano.
+
+Tests: **271 en verde** (5 nuevos).
