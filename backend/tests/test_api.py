@@ -2750,3 +2750,19 @@ def test_el_health_dice_que_version_corre(client, monkeypatch):
     datos = client.get("/health").json()
     assert datos["status"] == "ok"
     assert datos["version"] == "abc1234"
+
+
+def test_el_tope_de_tamano_lo_pone_el_ajuste(client, monkeypatch):
+    """Antes había un resto de código que rechazaba a los 10 MB aunque el ajuste dijera otra cosa."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "tamano_maximo_archivo_mb", 1)
+    grande = b"%PDF-1.4\n" + b"x" * (1500 * 1024)  # 1,5 MB
+    r = client.post(
+        "/facturas",
+        headers=_registrar(client)[1],
+        files={"archivo": ("g.pdf", grande, "application/pdf")},
+    )
+    assert r.status_code == 413, r.status_code
+    assert "más de 1 MB" in r.json()["detail"], r.json()["detail"]
+    assert "10 MB" not in r.json()["detail"], "el mensaje viejo no puede seguir apareciendo"

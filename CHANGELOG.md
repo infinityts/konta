@@ -2512,3 +2512,24 @@ Revisando lo que toca dinero y datos aparecieron tres cosas que no estaban bien:
   propuestas que expiran, cada una idempotente.
 
 Tests: **385 en verde** (3 nuevos).
+
+### v1.93 — El tope de tamaño manda, y el informe no se atraganta
+
+Dos cosas más de la revisión de lo que toca dinero y datos, y una nota de lo que **ya estaba bien**:
+
+- **El tope de tamaño lo pone el ajuste** ✗: decía 15 MB (`FINANZAS_TAMANO_MAXIMO_ARCHIVO_MB`) pero
+  había un resto de código que rechazaba a los **10 MB** con otro mensaje, así que el ajuste no
+  mandaba. Fuera el resto: ahora subir un archivo de 12 MB funciona (si el ajuste lo permite) y hay
+  test con el ajuste en 1 MB que lo comprueba.
+- **El informe por usuario tiene tope** ✗: cargaba **todos** los clientes de golpe. Con miles de
+  clientes eso es una consulta pesada que nadie lee entera; ahora devuelve los **500 que peor van**
+  (que son los que se vienen a mirar) y **dice cuántos quedaron fuera**.
+- **Lo que revisé y ya estaba bien** ✅ (queda dicho, para que se sepa que se miró): el tope de 15 MB
+  **sí** se aplica en el camino de la IA, un PDF convierte **solo la primera página** (así una
+  factura de 50 folios no dispara el coste), y el CORS es una lista corta de orígenes de desarrollo,
+  **sin comodín**.
+- **Un riesgo real, anotado y fuera de este plan** ✗: no hay **límite de intentos** en el login ni
+  en los endpoints que gastan dinero (asistente, lectura con IA). Queda registrado como tarea para
+  no perderlo de vista.
+
+Tests: **387 en verde** (2 nuevos).

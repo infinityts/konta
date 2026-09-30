@@ -77,6 +77,7 @@ def informe(
 @router.get("/informe/usuarios")
 def informe_por_usuario(
     periodo: str | None = None,
+    limite: int | None = None,
     db: Session = Depends(get_db),
     user: Usuario = Depends(get_current_user),
 ):
@@ -90,7 +91,7 @@ def informe_por_usuario(
             status_code=403,
             detail="El informe de costes es del dueño de la app (configura FINANZAS_INFORME_ADMINS).",
         )
-    return informe_mod.informe_por_usuario(db, periodo)
+    return informe_mod.informe_por_usuario(db, periodo, limite)
 
 
 @router.get("/planes", response_model=list[PlanOut])

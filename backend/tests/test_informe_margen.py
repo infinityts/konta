@@ -198,3 +198,22 @@ def test_las_cuentas_del_dueno_no_salen_en_el_informe_por_usuario(client, engine
     _registrar(client, email="cliente@example.com")
     datos = client.get("/ia/informe/usuarios", headers=h).json()
     assert [u["usuario"] for u in datos["usuarios"]] == ["cliente@example.com"]
+
+
+def test_el_informe_por_usuario_tiene_tope_y_dice_cuantos_quedan_fuera(client, engine, monkeypatch):
+    """Con miles de clientes no se traen todos: los que peor van, y se dice cuántos hay."""
+    _, h = _admin(client, monkeypatch)
+    _trm(engine)
+    for i in range(4):
+        _registrar(client, email=f"cliente{i}@example.com")
+
+    datos = client.get("/ia/informe/usuarios?limite=2", headers=h).json()
+    assert datos["clientes"] == 4
+    assert datos["mostrados"] == 2
+    assert len(datos["usuarios"]) == 2
+    assert datos["nota_limite"] and "2 que peor van de 4" in datos["nota_limite"]
+
+    # sin tope explícito, caben todos (el tope por defecto es alto)
+    completo = client.get("/ia/informe/usuarios", headers=h).json()
+    assert completo["mostrados"] == 4
+    assert completo["nota_limite"] is None

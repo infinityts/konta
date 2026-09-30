@@ -645,8 +645,6 @@ async def subir(
         )
     if not contenido:
         raise HTTPException(status_code=400, detail="El archivo está vacío")
-    if len(contenido) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="El archivo supera 10 MB")
 
     # El nombre y el tipo son **imprescindibles**: sin ellos `extraer_texto` no sabe que
     # es una foto y la trata como PDF, así que una imagen devolvía texto vacío.

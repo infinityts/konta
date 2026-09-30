@@ -56,7 +56,13 @@ def _resumen_de(valores: list[float]) -> dict:
 UMBRAL_AJUSTADO = 0.6  # a partir de aquí, el cliente se está comiendo el margen
 
 
-def informe_por_usuario(db: Session, periodo: str | None = None) -> dict:
+# Cuántos clientes se devuelven en el detalle. Con miles de clientes, traerlos todos sería una
+# consulta pesada que nadie va a leer entera: se devuelven los que peor van (que son los que se
+# vienen a mirar) y se dice cuántos quedaron fuera.
+LIMITE_POR_USUARIO = 500
+
+
+def informe_por_usuario(db: Session, periodo: str | None = None, limite: int | None = None) -> dict:
     """Cliente por cliente: lo que paga contra lo que cuesta, y quién se está pasando.
 
     Es la parte que no se ve a simple vista: un plan puede dejar margen de sobra **en promedio** y
@@ -123,8 +129,18 @@ def informe_por_usuario(db: Session, periodo: str | None = None) -> dict:
     filas.sort(key=lambda f: (f["margen_pct"] if f["margen_pct"] is not None else 100))
 
     alertas = [f for f in filas if f["aviso"]]
+    tope = limite or LIMITE_POR_USUARIO
+    total = len(filas)
+    filas = filas[:tope]
     return {
         "periodo": periodo,
+        "clientes": total,
+        "mostrados": len(filas),
+        "nota_limite": (
+            f"Se muestran los {tope} que peor van de {total}. El resto va mejor."
+            if total > tope
+            else None
+        ),
         "cop_por_usd": round(cop_por_usd, 2) if cop_por_usd else None,
         "umbral_ajustado": UMBRAL_AJUSTADO,
         "usuarios": filas,
