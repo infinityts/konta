@@ -1618,3 +1618,21 @@ normal no. Y como nginx responde con una **página HTML**, el frontend no podía
 
 Los dos límites tienen que ir juntos y están comentados en los dos sitios para que no se
 separen. Tests: **231 en verde** (2 nuevos).
+
+## v1.58 — Leer escaneados grandes (el 504 por tiempo)
+
+Con el límite de tamaño ya en 15 MB quedaba el otro techo, que no se ve: **el tiempo**. Un
+PDF escaneado se lee con OCR página a página y el proxy corta a los **60 s**, así que un
+escaneado de 12 páginas y 2,6 MB devolvía **504 Gateway Time-out** (medido).
+
+- **Rasterizado a 150 ppp** en vez de 200: un documento de texto se lee igual y va bastante
+  más rápido.
+- **Tope de 25 páginas** para el OCR. El texto **digital** (una factura electrónica o un
+  extracto descargado del banco, que es el caso normal) no pasa por el OCR y **no tiene
+  tope**.
+- **nginx**: `proxy_read_timeout`/`send_timeout` a 300 s, para que el margen no sea el que
+  decide.
+- **Pantalla**: un 504 dice qué pasa («tardó demasiado… prueba con las páginas que
+  necesitas») en vez de un número.
+
+Con esto entran archivos de **hasta 15 MB**, muy por encima de los 5 MB que pediste.

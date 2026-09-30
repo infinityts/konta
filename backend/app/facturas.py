@@ -51,6 +51,11 @@ def _ocr_imagen(imagen) -> str:
     return pytesseract.image_to_string(_preprocesar(imagen), lang="spa")
 
 
+# Tope de páginas que se rasterizan para OCR (ver `extraer_texto`). El texto digital no
+# tiene tope: es el caso de las facturas electrónicas y los extractos descargados del banco.
+PAGINAS_OCR = 25
+
+
 def extraer_texto(
     contenido: bytes,
     nombre: str = "",
@@ -90,15 +95,20 @@ def extraer_texto(
         return texto
 
     # 2. PDF escaneado -> OCR
+    #
+    # Se rasteriza a **150 ppp** (el OCR de un documento de texto no gana nada con 200) y se
+    # limita a las primeras páginas: un escaneado de 12 páginas a 200 ppp tarda más de un
+    # minuto y la petición se caía por tiempo de espera. Un extracto o una factura caben de
+    # sobra en ese tope; el texto **digital** (el caso normal) no pasa por aquí y no tiene
+    # límite de páginas.
     try:
         import pytesseract
         from pdf2image import convert_from_bytes
 
-        paginas = (
-            convert_from_bytes(contenido, userpw=password)
-            if password
-            else convert_from_bytes(contenido)
-        )
+        opciones = {"dpi": 150, "last_page": PAGINAS_OCR}
+        if password:
+            opciones["userpw"] = password
+        paginas = convert_from_bytes(contenido, **opciones)
         return "\n".join(pytesseract.image_to_string(_preprocesar(p), lang="spa") for p in paginas)
     except Exception:  # noqa: BLE001 — el OCR depende de binarios externos (tesseract/poppler): si fallan, se devuelve lo que se pudo extraer
         return texto

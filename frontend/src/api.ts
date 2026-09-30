@@ -37,6 +37,12 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
         'El archivo es muy grande (máximo 15 MB). Bájale la calidad a la foto o recórtala.'
       )
     }
+    if (res.status === 504) {
+      throw new Error(
+        'El archivo tardó demasiado en leerse (suele ser un escaneado con muchas páginas). ' +
+          'Prueba a subir solo las páginas que necesitas.'
+      )
+    }
     throw new Error(body.detail ?? `HTTP ${res.status}`)
   }
   return res.json() as Promise<T>
