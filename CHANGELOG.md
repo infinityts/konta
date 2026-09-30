@@ -1678,3 +1678,21 @@ El monto de una factura muchas veces sale del **OCR** y redondea, pero la compar
 transacción era **exacta**: un céntimo de diferencia salía como «✗ No cuadra» y parecía un
 error de datos. Los extractos ya tenían su margen; ahora la factura también (**1 peso**), y si
 la diferencia es de redondeo la ficha lo dice en vez de alarmar.
+
+## v1.61 — «Registrar el gasto» devolvía 422 (el select vacío)
+
+En un recibo **sin artículos** (una captura que el OCR no parte), pulsar «Registrar el gasto»
+devolvía **422 Unprocessable Entity** y el gasto no se registraba.
+
+La causa, en la pantalla: el botón mandaba `categoria_id: ""` y `etiqueta_id: ""`. En
+JavaScript `"" ?? null` **no** salta (el `??` solo actúa con `null`/`undefined`), así que la
+cadena vacía del select llegaba al backend y `""` no es un UUID.
+
+- **Pantalla**: `||` en vez de `??` en ese payload (`"" || "" || null` → `null`).
+- **Backend**: los campos de UUID de `ConfirmarLineasIn` aceptan `""` como «sin valor». Tolerar
+  el vacío de un formulario no es tolerar cualquier cosa: un texto que no sea un UUID sigue
+  dando 422.
+- De paso, el campo de contraseña usa `autocomplete="new-password"`, que quita el aviso del
+  navegador («Password field is not contained in a form»).
+
+Tests: **233 en verde** (2 nuevos).

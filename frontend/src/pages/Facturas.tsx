@@ -259,8 +259,10 @@ export default function Facturas() {
           cuenta_id: cuentaSel[facturaId] || null,
           tarjeta_id: tarjetaSel[facturaId] || null,
           fecha: fechaSel[facturaId] || null,
-          categoria_id: respaldoCat[facturaId] ?? sug.categoria ?? null,
-          etiqueta_id: bulkEtq[facturaId] ?? sug.etiqueta ?? null,
+          // `||` y no `??`: con `??`, una cadena vacía se mantiene y se enviaba
+          // `categoria_id: ""`, que no es un UUID y devolvía 422 al registrar el gasto.
+          categoria_id: respaldoCat[facturaId] || sug.categoria || null,
+          etiqueta_id: bulkEtq[facturaId] || sug.etiqueta || null,
         }),
       })
       setDetalles((prev) => ({ ...prev, [facturaId]: d }))
@@ -404,7 +406,7 @@ export default function Facturas() {
             value={contrasena}
             onChange={(e) => setContrasena(e.target.value)}
             placeholder="Contraseña del PDF (si está protegido)"
-            autoComplete="off"
+            autoComplete="new-password"
             className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <button

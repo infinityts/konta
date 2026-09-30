@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from .models import (
     EstadoSuscripcion,
@@ -765,6 +765,17 @@ class ConfirmarLineasIn(BaseModel):
     # manda; si solo hay `categoria_id`, el gasto queda en esa categoría.
     etiqueta_id: uuid.UUID | None = None
     categoria_id: uuid.UUID | None = None
+
+    @field_validator("cuenta_id", "tarjeta_id", "etiqueta_id", "categoria_id", mode="before")
+    @classmethod
+    def _vacio_es_nada(cls, valor):
+        """Un select vacío del navegador manda `""`, y `""` no es un UUID.
+
+        Pasaba de verdad: pulsar «Registrar el gasto» en un recibo sin artículos devolvía
+        **422** porque la pantalla mandaba `categoria_id: ""` (el `??` de JavaScript no
+        salta con la cadena vacía, solo con `null`/`undefined`). Se admite como «sin valor».
+        """
+        return None if valor == "" else valor
 
 
 class ConfirmarTotalIn(ConfirmarLineasIn):
