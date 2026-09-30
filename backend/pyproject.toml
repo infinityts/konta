@@ -27,6 +27,8 @@ dependencies = [
     "openpyxl>=3.1",
     # Lectura del QR de una factura electrónica (CUDE/CUFE de la DIAN)
     "zxing-cpp>=2.3",
+    # Cliente HTTP para la lectura con IA (proveedor externo)
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
