@@ -964,3 +964,37 @@ export interface RespuestaAsistente {
   tokens_salida: number
   costo_usd: number
 }
+
+/** Un recibo de compra: lo que se compró, cuánto y cuándo. */
+export interface Pago {
+  referencia: string
+  tipo: string
+  codigo: string
+  monto: string
+  moneda: string
+  estado: string
+  pasarela: string
+  creado_en: string
+  pagado_en: string | null
+}
+
+/** La orden de compra recién creada y cómo pagarla. */
+export interface OrdenPago {
+  referencia: string
+  tipo: string
+  codigo: string
+  monto: string
+  moneda: string
+  estado: string
+  pasarela: string
+  url: string | null
+  instrucciones: string | null
+}
+
+/** Un paquete de lecturas que se compra aparte del plan. */
+export interface PaqueteLecturas {
+  codigo: string
+  nombre: string
+  lecturas: number
+  precio: string
+}

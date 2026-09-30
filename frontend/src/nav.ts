@@ -87,6 +87,7 @@ export const GRUPOS: GrupoNav[] = [
       { to: '/notificaciones', label: 'Notificaciones', icono: '🔔' },
       { to: '/respaldo', label: 'Respaldo', icono: '💾' },
       { to: '/informe', label: 'Informe de costes', icono: '📐' },
+      { to: '/planes', label: 'Planes y lecturas', icono: '💳' },
     ],
   },
 ]

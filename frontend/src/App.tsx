@@ -2,6 +2,7 @@ import { lazy } from 'react'
 import { Navigate, Route, Routes, type RouteObject } from 'react-router-dom'
 import { useAuth } from './auth'
 import Layout from './components/Layout'
+import Planes from './pages/Planes'
 import Informe from './pages/Informe'
 import Asistente from './pages/Asistente'
 import Login from './pages/Login'
@@ -56,6 +57,7 @@ const RUTAS: Array<{ path: string; element: RouteObject['element'] }> = [
   { path: '/monedas', element: <Monedas /> },
   { path: '/asistente', element: <Asistente /> },
   { path: '/informe', element: <Informe /> },
+  { path: '/planes', element: <Planes /> },
   { path: '/respaldo', element: <Respaldo /> },
   { path: '/notificaciones', element: <Notificaciones /> },
   { path: '/cuentas', element: <Cuentas /> },

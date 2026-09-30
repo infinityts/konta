@@ -2414,3 +2414,21 @@ Falta solo la máquina: la tarea queda **en progreso** hasta que el respaldo se 
 los números cuadren.
 
 Tests: **375 en verde** (6 nuevos).
+
+### v1.88 — La pantalla de compra (planes, lecturas sueltas y recibos)
+
+El circuito del cobro ya funcionaba por API; ya se puede hacer desde la app.
+
+- **Página «Planes y lecturas»** (Configuración): los cuatro planes con lo que incluye cada uno
+  —lecturas, consultas y **almacenamiento en palabras** (*«archivos ilimitados · 15 días · 1 GB»*)—
+  y qué plan tienes; los **paquetes de lecturas sueltas**; y tus **recibos** con fecha, qué, monto y
+  estado.
+- **Comprar es un botón**: crea la orden en el servidor (el precio lo pone el catálogo, no la
+  pantalla) y, con la pasarela real, te lleva a pagar. Con la pasarela de **prueba** que hay hoy, el
+  botón lo dice bien claro: *«este botón acredita la compra **sin cobrar nada**»* — así se recorre
+  el circuito entero antes de conectar el proveedor.
+- Al terminar, el plan o las lecturas quedan acreditados y el recibo aparece en la lista.
+- En Facturas, la cabecera quedó más limpia: el cupo del mes y un enlace **«Ver planes y comprar»**
+  (la lista duplicada que había antes se fue: los planes viven en un solo sitio).
+
+Tests: **377 en verde** (sin cambios en el backend; el frontend no tiene suite: build + CI).

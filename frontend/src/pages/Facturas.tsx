@@ -11,7 +11,6 @@ import {
   type Factura,
   type FacturaDetalle,
   type FacturaLinea,
-  type PlanIa,
   type SaldoResumen,
   type Tarjeta,
   type Transaccion,
@@ -28,17 +27,6 @@ const ORIGEN: Record<string, { label: string; clase: string }> = {
   agregada: { label: 'añadida', clase: 'bg-emerald-100 text-emerald-700' },
   ia: { label: 'IA', clase: 'bg-violet-100 text-violet-700' },
   sin_clasificar: { label: 'sin clasificar', clase: 'bg-amber-100 text-amber-700' },
-}
-
-/** El almacenamiento de un plan, en palabras: «30 archivos · 7 días · 60 MB». */
-function textoAlmacenamiento(pl: PlanIa): string {
-  const peso =
-    pl.almacenamiento_mb != null && pl.almacenamiento_mb >= 1024
-      ? `${(pl.almacenamiento_mb / 1024).toFixed(pl.almacenamiento_mb % 1024 === 0 ? 0 : 1)} GB`
-      : `${pl.almacenamiento_mb ?? 0} MB`
-  const archivos =
-    pl.archivos_incluidos == null ? 'archivos ilimitados' : `${pl.archivos_incluidos} archivos`
-  return `${archivos} · ${pl.retencion_dias ?? 7} días · ${peso}`
 }
 
 export default function Facturas() {
@@ -65,8 +53,6 @@ export default function Facturas() {
   // El archivo se guarda (no se sube al elegirlo) para poder escribir la contraseña del PDF
   const [archivo, setArchivo] = useState<File | null>(null)
   const [cuota, setCuota] = useState<CuotaIa | null>(null)
-  const [planes, setPlanes] = useState<PlanIa[]>([])
-  const [verPlanes, setVerPlanes] = useState(false)
   const [contrasena, setContrasena] = useState('')
   // Texto que el usuario está corrigiendo (por factura). Es el paracaídas del lector: si el
   // OCR o la extracción se equivocan, se arregla el texto y se vuelve a leer.
@@ -551,45 +537,12 @@ export default function Facturas() {
                   archivos ({cuota.mb_usados} MB, se borran a los {cuota.retencion_dias} días)
                 </span>
                 {' · '}
-                <button
-                  onClick={() => {
-                    setVerPlanes((v) => !v)
-                    if (planes.length === 0) void api<PlanIa[]>('/ia/planes').then(setPlanes)
-                  }}
-                  className="text-indigo-600 hover:underline"
-                >
-                  {verPlanes ? 'Ocultar planes' : 'Ver planes'}
-                </button>
+                <Link to="/planes" className="text-indigo-600 hover:underline">
+                  Ver planes y comprar
+                </Link>
               </>
             )}
           </p>
-          {verPlanes && planes.length > 0 && (
-            <ul className="mt-2 space-y-1">
-              {planes.map((pl) => (
-                <li
-                  key={pl.codigo}
-                  className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-xs ${
-                    pl.codigo === cuota?.plan
-                      ? 'border-indigo-300 bg-white'
-                      : 'border-slate-200 bg-white'
-                  }`}
-                >
-                  <span className="font-medium text-slate-700">
-                    {pl.nombre}
-                    {pl.codigo === cuota?.plan ? ' · tu plan' : ''}
-                  </span>
-                  <span className="text-slate-500">
-                    ${Number(pl.precio_mes).toLocaleString('es-CO')}/mes · {pl.lecturas_ia} lecturas
-                    IA · {pl.consultas_asistente} consultas · {textoAlmacenamiento(pl)}
-                  </span>
-                </li>
-              ))}
-              <li className="pt-1 text-xs text-slate-400">
-                Para cambiar de plan o comprar lecturas sueltas, escríbenos: el cobro en línea está
-                en camino.
-              </li>
-            </ul>
-          )}
         </div>
         <Link to="/reglas-ocr" className="text-sm text-indigo-600 hover:underline">
           Ver lo que el OCR ha aprendido →
