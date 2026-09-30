@@ -853,7 +853,16 @@ export default function Facturas() {
             </li>
           )
         })}
-        {items.length === 0 && <p className="text-sm text-slate-500">Aún no has subido facturas.</p>}
+        {/* Si la carga falló no se puede decir «aún no has subido facturas»: eso afirma que
+            la lista está vacía, y lo que pasa es que no se pudo leer. */}
+        {items.length === 0 &&
+          (error ? (
+            <p className="text-sm text-amber-600">
+              No se pudieron cargar las facturas ({error}). Vuelve a intentarlo en un momento.
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">Aún no has subido facturas.</p>
+          ))}
       </ul>
     </div>
   )
