@@ -70,6 +70,8 @@ from ..schemas import (
     AsignarEtiquetaIn,
     AsociarFacturaIn,
     AsociarOut,
+    CalidadEmisorOut,
+    CalidadLectorOut,
     CasoLectorIn,
     CasoLectorOut,
     ConfirmarLineasIn,
@@ -136,6 +138,70 @@ def reportar_caso(
     db.commit()
     db.refresh(caso)
     return _caso_out(caso)
+
+
+@router.get("/calidad-lector", response_model=CalidadLectorOut)
+def calidad_del_lector(
+    db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)
+):
+    """Cómo de bien lee el lector, **por emisor**: sin corrección frente a corregidas.
+
+    Es el panel que dice dónde invertir en vez de adivinar: si un emisor falla siempre, se ataca
+    ese; si el 90 % entra solo, el lector está haciendo su trabajo.
+    """
+    emisor_col = func.coalesce(Factura.emisor, "sin-identificar")
+    filas = db.execute(
+        select(
+            emisor_col.label("emisor"),
+            func.max(Factura.emisor_nombre).label("nombre"),
+            func.count().label("documentos"),
+            func.count().filter(Factura.corregida_en.is_not(None)).label("corregidas"),
+            func.count().filter(Factura.leida_con_plantilla.is_(True)).label("con_plantilla"),
+            func.max(Factura.creada_en).label("ultima"),
+        )
+        .where(Factura.usuario_id == user.id)
+        .group_by(emisor_col)
+        .order_by(func.count().desc())
+    ).all()
+
+    # Los casos reportados, por emisor (el buzón es la queja explícita)
+    # La misma expresión en el SELECT y en el GROUP BY (si se crea dos veces, SQLAlchemy
+    # agrupa por la etiqueta y Postgres lo rechaza)
+    emisor_caso = func.coalesce(CasoLector.emisor, "sin-identificar")
+    casos = dict(
+        db.execute(
+            select(emisor_caso, func.count())
+            .where(CasoLector.usuario_id == user.id)
+            .group_by(emisor_caso)
+        ).all()
+    )
+    abiertos = db.scalar(
+        select(func.count())
+        .select_from(CasoLector)
+        .where(CasoLector.usuario_id == user.id, CasoLector.estado == "abierto")
+    )
+
+    emisores = [
+        CalidadEmisorOut(
+            emisor=f.emisor,
+            nombre=f.nombre or f.emisor,
+            documentos=f.documentos,
+            sin_correccion=f.documentos - f.corregidas,
+            corregidas=f.corregidas,
+            con_plantilla=f.con_plantilla,
+            casos=casos.get(f.emisor, 0),
+            ultima=f.ultima,
+        )
+        for f in filas
+    ]
+    return CalidadLectorOut(
+        emisores=emisores,
+        documentos=sum(e.documentos for e in emisores),
+        sin_correccion=sum(e.sin_correccion for e in emisores),
+        corregidas=sum(e.corregidas for e in emisores),
+        con_plantilla=sum(e.con_plantilla for e in emisores),
+        casos_abiertos=abiertos or 0,
+    )
 
 
 @router.get("/casos", response_model=list[CasoLectorOut])
@@ -449,6 +515,12 @@ def _es_ignorado(descripcion: str, patrones: list[PatronIgnorado]) -> bool:
     return any(plano.startswith(p.patron) for p in patrones)
 
 
+def _marcar_corregida(factura: Factura) -> None:
+    """Deja constancia de que esta lectura hubo que arreglarla (alimenta el panel de calidad)."""
+    if factura.corregida_en is None:
+        factura.corregida_en = datetime.now(UTC)
+
+
 def _plantilla(db: Session, usuario_id: uuid.UUID, emisor: str | None) -> PlantillaLector | None:
     if not emisor:
         return None
@@ -587,6 +659,7 @@ async def subir(
     # formato (y para no volver a corregir la misma casa mes a mes).
     emisor_detectado = detectar_emisor(texto) if texto else None
     emisor = emisor_detectado[0] if emisor_detectado else None
+    leida_con_plantilla = False
     monto = detectar_monto(texto) if texto else None
     fecha = detectar_fecha(texto) if texto else None
     plantilla = _plantilla(db, user.id, emisor) if emisor else None
@@ -595,7 +668,7 @@ async def subir(
         # este emisor, se busca ahí antes que adivinar.
         del_campo = valor_de_campo(texto, plantilla.campo_monto) if plantilla.campo_monto else None
         if del_campo is not None:
-            monto, plantilla.usos = del_campo, plantilla.usos + 1
+            monto, plantilla.usos, leida_con_plantilla = del_campo, plantilla.usos + 1, True
         if plantilla.campo_fecha:
             del_campo_fecha = fecha_de_campo(texto, plantilla.campo_fecha)
             if del_campo_fecha is not None:
@@ -611,6 +684,7 @@ async def subir(
         fecha_detectada=fecha,
         emisor=emisor,
         emisor_nombre=emisor_detectado[1] if emisor_detectado else None,
+        leida_con_plantilla=leida_con_plantilla,
         impuestos_total=impuestos["impuestos_total"] if impuestos else None,
         iva_valor=(
             sum((d["valor"] for d in impuestos["detalle"] if d["nombre"] == "IVA"), Decimal("0"))
@@ -706,6 +780,8 @@ def corregir(
         factura.monto_detectado = data.monto_detectado
     if "fecha_detectada" in campos:
         factura.fecha_detectada = data.fecha_detectada
+    if campos & {"monto_detectado", "fecha_detectada"}:
+        _marcar_corregida(factura)
     # Corregir es enseñar: se aprende en qué etiqueta venía el dato bueno, para la próxima
     # factura de este mismo emisor.
     if factura.emisor and factura.emisor_nombre is None:
@@ -755,6 +831,7 @@ def parsear(
     corregido = bool(data and data.texto and data.texto.strip())
     texto = (data.texto if corregido else factura.texto_extraido) or ""
     if corregido:
+        _marcar_corregida(factura)
         factura.texto_extraido = texto
         monto = detectar_monto(texto)
         if monto is not None:
@@ -869,6 +946,8 @@ def editar_linea(
     if linea.transaccion_id is not None:
         raise HTTPException(status_code=409, detail="La línea ya generó una transacción")
 
+    if data.descripcion is not None or data.valor_total is not None:
+        _marcar_corregida(factura)
     if data.descripcion is not None:
         linea.descripcion = data.descripcion
     if data.valor_total is not None:
@@ -905,6 +984,7 @@ def descartar_linea(
             status_code=409,
             detail="La línea ya generó una transacción; borra la transacción primero",
         )
+    _marcar_corregida(factura)
     # Borrar un renglón es enseñar: si vuelve a aparecer (y lo vuelve a borrar), se descarta solo.
     patron = _patron_de_linea(linea.descripcion)
     if patron:
@@ -954,6 +1034,7 @@ def agregar_linea(
         )
         origen = "agregada"
 
+    _marcar_corregida(factura)
     db.add(
         FacturaLinea(
             factura_id=factura.id,

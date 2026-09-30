@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import type {
+  CalidadLector,
   CasoLector,
   CasoLectorExport,
   Categoria,
@@ -29,6 +30,8 @@ export default function ReglasOcr() {
   const [patrones, setPatrones] = useState<PatronIgnorado[]>([])
   // El buzón: facturas que el usuario reportó como mal leídas
   const [casos, setCasos] = useState<CasoLector[]>([])
+  // El panel: cómo lee el lector, por emisor
+  const [calidad, setCalidad] = useState<CalidadLector | null>(null)
   const [testDe, setTestDe] = useState<Record<string, string>>({})
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
@@ -46,6 +49,7 @@ export default function ReglasOcr() {
       setPlantillas(await api<PlantillaLector[]>('/facturas/plantillas-lector'))
       setPatrones(await api<PatronIgnorado[]>('/facturas/patrones-ignorados'))
       setCasos(await api<CasoLector[]>('/facturas/casos'))
+      setCalidad(await api<CalidadLector>('/facturas/calidad-lector'))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     }
@@ -151,8 +155,71 @@ export default function ReglasOcr() {
     setAviso('Plantilla borrada: esa casa se vuelve a leer adivinando.')
   }
 
+  const total = calidad?.documentos ?? 0
+  const bien = calidad?.sin_correccion ?? 0
+  const porcentaje = total > 0 ? Math.round((bien / total) * 100) : 0
+
   return (
     <>
+    {/* El panel: dice dónde invertir en vez de adivinar */}
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <h2 className="font-medium text-slate-800">Calidad del lector</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Cuántos documentos entraron <strong>sin que tocaras nada</strong> y cuántos hubo que
+        corregir, por emisor. Si una casa falla siempre, ahí está el trabajo.
+      </p>
+      {total > 0 ? (
+        <>
+          <p className="mt-3 text-2xl font-semibold text-slate-800">
+            {porcentaje}%{' '}
+            <span className="text-base font-normal text-slate-500">
+              sin corrección ({bien} de {total})
+            </span>
+          </p>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${porcentaje}%` }} />
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            {calidad?.corregidas} corregidas · {calidad?.con_plantilla} leídas gracias a una
+            plantilla aprendida · {calidad?.casos_abiertos} casos abiertos en el buzón
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">
+          Todavía no hay documentos leídos. Sube una factura en <strong>Facturas</strong> y aquí
+          verás cómo se porta el lector.
+        </p>
+      )}
+      {calidad && calidad.emisores.length > 0 && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="py-1 pr-3">Emisor</th>
+                <th className="py-1 pr-3">Documentos</th>
+                <th className="py-1 pr-3">Sin corrección</th>
+                <th className="py-1 pr-3">Corregidas</th>
+                <th className="py-1 pr-3">Con plantilla</th>
+                <th className="py-1">Casos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {calidad.emisores.map((e) => (
+                <tr key={e.emisor} className="border-t border-slate-200">
+                  <td className="py-1.5 pr-3 text-slate-700">{e.nombre}</td>
+                  <td className="py-1.5 pr-3">{e.documentos}</td>
+                  <td className="py-1.5 pr-3 text-emerald-700">{e.sin_correccion}</td>
+                  <td className="py-1.5 pr-3 text-amber-700">{e.corregidas}</td>
+                  <td className="py-1.5 pr-3 text-indigo-700">{e.con_plantilla}</td>
+                  <td className="py-1.5">{e.casos || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Reglas de OCR</h2>

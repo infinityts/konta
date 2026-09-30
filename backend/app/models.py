@@ -492,6 +492,14 @@ class Factura(Base):
     # formato (`nit:8903990034` o `nombre:CONSORCIO EMCALI`)
     emisor: Mapped[str | None] = mapped_column(String(140), nullable=True)
     emisor_nombre: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    # Calidad de la lectura: si hubo que corregirla y si salió bien gracias a una plantilla
+    # aprendida (es lo que alimenta el panel de calidad por emisor)
+    corregida_en: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    leida_con_plantilla: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
 

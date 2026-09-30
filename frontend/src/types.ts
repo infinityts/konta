@@ -881,3 +881,25 @@ export interface CasoLectorExport {
   tiene_archivo: boolean
   test: string
 }
+
+/** Cómo se ha portado el lector con un emisor. */
+export interface CalidadEmisor {
+  emisor: string
+  nombre: string
+  documentos: number
+  sin_correccion: number
+  corregidas: number
+  con_plantilla: number
+  casos: number
+  ultima: string | null
+}
+
+/** El panel de calidad del lector. */
+export interface CalidadLector {
+  emisores: CalidadEmisor[]
+  documentos: number
+  sin_correccion: number
+  corregidas: number
+  con_plantilla: number
+  casos_abiertos: number
+}

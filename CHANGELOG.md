@@ -1993,3 +1993,26 @@ que el OCR ha aprendido»* → **Facturas que se leyeron mal** se ve el buzón, 
 como resuelto y se borra.
 
 Tests: **285 en verde** (5 nuevos).
+
+## v1.72 — Panel de calidad del lector (cierra el Nivel 3 y el plan)
+
+Con todo lo anterior ya había datos para saber **dónde** falla el lector; lo que faltaba era
+mirarlos juntos. Ahora se guardan dos cosas por factura —si hubo que **corregirla** (al cambiar
+el monto, la fecha, el texto o cualquier línea) y si salió bien **gracias a una plantilla
+aprendida**— y el panel las cruza por emisor:
+
+- **% sin corrección** sobre el total, con su barra.
+- **Por emisor**: documentos, sin corrección, corregidas, leídas con plantilla y casos
+  reportados.
+- Y los **casos abiertos** del buzón.
+
+Está en *«lo que el OCR ha aprendido»*, arriba del todo, porque es el resumen que enmarca lo
+demás: si una casa falla siempre, ahí está el trabajo; si el 90 % entra solo, el lector está
+haciendo su trabajo.
+
+Con esto se cierran los tres niveles del plan: **Nivel 1** (arreglarlo tú: texto, monto, fecha,
+artículos, avisos y modo revisión), **Nivel 2** (que aprenda: doble lectura, plantilla por
+emisor y renglones que no son artículos) y **Nivel 3** (mejorarlo: buzón de casos con su test y
+este panel).
+
+Tests: **290 en verde** (5 nuevos).

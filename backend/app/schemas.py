@@ -688,6 +688,30 @@ class PlantillaLectorOut(BaseModel):
     actualizada_en: datetime
 
 
+class CalidadEmisorOut(BaseModel):
+    """Cómo se ha portado el lector con un emisor."""
+
+    emisor: str
+    nombre: str
+    documentos: int
+    sin_correccion: int
+    corregidas: int
+    con_plantilla: int
+    casos: int
+    ultima: datetime | None = None
+
+
+class CalidadLectorOut(BaseModel):
+    """El panel: documentos leídos sin corrección frente a corregidos, por emisor."""
+
+    emisores: list[CalidadEmisorOut] = []
+    documentos: int = 0
+    sin_correccion: int = 0
+    corregidas: int = 0
+    con_plantilla: int = 0
+    casos_abiertos: int = 0
+
+
 class CasoLectorIn(BaseModel):
     """Lo que el usuario cuenta al pulsar «esta factura la leyó mal»."""
 
