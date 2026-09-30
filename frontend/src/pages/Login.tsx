@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { KIcono } from '../components/Marca'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 
@@ -23,7 +24,10 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold">Konta</h1>
+        <div className="flex items-center gap-2.5">
+          <KIcono className="h-10 w-auto" />
+          <h1 className="text-2xl font-semibold">Konta</h1>
+        </div>
         <p className="mt-1 text-sm text-slate-500">Inicia sesión en tu cuenta</p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4">

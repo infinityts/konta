@@ -1528,3 +1528,24 @@ abrir y la app decía «no tiene texto extraído» — que además confundía do
   elegir el archivo, sin oportunidad de escribirla). Si falla, se conservan el archivo y la
   contraseña para corregirla; el campo es `type="password"` con `autocomplete="off"`.
 - Tests: **221 en verde** (antes 217), con un PDF protegido de verdad creado en el test.
+
+## v1.54 — La marca: la K Ascendente ya está en la app
+
+Konta no tenía **ningún** icono: ni favicon, ni manifiesto, ni marca en la interfaz (el
+navegador mostraba el icono genérico). Se integra la propuesta elegida, **«K Ascendente»**:
+la K blanca con el brazo de arriba en esmeralda —el trazo que sube— sobre el degradado
+índigo→violeta de la app.
+
+- **`favicon.svg`** (vectorial, nítido a cualquier tamaño) + **`favicon.ico`** con 16/32/48
+  para los navegadores que no leen SVG.
+- **`apple-touch-icon`** (180) para el icono al añadir la app a la pantalla de inicio.
+- **PWA**: `icon-192`, `icon-512` y una versión **maskable** a sangre con la K dentro del 80%
+  seguro (Android recorta el icono con su propia forma; sin ese margen se comería el trazo).
+- **`manifest.webmanifest`** con nombre, colores y `display: standalone`, y el
+  **`theme-color`** `#4f46e5` en el `index.html` (la barra del navegador en móvil).
+- **En la interfaz**: la marca (la K sin el cuadro, en índigo con el brazo esmeralda) en la
+  **cabecera** y en el **login**. Va como SVG en línea, así que hereda el tamaño y no cuesta
+  una petición.
+
+Los PNG se generan desde el mismo dibujo (a 4096 y reducidos con LANCZOS), así que el
+antialiasing es idéntico en todos: el script está en `.tools/tmp/iconos/exportar_marca.py`.

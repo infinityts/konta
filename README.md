@@ -415,3 +415,10 @@ decisión, en el `CHANGELOG`):
 
 - [ ] **Borrar un aporte** a una meta y **editar/borrar productos** del mercado (detalle en
   el `CHANGELOG`)
+
+## Marca
+
+El icono es la **K Ascendente**: la K con el brazo de arriba en esmeralda sobre el degradado
+índigo→violeta. El vectorial vive en `frontend/public/favicon.svg` y los PNG (favicon, apple
+touch, PWA 192/512 y maskable) se generan desde el mismo dibujo con
+`.tools/tmp/iconos/exportar_marca.py` — así todos comparten el mismo antialiasing.

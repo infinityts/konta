@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { GRUPOS, RESUMEN, grupoDeRuta } from '../nav'
+import { KIcono } from './Marca'
 
 const claseItem = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
@@ -69,8 +70,11 @@ export default function TopNav() {
   }
 
   const marca = (
-    <NavLink to="/" className="text-lg font-bold tracking-tight text-slate-900">
-      Kon<span className="text-indigo-600">ta</span>
+    <NavLink to="/" className="flex items-center gap-2" aria-label="Konta, ir al resumen">
+      <KIcono className="h-7 w-auto" />
+      <span className="text-lg font-bold tracking-tight text-slate-900">
+        Kon<span className="text-indigo-600">ta</span>
+      </span>
     </NavLink>
   )
 
