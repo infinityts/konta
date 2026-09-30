@@ -2209,3 +2209,31 @@ compara con lo que pagan los clientes.
 `GET /ia/informe?periodo=AAAA-MM`.
 
 Tests: **324 en verde** (5 nuevos).
+
+### v1.79 — El cobro: planes y paquetes de lecturas (núcleo, sin depender de la pasarela)
+
+El circuito completo del dinero, con la pasarela detrás de una interfaz para enchufar Wompi,
+MercadoPago o PayU cambiando una variable:
+
+- **Catálogo en la base**: los planes ya estaban; ahora también los **paquetes de lecturas**
+  (10 por $3.000 y 50 por $12.000, provisionales: se ajustan con la medición del mes).
+- **El precio lo pone el catálogo, no el cliente**: el cuerpo de la petición solo acepta qué se
+  compra; el monto se lee de la base (hay test que manda `monto: 1` y se ignora).
+- **Idempotencia de verdad**: cada orden lleva una `referencia` que viaja a la pasarela y vuelve
+  en su aviso, y la orden queda marcada como `aplicado`. Un aviso repetido —las pasarelas
+  reintentan— **no vuelve a acreditar** (test con tres avisos seguidos: las lecturas suben 10,
+  no 30).
+- **Nada se acredita sin pago**: el plan o las lecturas solo se suman cuando el pago queda
+  `pagado`, y queda anotado cuándo y con qué identificador de la pasarela.
+- **Recibos e historial**: `GET /pagos/mios` devuelve qué compró, cuánto y cuándo.
+- **Sin agujeros**: con una pasarela real, el aviso se autentica con **su firma**; con la
+  **simulada** (que no tiene firma) el aviso **exige sesión**, porque si no cualquiera con una
+  referencia podría acreditarse lecturas. Y la confirmación simulada no existe si hay una
+  pasarela real configurada.
+
+`GET /pagos/paquetes`, `POST /pagos/orden`, `POST /pagos/webhook/{pasarela}`, `GET /pagos/mios`.
+
+**Falta enchufar la pasarela real** (necesita tus credenciales y su documentación: desde este
+entorno no se alcanza la de Wompi, y no invento su API). Queda registrado como tarea siguiente.
+
+Tests: **335 en verde** (11 nuevos).

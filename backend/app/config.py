@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     # ── Informe de promedios y margen (solo para el dueño de la app) ─────────────────────
     # Correos separados por coma que pueden ver el informe de todos los clientes.
     informe_admins: str = ""
+    # ── Cobro ────────────────────────────────────────────────────────────────────────────
+    # Qué pasarela se usa. Hoy solo `simulada` (para probar el circuito completo sin llaves);
+    # Wompi, MercadoPago o PayU se enchufan en `app/pasarelas.py` con sus llaves.
+    pasarela: str = "simulada"
+    # Permite usar la pasarela simulada aunque estemos en un entorno serio (solo para pruebas)
+    pasarela_simulada_permitida: bool = True
+
     # Precio del espacio, en dólares por GB-mes. Si es 0, el informe da el volumen consumido
     # pero no lo convierte a dinero (mejor decir «falta el precio» que inventarlo).
     costo_gb_mes_usd: float = 0.0

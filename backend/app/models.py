@@ -581,6 +581,59 @@ class Plan(Base):
     orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
+class PaqueteLecturas(Base):
+    """Un paquete de lecturas con IA que se compra aparte del plan.
+
+    Es catálogo, como los planes: los precios y las cantidades se cambian en la base. Sirve para
+    el que se queda sin lecturas y no quiere (o no puede todavía) subir de plan.
+    """
+
+    __tablename__ = "paquetes_lecturas"
+
+    codigo: Mapped[str] = mapped_column(String(24), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(60), nullable=False)
+    lecturas: Mapped[int] = mapped_column(Integer, nullable=False)
+    precio: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
+class Pago(Base):
+    """Un intento de compra: un plan o un paquete de lecturas.
+
+    `referencia` es la llave de idempotencia: viaja a la pasarela y vuelve en su aviso, así que un
+    aviso repetido no puede acreditar dos veces. `aplicado` lo confirma: cuando está en True, el
+    saldo o el plan ya se actualizaron y no se vuelven a tocar.
+    """
+
+    __tablename__ = "pagos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False
+    )
+    # La restricción única ya crea su índice: es la llave con la que la pasarela avisa
+    referencia: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    # plan | paquete
+    tipo: Mapped[str] = mapped_column(String(16), nullable=False)
+    codigo: Mapped[str] = mapped_column(String(24), nullable=False)
+    monto: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    moneda: Mapped[str] = mapped_column(String(3), nullable=False, default="COP", server_default="COP")
+    # pendiente | pagado | fallido
+    estado: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pendiente", server_default="pendiente"
+    )
+    pasarela: Mapped[str] = mapped_column(String(24), nullable=False, default="simulada", server_default="simulada")
+    id_externo: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Si el saldo o el plan ya se acreditaron (la garantía contra el doble cobro)
+    aplicado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    detalle: Mapped[str | None] = mapped_column(Text, nullable=True)
+    creado_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
+    pagado_en: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+
 class ConsumoIa(Base):
     """Lo que un usuario gastó en el mes: IA **y almacenamiento**.
 

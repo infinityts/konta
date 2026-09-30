@@ -710,6 +710,54 @@ class RespuestaAsistenteOut(BaseModel):
     costo_usd: float = 0.0
 
 
+class PaqueteLecturasOut(BaseModel):
+    """Un paquete de lecturas con IA que se compra aparte."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    codigo: str
+    nombre: str
+    lecturas: int
+    precio: Decimal
+
+
+class PagoOut(BaseModel):
+    """Un recibo: lo que se compró, cuánto y cuándo."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    referencia: str
+    tipo: str
+    codigo: str
+    monto: Decimal
+    moneda: str
+    estado: str
+    pasarela: str
+    creado_en: datetime
+    pagado_en: datetime | None = None
+
+
+class OrdenPagoIn(BaseModel):
+    """Qué se quiere comprar. El precio no se manda: lo pone el catálogo."""
+
+    tipo: str = Field(pattern="^(plan|paquete)$")
+    codigo: str = Field(min_length=2, max_length=24)
+
+
+class OrdenPagoOut(BaseModel):
+    """La orden creada y cómo pagarla."""
+
+    referencia: str
+    tipo: str
+    codigo: str
+    monto: Decimal
+    moneda: str
+    estado: str
+    pasarela: str
+    url: str | None = None
+    instrucciones: str | None = None
+
+
 class PlanOut(BaseModel):
     """Un plan del catálogo: lo que cuesta y lo que incluye."""
 

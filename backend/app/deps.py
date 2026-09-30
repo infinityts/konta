@@ -16,6 +16,8 @@ engine = make_engine()
 SessionLocal = make_session_factory(engine)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# Igual, pero sin exigir el token: deja pasar sin sesión (lo usa el aviso de la pasarela)
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 def get_db():
@@ -50,3 +52,20 @@ def get_current_user(
     if usuario is None:
         raise credenciales_invalidas
     return usuario
+
+
+def usuario_opcional(
+    token: str | None = Depends(oauth2_scheme_optional),
+    db: Session = Depends(get_db),
+) -> Usuario | None:
+    """El usuario si trae una sesión válida, o None.
+
+    Sirve para los endpoints que atienden a la pasarela (que no tiene sesión) y también al
+    usuario: cada uno por su camino.
+    """
+    if not token:
+        return None
+    try:
+        return db.get(Usuario, decode_token(token))
+    except Exception:  # noqa: BLE001 — un token malo aquí es simplemente «sin sesión»
+        return None
