@@ -60,7 +60,14 @@ def _neto(filas, signo_ingreso: bool = True) -> Decimal:
 
 
 def saldo_cuentas(db: Session, usuario_id) -> dict:
-    """Saldo actual de cada cuenta y saldo total (incluye movimientos sin cuenta)."""
+    """Saldo actual de cada cuenta y saldo total (incluye movimientos sin cuenta).
+
+    **No cuenta el futuro.** Un saldo «actual» es el de hoy: un ingreso recurrente o un
+    gasto programado para el mes que viene todavía no ha pasado. Sin este filtro, un sueldo
+    fechado un mes por delante se sumaba como si ya estuviera cobrado y el saldo se veía al
+    doble.
+    """
+    hasta_hoy = Transaccion.fecha <= hoy()
     cuentas = db.scalars(
         select(Cuenta).where(Cuenta.usuario_id == usuario_id).order_by(Cuenta.nombre)
     ).all()
@@ -72,6 +79,7 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
             Transaccion.cuenta_id.is_not(None),
             # Las transferencias van aparte: tocan dos cuentas, no una
             Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
+            hasta_hoy,
         )
         .group_by(Transaccion.cuenta_id, Transaccion.tipo)
     ).all()
@@ -88,6 +96,7 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
                 Transaccion.usuario_id == usuario_id,
                 Transaccion.tipo == TipoTransaccion.TRANSFERENCIA,
                 Transaccion.cuenta_id.is_not(None),
+                hasta_hoy,
             )
             .group_by(Transaccion.cuenta_id)
         )
@@ -100,6 +109,7 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
                 Transaccion.usuario_id == usuario_id,
                 Transaccion.tipo == TipoTransaccion.TRANSFERENCIA,
                 Transaccion.cuenta_destino_id.is_not(None),
+                hasta_hoy,
             )
             .group_by(Transaccion.cuenta_destino_id)
         )
@@ -127,10 +137,15 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
             }
         )
 
+    until_hoy_sin_cuenta = Transaccion.fecha <= hoy()
     sin_cuenta = _neto(
         db.execute(
             select(Transaccion.tipo, func.sum(Transaccion.monto))
-            .where(Transaccion.usuario_id == usuario_id, Transaccion.cuenta_id.is_(None))
+            .where(
+                Transaccion.usuario_id == usuario_id,
+                Transaccion.cuenta_id.is_(None),
+                until_hoy_sin_cuenta,
+            )
             .group_by(Transaccion.tipo)
         ).all()
     )
@@ -138,7 +153,11 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
         db.scalar(
             select(func.count())
             .select_from(Transaccion)
-            .where(Transaccion.usuario_id == usuario_id, Transaccion.cuenta_id.is_(None))
+            .where(
+                Transaccion.usuario_id == usuario_id,
+                Transaccion.cuenta_id.is_(None),
+                until_hoy_sin_cuenta,
+            )
         )
         or 0
     )
@@ -157,12 +176,16 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
 
 
 def saldo_de_cuenta(db: Session, cuenta: Cuenta) -> dict:
-    """Saldo de una sola cuenta (para las respuestas de crear/actualizar)."""
+    """Saldo de una sola cuenta (para las respuestas de crear/actualizar).
+
+    Como el consolidado, **no cuenta el futuro** (ver `saldo_cuentas`).
+    """
     filas = db.execute(
         select(Transaccion.tipo, func.sum(Transaccion.monto))
         .where(
             Transaccion.cuenta_id == cuenta.id,
             Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
+            Transaccion.fecha <= hoy(),
         )
         .group_by(Transaccion.tipo)
     ).all()
@@ -178,6 +201,7 @@ def saldo_de_cuenta(db: Session, cuenta: Cuenta) -> dict:
             select(func.coalesce(func.sum(Transaccion.monto), 0)).where(
                 Transaccion.cuenta_id == cuenta.id,
                 Transaccion.tipo == TipoTransaccion.TRANSFERENCIA,
+                Transaccion.fecha <= hoy(),
             )
         )
         or 0
@@ -187,6 +211,7 @@ def saldo_de_cuenta(db: Session, cuenta: Cuenta) -> dict:
             select(func.coalesce(func.sum(Transaccion.monto), 0)).where(
                 Transaccion.cuenta_destino_id == cuenta.id,
                 Transaccion.tipo == TipoTransaccion.TRANSFERENCIA,
+                Transaccion.fecha <= hoy(),
             )
         )
         or 0
@@ -368,7 +393,12 @@ def diagnostico(db: Session, usuario_id) -> dict:
         db.scalar(
             select(func.count())
             .select_from(Transaccion)
-            .where(Transaccion.usuario_id == usuario_id, Transaccion.cuenta_id.is_(None))
+            .where(
+                Transaccion.usuario_id == usuario_id,
+                Transaccion.cuenta_id.is_(None),
+                # Tampoco se cuentan los movimientos futuros sin cuenta
+                Transaccion.fecha <= hoy(),
+            )
         )
         or 0
     )

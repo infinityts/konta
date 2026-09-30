@@ -1713,3 +1713,17 @@ Para distinguir **dónde** es el gasto, la forma que mejor funciona con los repo
 
 Poner el lugar en la etiqueta y el servicio en la descripción también «funciona», pero
 entonces los reportes no te dan el total por sitio sin sumar a mano.
+
+## v1.63 — El saldo actual ya no cuenta el futuro
+
+Salió de un «mi saldo está al doble»: el **saldo actual** de una cuenta sumaba los movimientos
+**sin mirar la fecha**, así que un sueldo recurrente fechado un mes por delante se contaba como
+si ya estuviera cobrado. Con un saldo inicial de 11.837.735 y un ingreso de 11.783.952 en
+octubre, la cuenta mostraba **23.621.687**.
+
+Un saldo «actual» es el de **hoy**: ahora solo cuentan los movimientos con fecha de hoy o
+anterior, en las cuentas, en las transferencias, en los movimientos sin cuenta y en el saldo
+de una cuenta concreta. Los del futuro siguen ahí (y salen en su mes en la vista mensual),
+pero no inflan lo que tienes ahora.
+
+Tests: **235 en verde** (2 nuevos).
