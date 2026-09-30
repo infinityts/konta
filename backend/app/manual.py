@@ -10,6 +10,8 @@ app.
 
 from __future__ import annotations
 
+import contextlib
+
 from . import embeddings
 from .config import get_settings
 
@@ -202,10 +204,9 @@ def precalentar() -> None:
     import threading
 
     def trabajo() -> None:
-        try:
+        # El índice es una mejora, no un requisito: si falla, la ayuda sigue por palabras
+        with contextlib.suppress(Exception):
             _vector_de_temas()
-        except Exception:  # noqa: BLE001 — el índice es una mejora, no un requisito
-            pass
 
     threading.Thread(target=trabajo, name="indice-ayuda", daemon=True).start()
 

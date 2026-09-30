@@ -36,7 +36,7 @@ def ver_manual():
 
 
 @router.get("/buscar")
-def buscar_en_la_ayuda(q: str):
+def buscar_en_la_ayuda(q: str, user: Usuario = Depends(get_current_user)):
     """Qué temas responden a una pregunta y con qué similitud.
 
     Es la misma búsqueda que usa el asistente por dentro: sirve para ver por qué respondió lo que
