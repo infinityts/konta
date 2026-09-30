@@ -2135,7 +2135,9 @@ def test_recurrente_no_duplica_el_periodo_y_sigue_generando(client, engine):
     assert generada["cuenta_id"] == cuenta["id"], "y mueve la cuenta, no queda «sin cuenta»"
     # Los dos periodos descontaron del saldo
     saldos = {c["nombre"]: c for c in client.get("/cuentas", headers=h).json()["cuentas"]}
-    assert saldos["Diario"]["saldo_actual"] == 1000000.0 - 2 * 44900.0
+    # El saldo «actual» es el de hoy: la segunda cuota quedó fechada en el periodo
+    # siguiente (futuro), así que todavía no descuenta. Sigue existiendo y sale en su mes.
+    assert saldos["Diario"]["saldo_actual"] == 1000000.0 - 44900.0
 
 
 def test_transaccion_recurrente_ingreso(client):

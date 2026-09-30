@@ -6,9 +6,11 @@ de la cuenta lo sumaba como si ya estuviera cobrado, así que se veía el doble 
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from test_api import _registrar
+
+from app.recurrencia import hoy
 
 
 def _cuenta(client, h, saldo_inicial: str) -> dict:
@@ -30,8 +32,8 @@ def _movimiento(client, h, **campos) -> dict:
 def test_el_saldo_no_cuenta_los_movimientos_futuros(client):
     _, h = _registrar(client)
     cuenta = _cuenta(client, h, "11837735")
-    hoy = date.today()
-    proximo_mes = hoy + timedelta(days=30)
+    hoy_ = hoy()
+    proximo_mes = hoy_ + timedelta(days=30)
 
     _movimiento(
         client, h, tipo="ingreso", monto="11783952", fecha=proximo_mes.isoformat(),
@@ -43,7 +45,7 @@ def test_el_saldo_no_cuenta_los_movimientos_futuros(client):
 
     # y el de hoy sí cuenta
     _movimiento(
-        client, h, tipo="gasto", monto="100000", fecha=hoy.isoformat(),
+        client, h, tipo="gasto", monto="100000", fecha=hoy_.isoformat(),
         descripcion="Compra de hoy", cuenta_id=cuenta["id"],
     )
     saldos = client.get("/cuentas", headers=h).json()
@@ -54,7 +56,7 @@ def test_los_gastos_futuros_tampoco_cuentan(client):
     _, h = _registrar(client)
     cuenta = _cuenta(client, h, "1000000")
     _movimiento(
-        client, h, tipo="gasto", monto="500000", fecha=(date.today() + timedelta(days=10)).isoformat(),
+        client, h, tipo="gasto", monto="500000", fecha=(hoy() + timedelta(days=10)).isoformat(),
         descripcion="Pago programado", cuenta_id=cuenta["id"],
     )
     saldos = client.get("/cuentas", headers=h).json()
