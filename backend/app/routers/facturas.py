@@ -20,7 +20,7 @@ from collections import Counter
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -47,6 +47,7 @@ from ..facturas import (
 from ..impuestos import a_json, detectar_impuestos
 from ..lineas import detectar_tipo, parsear_lineas
 from ..models import (
+    CasoLector,
     Categoria,
     Cuenta,
     Etiqueta,
@@ -69,6 +70,8 @@ from ..schemas import (
     AsignarEtiquetaIn,
     AsociarFacturaIn,
     AsociarOut,
+    CasoLectorIn,
+    CasoLectorOut,
     ConfirmarLineasIn,
     ConfirmarTotalIn,
     DetalleFacturaOut,
@@ -87,6 +90,194 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/facturas", tags=["facturas"])
+
+
+def _caso_out(caso: CasoLector) -> CasoLectorOut:
+    salida = CasoLectorOut.model_validate(caso)
+    salida.tiene_archivo = caso.archivo is not None
+    return salida
+
+
+@router.post("/{id}/caso", response_model=CasoLectorOut, status_code=201)
+def reportar_caso(
+    id: uuid.UUID,
+    data: CasoLectorIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """«Esta factura la leyó mal»: guarda el caso para poder arreglarlo.
+
+    Se guarda el **texto** y, sobre el mismo texto, lo que dice el lector y con qué se quedó el
+    usuario: eso es lo que hace falta para reproducir el fallo y dejarlo como test. El archivo
+    original solo se guarda si el usuario lo autoriza.
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    texto = factura.texto_extraido or ""
+    if not texto.strip():
+        raise HTTPException(
+            status_code=400, detail="La factura no tiene texto: no hay nada que revisar."
+        )
+    lineas = _lineas(db, factura.id)
+    caso = CasoLector(
+        usuario_id=user.id,
+        factura_id=factura.id,
+        emisor=factura.emisor,
+        emisor_nombre=factura.emisor_nombre,
+        texto=texto[:20000],
+        tipo_documento=detectar_tipo(texto, lineas) or None,
+        # Lo que dice el lector **sobre este texto** (aunque el usuario ya lo haya corregido)
+        monto_leido=detectar_monto(texto),
+        fecha_leida=detectar_fecha(texto),
+        monto_corregido=factura.monto_detectado,
+        fecha_corregida=factura.fecha_detectada,
+        motivo=(data.motivo or "").strip() or None,
+    )
+    db.add(caso)
+    db.commit()
+    db.refresh(caso)
+    return _caso_out(caso)
+
+
+@router.get("/casos", response_model=list[CasoLectorOut])
+def listar_casos(
+    estado: str | None = None,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """El buzón: lo que el usuario ha reportado como mal leído."""
+    consulta = select(CasoLector).where(CasoLector.usuario_id == user.id)
+    if estado:
+        consulta = consulta.where(CasoLector.estado == estado)
+    casos = db.scalars(consulta.order_by(CasoLector.creado_en.desc())).all()
+    return [_caso_out(c) for c in casos]
+
+
+@router.get("/casos/{caso_id}", response_model=CasoLectorOut)
+def ver_caso(
+    caso_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    return _caso_out(get_owned(db, CasoLector, caso_id, user.id))
+
+
+@router.get("/casos/{caso_id}/exportar")
+def exportar_caso(
+    caso_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """El caso listo para pegarlo como test: el texto tal cual y lo que se espera de él.
+
+    Es el puente entre «esto se leyó mal» y «esto no se vuelve a romper»: lo que hoy se hace a
+    mano (mirar el documento, escribir la maqueta, dejarla en `tests/`).
+    """
+    caso = get_owned(db, CasoLector, caso_id, user.id)
+    esperado = caso.monto_corregido if caso.monto_corregido is not None else caso.monto_leido
+    nombre = (caso.emisor_nombre or "documento").replace(" ", "_").replace(".", "")[:40]
+
+    def _num(valor) -> str:
+        return f"{valor:.2f}".rstrip("0").rstrip(".") if valor is not None else "None"
+
+    triple = chr(34) * 3  # las tres comillas de la maqueta
+    lineas = [
+        f'"""Caso del buzón: {caso.emisor_nombre or caso.emisor or "sin emisor"}',
+        f"Reportado por el usuario el {caso.creado_en:%Y-%m-%d}"
+        + (f" · motivo: {caso.motivo}" if caso.motivo else ""),
+        '"""',
+        "",
+        "from decimal import Decimal",
+        "",
+        f"{nombre.upper()} = {triple}{caso.texto.strip()}{triple}",
+        "",
+        "",
+        f"def test_{nombre.lower()}_se_lee_bien():",
+        "    from app.facturas import detectar_monto",
+        "",
+        f'    assert detectar_monto({nombre.upper()}) == Decimal("{_num(esperado)}")',
+    ]
+    return {
+        "emisor": caso.emisor_nombre or caso.emisor,
+        "texto": caso.texto,
+        "monto_leido": caso.monto_leido,
+        "monto_esperado": esperado,
+        "fecha_esperada": caso.fecha_corregida or caso.fecha_leida,
+        "motivo": caso.motivo,
+        "tiene_archivo": caso.archivo is not None,
+        "test": "\n".join(lineas),
+    }
+
+
+@router.get("/casos/{caso_id}/archivo")
+def archivo_del_caso(
+    caso_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """El documento original del caso (solo existe si el usuario autorizó adjuntarlo)."""
+    caso = get_owned(db, CasoLector, caso_id, user.id)
+    nombre_archivo = caso.archivo_nombre or "caso"
+    if caso.archivo is None:
+        raise HTTPException(status_code=404, detail="Este caso no tiene el archivo adjunto")
+    return Response(
+        content=caso.archivo,
+        media_type=caso.archivo_tipo or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{nombre_archivo}"'},
+    )
+
+
+@router.post("/casos/{caso_id}/archivo", response_model=CasoLectorOut)
+async def adjuntar_archivo(
+    caso_id: uuid.UUID,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Adjunta el documento original a un caso: es opcional y el usuario lo autoriza aquí.
+
+    Las facturas **no** guardan el archivo (solo el texto), así que si hace falta reproducir el
+    fallo con el original, se sube a propósito en este caso.
+    """
+    caso = get_owned(db, CasoLector, caso_id, user.id)
+    contenido = await archivo.read()
+    limite = get_settings().tamano_maximo_archivo_mb * 1024 * 1024
+    if len(contenido) > limite:
+        raise HTTPException(
+            status_code=413,
+            detail=f"El archivo pesa más de {get_settings().tamano_maximo_archivo_mb} MB.",
+        )
+    caso.archivo = contenido
+    caso.archivo_nombre = archivo.filename or "documento"
+    caso.archivo_tipo = archivo.content_type
+    db.commit()
+    db.refresh(caso)
+    return _caso_out(caso)
+
+
+@router.post("/casos/{caso_id}/resolver", response_model=CasoLectorOut)
+def resolver_caso(
+    caso_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Marca el caso como resuelto (ya se arregló y quedó como test)."""
+    caso = get_owned(db, CasoLector, caso_id, user.id)
+    caso.estado = "resuelto"
+    caso.resuelto_en = datetime.now(UTC)
+    db.commit()
+    db.refresh(caso)
+    return _caso_out(caso)
+
+
+@router.delete("/casos/{caso_id}", status_code=204)
+def borrar_caso(
+    caso_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    caso = get_owned(db, CasoLector, caso_id, user.id)
+    db.delete(caso)
+    db.commit()
 
 
 @router.get("/patrones-ignorados", response_model=list[PatronIgnoradoOut])

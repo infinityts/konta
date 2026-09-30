@@ -849,3 +849,35 @@ export interface PatronIgnorado {
   veces: number
   actualizada_en: string
 }
+
+/** Un caso del buzón: una factura que el usuario reportó como mal leída. */
+export interface CasoLector {
+  id: string
+  factura_id: string | null
+  emisor: string | null
+  emisor_nombre: string | null
+  texto: string
+  tipo_documento: string | null
+  monto_leido: string | null
+  fecha_leida: string | null
+  monto_corregido: string | null
+  fecha_corregida: string | null
+  motivo: string | null
+  tiene_archivo: boolean
+  archivo_nombre: string | null
+  estado: string
+  creado_en: string
+  resuelto_en: string | null
+}
+
+/** Un caso exportado como test, listo para pegar en tests/. */
+export interface CasoLectorExport {
+  emisor: string | null
+  texto: string
+  monto_leido: string | null
+  monto_esperado: string | null
+  fecha_esperada: string | null
+  motivo: string | null
+  tiene_archivo: boolean
+  test: string
+}

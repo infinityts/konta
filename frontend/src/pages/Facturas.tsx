@@ -61,6 +61,10 @@ export default function Facturas() {
   // Artículo que el usuario añade a mano (el lector se lo saltó)
   const [agregando, setAgregando] = useState<string | null>(null)
   const [nuevaLinea, setNuevaLinea] = useState<Record<string, { descripcion: string; valor: string; etiqueta: string }>>({})
+  // «Esta factura la leyó mal»: el buzón de casos
+  const [reportando, setReportando] = useState<string | null>(null)
+  const [motivoCaso, setMotivoCaso] = useState<Record<string, string>>({})
+  const [archivoCaso, setArchivoCaso] = useState<Record<string, File | null>>({})
   const [corrigiendoTexto, setCorrigiendoTexto] = useState<string | null>(null)
   const entradaArchivo = useRef<HTMLInputElement>(null)
   const [aviso, setAviso] = useState('')
@@ -120,6 +124,25 @@ export default function Facturas() {
       setSubiendo(false)
     }
   }
+
+  /** Reporta que el lector leyó mal esta factura (buzón de casos). */
+  const reportarCaso = (facturaId: string) =>
+    conOcupado(facturaId, async () => {
+      const caso = await api<{ id: string }>(`/facturas/${facturaId}/caso`, {
+        method: 'POST',
+        body: JSON.stringify({ motivo: motivoCaso[facturaId] ?? '' }),
+      })
+      const archivo = archivoCaso[facturaId]
+      if (archivo) {
+        const datos = new FormData()
+        datos.append('archivo', archivo)
+        await api(`/facturas/casos/${caso.id}/archivo`, { method: 'POST', body: datos })
+      }
+      setReportando(null)
+      setMotivoCaso((s) => ({ ...s, [facturaId]: '' }))
+      setArchivoCaso((s) => ({ ...s, [facturaId]: null }))
+      setAviso('✅ Caso guardado. Queda en «lo que el OCR ha aprendido» para arreglarlo y dejarlo como test.')
+    })
 
   /** Corrige el monto y la fecha que detectó el lector. */
   const guardarDatos = (facturaId: string) =>
@@ -1144,6 +1167,56 @@ export default function Facturas() {
                     </button>
                   )}
                 </div>
+              )}
+
+              {reportando === f.id ? (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-medium text-amber-900">
+                    ¿Esta factura se leyó mal? Cuéntanoslo y queda como caso para arreglarlo.
+                  </p>
+                  <input
+                    value={motivoCaso[f.id] ?? ''}
+                    onChange={(e) => setMotivoCaso((s) => ({ ...s, [f.id]: e.target.value }))}
+                    placeholder="¿Qué salió mal? (ej. tomó el número de la cuota como total)"
+                    className="mt-2 block w-full rounded-lg border border-amber-300 px-3 py-1.5 text-sm"
+                  />
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <label className="text-xs text-amber-900">
+                      Adjuntar el documento (opcional)
+                      <input
+                        type="file"
+                        onChange={(e) =>
+                          setArchivoCaso((s) => ({ ...s, [f.id]: e.target.files?.[0] ?? null }))
+                        }
+                        className="ml-2 text-xs"
+                      />
+                    </label>
+                    <button
+                      onClick={() => void reportarCaso(f.id)}
+                      disabled={ocupado === f.id}
+                      className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {ocupado === f.id ? 'Guardando…' : 'Reportar el caso'}
+                    </button>
+                    <button
+                      onClick={() => setReportando(null)}
+                      className="rounded-lg border border-amber-300 px-3 py-1.5 text-sm text-amber-900 hover:bg-white"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-amber-800">
+                    Se guardan el texto leído, lo que dijiste y con qué te quedaste. El documento
+                    solo si lo adjuntas aquí.
+                  </p>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setReportando(f.id)}
+                  className="mt-3 text-xs text-amber-700 hover:underline"
+                >
+                  🐞 Esta factura la leyó mal
+                </button>
               )}
 
               {!f.transaccion_id && transacciones.length > 0 && (

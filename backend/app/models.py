@@ -18,6 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -524,6 +525,47 @@ class FacturaLinea(Base):
     # `*` gravado, `**` exento, sin marca excluido
     iva_tipo: Mapped[str | None] = mapped_column(String(10), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
+
+
+class CasoLector(Base):
+    """Un documento que el lector leyó mal, tal como lo vio el usuario.
+
+    Es el buzón de casos: no se puede ir a cada establecimiento a pedirle un formato, pero sí se
+    puede **acumular** lo que falla. El caso guarda el texto, lo que el lector dijo, lo que el
+    usuario dejó al final y —solo si lo autoriza— el archivo. De ahí sale una tarea del backlog y,
+    al arreglarla, un test que impide que se rompa otra vez.
+    """
+
+    __tablename__ = "casos_lector"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False
+    )
+    # La factura puede borrarse después: el caso se queda (es el aprendizaje, no el documento)
+    factura_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("facturas.id", ondelete="SET NULL"), nullable=True
+    )
+    emisor: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    emisor_nombre: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    texto: Mapped[str] = mapped_column(Text, nullable=False)
+    tipo_documento: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Lo que dijo el lector sobre este texto…
+    monto_leido: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    fecha_leida: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # …y con qué se quedó el usuario
+    monto_corregido: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    fecha_corregida: Mapped[date | None] = mapped_column(Date, nullable=True)
+    motivo: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # El archivo original, solo si el usuario lo autoriza (para poder reproducir el fallo)
+    archivo: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    archivo_nombre: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    archivo_tipo: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    estado: Mapped[str] = mapped_column(String(16), nullable=False, default="abierto", server_default="abierto")
+    creado_en: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
+    resuelto_en: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
 
 class PatronIgnorado(Base):

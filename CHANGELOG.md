@@ -1969,3 +1969,27 @@ preciso que `reglas_ocr` porque distingue por emisor). Lo que faltaba de verdad 
 renglones, y es lo que trae esta versión.
 
 Tests: **280 en verde** (4 nuevos).
+
+## v1.71 — El buzón de casos: «esta factura la leyó mal» (empieza el Nivel 3)
+
+No se puede ir a cada establecimiento a pedirle un formato, pero sí se puede **acumular lo que
+falla**. Hasta ahora eso se hacía a mano —tú mandabas la captura, yo lo arreglaba y lo dejaba
+como test—; ahora es un botón.
+
+En cada factura: **«🐞 Esta factura la leyó mal»** → un motivo (opcional) y, si quieres, el
+documento adjunto. El caso guarda:
+
+- el **texto** leído,
+- lo que **dice el lector** sobre ese texto (aunque ya lo hayas corregido),
+- con **qué te quedaste** al final,
+- el emisor y el tipo de documento, y
+- el archivo original **solo si lo adjuntas** (las facturas no guardan el archivo: solo el
+  texto; el documento se sube a propósito en el caso).
+
+Y lo importante: cada caso tiene **«Ver el test»**, que devuelve la maqueta lista para pegar en
+`tests/` —el texto tal cual y lo que se espera de él—. Es el puente entre «esto se leyó mal» y
+«esto no se vuelve a romper»: exactamente lo que hoy hago a mano con tus documentos. En *«lo
+que el OCR ha aprendido»* → **Facturas que se leyeron mal** se ve el buzón, se marca un caso
+como resuelto y se borra.
+
+Tests: **285 en verde** (5 nuevos).

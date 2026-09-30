@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import type { Categoria, Etiqueta, PatronIgnorado, PlantillaLector, ReglaOcr } from '../types'
+import type {
+  CasoLector,
+  CasoLectorExport,
+  Categoria,
+  Etiqueta,
+  PatronIgnorado,
+  PlantillaLector,
+  ReglaOcr,
+} from '../types'
 
 const empty = { patron: '', categoria_id: '', etiqueta_id: '' }
 
@@ -19,6 +27,9 @@ export default function ReglasOcr() {
   const [plantillas, setPlantillas] = useState<PlantillaLector[]>([])
   // Renglones que el usuario borró y ya se descartan solos (no son artículos)
   const [patrones, setPatrones] = useState<PatronIgnorado[]>([])
+  // El buzón: facturas que el usuario reportó como mal leídas
+  const [casos, setCasos] = useState<CasoLector[]>([])
+  const [testDe, setTestDe] = useState<Record<string, string>>({})
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [form, setForm] = useState(empty)
@@ -34,6 +45,7 @@ export default function ReglasOcr() {
       setItems(await api<ReglaOcr[]>('/reglas-ocr'))
       setPlantillas(await api<PlantillaLector[]>('/facturas/plantillas-lector'))
       setPatrones(await api<PatronIgnorado[]>('/facturas/patrones-ignorados'))
+      setCasos(await api<CasoLector[]>('/facturas/casos'))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     }
@@ -107,6 +119,23 @@ export default function ReglasOcr() {
       (r.etiqueta_nombre ?? '').toLowerCase().includes(q) ||
       (r.categoria_nombre ?? '').toLowerCase().includes(q),
   )
+
+  async function verTest(id: string) {
+    const exportado = await api<CasoLectorExport>(`/facturas/casos/${id}/exportar`)
+    setTestDe((s) => ({ ...s, [id]: exportado.test }))
+  }
+
+  async function resolverCaso(id: string) {
+    await api(`/facturas/casos/${id}/resolver`, { method: 'POST' })
+    setCasos((cs) => cs.map((c) => (c.id === id ? { ...c, estado: 'resuelto' } : c)))
+    setAviso('Caso resuelto.')
+  }
+
+  async function borrarCaso(id: string) {
+    if (!window.confirm('¿Borrar este caso?')) return
+    await api(`/facturas/casos/${id}`, { method: 'DELETE' })
+    setCasos((cs) => cs.filter((c) => c.id !== id))
+  }
 
   async function borrarPatron(id: string) {
     if (!window.confirm('¿Volver a tener en cuenta este renglón?')) return
@@ -370,6 +399,72 @@ export default function ReglasOcr() {
           <li className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
             Todavía no has borrado ningún renglón repetido. Los del documento (NIT, cajero,
             cambio, IVA, totales) ya se descartan siempre.
+          </li>
+        )}
+      </ul>
+    </div>
+
+    {/* El buzón: lo que el usuario reportó como mal leído, con su test listo para pegar. */}
+    <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+      <h2 className="font-medium text-slate-800">
+        Facturas que se leyeron mal{' '}
+        <span className="text-sm font-normal text-slate-500">
+          ({casos.filter((c) => c.estado === 'abierto').length} sin resolver)
+        </span>
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Cuando una factura salga mal, pulsa <strong>«🐞 Esta factura la leyó mal»</strong> en
+        Facturas. Aquí queda el caso con el texto, lo que dijo el lector y con qué te quedaste, y
+        el <strong>test listo para pegar</strong>: así un fallo no se repite.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {casos.map((c) => (
+          <li key={c.id} className="rounded-lg border border-slate-200 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-medium text-slate-800">
+                  {c.emisor_nombre ?? c.emisor ?? 'Sin emisor'}{' '}
+                  {c.estado === 'resuelto' && (
+                    <span className="ml-1 rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                      resuelto
+                    </span>
+                  )}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {c.monto_leido != null ? `el lector dijo ${Number(c.monto_leido).toLocaleString('es-CO')}` : 'sin monto'}
+                  {c.monto_corregido != null &&
+                    ` · quedó en ${Number(c.monto_corregido).toLocaleString('es-CO')}`}
+                  {c.motivo ? ` · «${c.motivo}»` : ''}
+                  <span className="ml-2 text-xs text-slate-400">
+                    {c.creado_en.slice(0, 10)}
+                    {c.tiene_archivo ? ' · con documento' : ''}
+                  </span>
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => void verTest(c.id)} className="text-sm text-indigo-600 hover:underline">
+                  Ver el test
+                </button>
+                {c.estado === 'abierto' && (
+                  <button onClick={() => void resolverCaso(c.id)} className="text-sm text-emerald-700 hover:underline">
+                    Resuelto
+                  </button>
+                )}
+                <button onClick={() => void borrarCaso(c.id)} className="text-sm text-red-600 hover:underline">
+                  Borrar
+                </button>
+              </div>
+            </div>
+            {testDe[c.id] && (
+              <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-900 p-3 text-xs text-slate-100">
+                {testDe[c.id]}
+              </pre>
+            )}
+          </li>
+        ))}
+        {casos.length === 0 && (
+          <li className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+            No has reportado ninguna. Cuando algo se lea mal, el botón está en cada factura.
           </li>
         )}
       </ul>

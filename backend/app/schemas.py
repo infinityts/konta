@@ -688,6 +688,37 @@ class PlantillaLectorOut(BaseModel):
     actualizada_en: datetime
 
 
+class CasoLectorIn(BaseModel):
+    """Lo que el usuario cuenta al pulsar «esta factura la leyó mal»."""
+
+    motivo: str | None = Field(default=None, max_length=300)
+    # El archivo solo se guarda si el usuario lo autoriza (es su documento)
+    adjuntar_archivo: bool = False
+
+
+class CasoLectorOut(BaseModel):
+    """Un caso del buzón: el texto, lo que dijo el lector y con qué se quedó el usuario."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    factura_id: uuid.UUID | None = None
+    emisor: str | None = None
+    emisor_nombre: str | None = None
+    texto: str
+    tipo_documento: str | None = None
+    monto_leido: Decimal | None = None
+    fecha_leida: date | None = None
+    monto_corregido: Decimal | None = None
+    fecha_corregida: date | None = None
+    motivo: str | None = None
+    tiene_archivo: bool = False
+    archivo_nombre: str | None = None
+    estado: str = "abierto"
+    creado_en: datetime
+    resuelto_en: datetime | None = None
+
+
 class PatronIgnoradoOut(BaseModel):
     """Un renglón que el usuario borra siempre: no es un artículo."""
 
