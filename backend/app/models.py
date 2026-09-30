@@ -489,7 +489,7 @@ class Factura(Base):
     url_dian: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # Quién emitió el documento: es lo que une las facturas de un mismo emisor para aprender su
     # formato (`nit:8903990034` o `nombre:CONSORCIO EMCALI`)
-    emisor: Mapped[str | None] = mapped_column(String(140), nullable=True, index=True)
+    emisor: Mapped[str | None] = mapped_column(String(140), nullable=True)
     emisor_nombre: Mapped[str | None] = mapped_column(String(140), nullable=True)
     creada_en: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=_ahora)
 
