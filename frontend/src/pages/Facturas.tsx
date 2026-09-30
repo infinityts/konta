@@ -53,6 +53,10 @@ export default function Facturas() {
   // Texto que el usuario está corrigiendo (por factura). Es el paracaídas del lector: si el
   // OCR o la extracción se equivocan, se arregla el texto y se vuelve a leer.
   const [textoEditando, setTextoEditando] = useState<Record<string, string>>({})
+  // Corrección del monto y la fecha que detectó el lector (por factura)
+  const [datosEditando, setDatosEditando] = useState<string | null>(null)
+  const [montoEditado, setMontoEditado] = useState<Record<string, string>>({})
+  const [fechaEditada, setFechaEditada] = useState<Record<string, string>>({})
   const [corrigiendoTexto, setCorrigiendoTexto] = useState<string | null>(null)
   const entradaArchivo = useRef<HTMLInputElement>(null)
   const [aviso, setAviso] = useState('')
@@ -112,6 +116,22 @@ export default function Facturas() {
       setSubiendo(false)
     }
   }
+
+  /** Corrige el monto y la fecha que detectó el lector. */
+  const guardarDatos = (facturaId: string) =>
+    conOcupado(facturaId, async () => {
+      const detalle = await api<FacturaDetalle>(`/facturas/${facturaId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          monto_detectado: montoEditado[facturaId] || null,
+          fecha_detectada: fechaEditada[facturaId] || null,
+        }),
+      })
+      setDetalles((d) => ({ ...d, [facturaId]: detalle }))
+      setDatosEditando(null)
+      setAviso('✅ Monto y fecha corregidos (la auditoría y «Registrar el gasto» usan el monto bueno).')
+      await cargar()
+    })
 
   /** Guarda el texto corregido y vuelve a leer la factura con él. */
   const guardarTextoYLeer = (facturaId: string) =>
@@ -468,7 +488,66 @@ export default function Facturas() {
                       {f.monto_detectado != null ? fmtMoney(f.monto_detectado) : '—'}
                     </span>
                     {' · '}Fecha: {f.fecha_detectada ?? '—'}
+                    {datosEditando !== f.id && (
+                      <button
+                        onClick={() => {
+                          setMontoEditado((s) => ({
+                            ...s,
+                            [f.id]: f.monto_detectado != null ? String(f.monto_detectado) : '',
+                          }))
+                          setFechaEditada((s) => ({ ...s, [f.id]: f.fecha_detectada ?? '' }))
+                          setDatosEditando(f.id)
+                        }}
+                        className="ml-2 text-xs text-indigo-600 hover:underline"
+                      >
+                        ✏️ Corregir
+                      </button>
+                    )}
                   </p>
+                  {datosEditando === f.id && (
+                    <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
+                      <label className="text-xs text-slate-600">
+                        Monto
+                        <input
+                          value={montoEditado[f.id] ?? ''}
+                          onChange={(e) =>
+                            setMontoEditado((s) => ({ ...s, [f.id]: e.target.value }))
+                          }
+                          inputMode="decimal"
+                          placeholder="844041"
+                          className="mt-1 block w-40 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-600">
+                        Fecha
+                        <input
+                          type="date"
+                          value={fechaEditada[f.id] ?? ''}
+                          onChange={(e) =>
+                            setFechaEditada((s) => ({ ...s, [f.id]: e.target.value }))
+                          }
+                          className="mt-1 block rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                        />
+                      </label>
+                      <button
+                        onClick={() => void guardarDatos(f.id)}
+                        disabled={ocupado === f.id}
+                        className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {ocupado === f.id ? 'Guardando…' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => setDatosEditando(null)}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-white"
+                      >
+                        Cancelar
+                      </button>
+                      <span className="text-xs text-slate-500">
+                        Déjalo vacío para borrarlo. Con esto la auditoría deja de marcar un
+                        descuadre que no existe.
+                      </span>
+                    </div>
+                  )}
                   {f.cude && (
                     <p className="mt-1 text-xs text-slate-400">
                       CUDE {f.cude.slice(0, 10)}…{' '}

@@ -1801,3 +1801,17 @@ Esta es la primera pieza de ese plan.
 - Lo que ya estaba confirmado no se toca (el re-parseo sigue siendo idempotente).
 
 Tests: **246 en verde** (1 nuevo).
+
+### v1.66.1 — Corregir el monto y la fecha que detectó el lector
+
+La otra mitad del paracaídas. Puede que el texto esté bien y el **monto** mal (el lector tomó
+un NIT, un consecutivo, o no encontró nada): hasta ahora la factura se quedaba mintiendo y la
+auditoría marcaba un descuadre que no existía.
+
+- **`PATCH /facturas/{id}`** con `monto_detectado` y/o `fecha_detectada`. Solo se aplica lo que
+  venga en la petición: se puede corregir uno de los dos, o **borrarlo** con `null` (mejor sin
+  monto que con uno inventado).
+- **En la factura**: «✏️ Corregir» junto al monto detectado, con sus dos campos.
+- Y lo importante: la **auditoría** y «Registrar el gasto» pasan a usar el monto corregido.
+
+Tests: **250 en verde** (4 nuevos).

@@ -59,6 +59,7 @@ from ..schemas import (
     FacturaDetalleOut,
     FacturaLineaOut,
     FacturaOut,
+    FacturaPatchIn,
     GrupoDetalleOut,
     LineaUpdateIn,
     ParsearLineasIn,
@@ -293,6 +294,33 @@ def asociar(
                 "valor: parece un duplicado del gasto."
             )
     return AsociarOut(aviso=aviso, descuadre=descuadre)
+
+
+@router.patch("/{id}", response_model=FacturaDetalleOut)
+def corregir(
+    id: uuid.UUID,
+    data: FacturaPatchIn,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Corrige el monto y la fecha que detectó el lector.
+
+    Es la otra mitad del paracaídas: puede que el texto esté bien y el **monto** mal (el lector
+    tomó un NIT o un consecutivo). Sin esto la factura se queda mintiendo y la auditoría marca
+    un descuadre que no existe. Al corregirlo, la auditoría y «Registrar el gasto» usan el
+    monto bueno.
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    # Solo lo que venga en la petición: así se puede corregir solo el monto, solo la fecha, o
+    # borrar uno de los dos con `null`.
+    campos = data.model_fields_set
+    if "monto_detectado" in campos:
+        factura.monto_detectado = data.monto_detectado
+    if "fecha_detectada" in campos:
+        factura.fecha_detectada = data.fecha_detectada
+    db.commit()
+    db.refresh(factura)
+    return _detalle(db, factura)
 
 
 @router.delete("/{id}", status_code=204)

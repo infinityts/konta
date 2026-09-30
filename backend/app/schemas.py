@@ -719,6 +719,19 @@ class ParsearLineasIn(BaseModel):
     texto: str | None = None
 
 
+class FacturaPatchIn(BaseModel):
+    """Corregir lo que el **lector** detectó mal.
+
+    El monto detectado es lo que usa la auditoría contra la transacción asociada y lo que
+    propone «Registrar el gasto» en un recibo sin artículos: si el lector se equivocó (leyó el
+    NIT, un consecutivo, o no encontró nada), el usuario lo arregla aquí. Solo se aplica lo que
+    venga en la petición; mandar `null` lo borra.
+    """
+
+    monto_detectado: Decimal | None = Field(default=None, gt=0)
+    fecha_detectada: date | None = None
+
+
 class LineaUpdateIn(BaseModel):
     """Editar una línea. `etiqueta_id` corregida se aprende en `reglas_ocr`."""
 
