@@ -300,3 +300,18 @@ def test_un_almacen_limpio_no_reporta_borrados(client, engine):
     sf = make_session_factory(engine)
     with sf.begin() as s:
         assert archivos.borrar_huerfanos(s) == 0
+
+
+def test_tambien_barre_las_carpetas_que_ya_estaban_vacias(client, engine):
+    """Una carpeta sin archivos dentro se quedaba para siempre (la limpieza solo miraba archivos)."""
+    from app.db import make_session_factory
+
+    _, h = _registrar(client)
+    raiz = pathlib.Path(get_settings().almacen_ruta)
+    vacia = raiz / "usuario-borrado-hace-tiempo"
+    vacia.mkdir(parents=True, exist_ok=True)
+
+    sf = make_session_factory(engine)
+    with sf.begin() as s:
+        archivos.borrar_huerfanos(s)
+    assert not vacia.exists()

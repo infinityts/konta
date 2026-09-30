@@ -273,10 +273,12 @@ def borrar_huerfanos(s: Session) -> int:
             continue
         ruta.unlink(missing_ok=True)
         borrados += 1
-        # si era el último de su carpeta, la carpeta se va también
-        padre = ruta.parent
-        if padre != raiz and padre.is_dir() and not any(padre.iterdir()):
-            padre.rmdir()
+    # Y las carpetas que quedaron vacías: puede que ya lo estuvieran (sus archivos se borraron por
+    # fuera), así que no basta con quitarlas al borrar un archivo. Se recorren de dentro hacia
+    # fuera para poder quitar también las anidadas.
+    for carpeta in sorted((c for c in raiz.rglob("*") if c.is_dir()), key=lambda c: -len(c.parts)):
+        if not any(carpeta.iterdir()):
+            carpeta.rmdir()
     return borrados
 
 
