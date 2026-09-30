@@ -1867,3 +1867,24 @@ comprobante)»*. Aplica a corregir el monto de una factura, a registrar un gasto
 a las líneas de una factura.
 
 Tests: **261 en verde** (1 nuevo).
+
+### v1.67 — Modo revisión: monto, fecha y artículos en una pasada (cierra el Nivel 1)
+
+Después de leer, la factura muestra un panel **«Revisa antes de registrar»** con los tres
+puntos que deciden si el gasto queda bien, cada uno con su estado y su **Corregir** al lado:
+
+| | |
+|---|---|
+| **Monto** | ✅ o ⚠️ con el motivo (y el botón para corregirlo) |
+| **Fecha** | ✅ o ⚠️ — y aquí está lo nuevo |
+| **Artículos** | «3 artículos · suman 15.000» o «sin artículos: se registra como un solo gasto» |
+
+La corrección deja de ser un rescate cuando ya algo salió mal y pasa a ser parte del flujo.
+
+**Lo nuevo en la fecha**: la fecha decide en **qué mes** cae el gasto, así que una fecha que
+falta o que está en el futuro descoloca los reportes sin que se note. Ahora también trae su
+`aviso_fecha` (con un día de gracia, porque un recibo de madrugada puede quedar fechado
+«mañana» por la zona horaria del emisor) y, si parece una factura de mercado y no se detectó
+ningún artículo, el panel lo advierte en vez de registrarla vacía.
+
+Tests: **266 en verde** (4 nuevos).

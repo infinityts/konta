@@ -16,7 +16,7 @@ from __future__ import annotations
 import io
 import os
 import re
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from .dinero import detectar_formato, parsear_monto
@@ -291,6 +291,27 @@ def aviso_del_monto(
                 f"({suma_lineas:,.2f}): revisa cuál de los dos está mal (si la factura tiene "
                 "impuestos o descuentos, la diferencia es normal)."
             )
+    return None
+
+
+def aviso_de_la_fecha(fecha: date | None, referencia: date) -> str | None:
+    """Dice si la fecha detectada no es de fiar (y por qué). `None` si está bien.
+
+    La fecha decide en **qué mes** cae el gasto, así que una fecha que falta o que está en el
+    futuro descoloca los reportes sin que se note.
+    """
+    if fecha is None:
+        return (
+            "No pudimos leer la fecha: ponla en «✏️ Corregir» para que el gasto caiga en el "
+            "mes que le toca."
+        )
+    # Un día de gracia: un recibo de madrugada puede quedar fechado «mañana» por la zona
+    # horaria del emisor, y eso no es un error.
+    if fecha > referencia + timedelta(days=1):
+        return (
+            f"La fecha detectada ({fecha:%d/%m/%Y}) está en el futuro: si no es un pago "
+            "programado, corrígela."
+        )
     return None
 
 

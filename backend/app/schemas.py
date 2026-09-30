@@ -623,6 +623,8 @@ class FacturaOut(BaseModel):
     duplicada: bool = False
     # Si el monto detectado no es de fiar: por qué (None = está bien)
     aviso_monto: str | None = None
+    # Lo mismo con la fecha (decide en qué mes cae el gasto)
+    aviso_fecha: str | None = None
     creada_en: datetime
 
 

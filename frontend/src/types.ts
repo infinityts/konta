@@ -276,6 +276,8 @@ export interface Factura {
   duplicada: boolean
   /** Si el monto detectado no es de fiar: por qué (null = está bien) */
   aviso_monto?: string | null
+  /** Lo mismo con la fecha (decide en qué mes cae el gasto) */
+  aviso_fecha?: string | null
   creada_en: string
 }
 

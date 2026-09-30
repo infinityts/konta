@@ -895,6 +895,86 @@ export default function Facturas() {
                     )}
                   </div>
 
+                  {/* Modo revisión: lo que hay que mirar antes de registrar, en una pasada.
+                      La corrección deja de ser un rescate y pasa a ser parte del flujo. */}
+                  {!f.transaccion_id && (
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                      <p className="text-sm font-medium text-slate-700">
+                        Revisa antes de registrar
+                      </p>
+                      <ul className="mt-2 space-y-1.5 text-sm">
+                        <li className="flex flex-wrap items-center gap-2">
+                          <span>{f.aviso_monto ? '⚠️' : '✅'}</span>
+                          <span className="text-slate-500">Monto</span>
+                          <span className="font-medium text-slate-700">
+                            {f.monto_detectado != null ? fmtMoney(f.monto_detectado) : 'sin leer'}
+                          </span>
+                          {f.aviso_monto ? (
+                            <span className="text-xs text-amber-700">{f.aviso_monto}</span>
+                          ) : null}
+                          <button
+                            onClick={() => {
+                              setMontoEditado((s) => ({
+                                ...s,
+                                [f.id]: f.monto_detectado != null ? String(f.monto_detectado) : '',
+                              }))
+                              setFechaEditada((s) => ({ ...s, [f.id]: f.fecha_detectada ?? '' }))
+                              setDatosEditando(f.id)
+                            }}
+                            className="text-xs text-indigo-600 hover:underline"
+                          >
+                            Corregir
+                          </button>
+                        </li>
+                        <li className="flex flex-wrap items-center gap-2">
+                          <span>{f.aviso_fecha ? '⚠️' : '✅'}</span>
+                          <span className="text-slate-500">Fecha</span>
+                          <span className="font-medium text-slate-700">
+                            {f.fecha_detectada ?? 'sin leer'}
+                          </span>
+                          {f.aviso_fecha ? (
+                            <span className="text-xs text-amber-700">{f.aviso_fecha}</span>
+                          ) : null}
+                        </li>
+                        <li className="flex flex-wrap items-center gap-2">
+                          <span>
+                            {detalle.lineas.length === 0 && detalle.tipo_documento === 'mercado'
+                              ? '⚠️'
+                              : '✅'}
+                          </span>
+                          <span className="text-slate-500">Artículos</span>
+                          {detalle.lineas.length > 0 ? (
+                            <span className="font-medium text-slate-700">
+                              {detalle.lineas.length}{' '}
+                              {detalle.lineas.length === 1 ? 'artículo' : 'artículos'} · suman{' '}
+                              {fmtMoney(
+                                detalle.lineas.reduce((s, l) => s + Number(l.valor_total), 0),
+                              )}
+                            </span>
+                          ) : detalle.tipo_documento === 'mercado' ? (
+                            <span className="text-xs text-amber-700">
+                              parece una factura de mercado y no se detectó ningún artículo: revisa
+                              el texto o añádelos a mano
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">
+                              sin artículos: se registra como un solo gasto
+                            </span>
+                          )}
+                          <button
+                            onClick={() => setAgregando(f.id)}
+                            className="text-xs text-indigo-600 hover:underline"
+                          >
+                            Corregir
+                          </button>
+                        </li>
+                      </ul>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Si los tres están bien, sigue con el botón de abajo.
+                      </p>
+                    </div>
+                  )}
+
                   {detalle.lineas.length > 0 ? (
                     <div className="mt-2 overflow-x-auto">
                       <table className="w-full text-sm">

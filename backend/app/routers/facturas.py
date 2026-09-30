@@ -30,6 +30,7 @@ from ..defaults import sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..embeddings import make_embedding
 from ..facturas import (
+    aviso_de_la_fecha,
     aviso_del_monto,
     detectar_fecha,
     detectar_monto,
@@ -151,6 +152,7 @@ def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
     if factura.texto_extraido or lineas:
         detalle.tipo_documento = detectar_tipo(factura.texto_extraido or "", lineas)
     detalle.duplicada = _duplicada(db, factura)
+    detalle.aviso_fecha = aviso_de_la_fecha(factura.fecha_detectada, hoy())
     detalle.aviso_monto = aviso_del_monto(
         factura.monto_detectado,
         factura.texto_extraido or "",
@@ -216,6 +218,7 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
         item.aviso_monto = aviso_del_monto(
             factura.monto_detectado, factura.texto_extraido or ""
         )
+        item.aviso_fecha = aviso_de_la_fecha(factura.fecha_detectada, hoy())
         salida.append(item)
     return salida
 
