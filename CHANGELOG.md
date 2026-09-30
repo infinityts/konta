@@ -1727,3 +1727,16 @@ de una cuenta concreta. Los del futuro siguen ahí (y salen en su mes en la vist
 pero no inflan lo que tienes ahora.
 
 Tests: **235 en verde** (2 nuevos).
+
+## v1.64 — Una compra con tarjeta de crédito no es «sin cuenta»
+
+El Resumen avisaba de «2 movimiento(s) sin cuenta asignada por 93.702,62» y restaba ese dinero
+del saldo total. Uno de los dos era una compra con **tarjeta de crédito** (89.602,62), y eso
+está mal por partida doble: es **deuda de la tarjeta** (el dinero no sale de ninguna cuenta
+hasta que pagas la tarjeta, el 5 de octubre) y, al restarla ahora, se restaba **dos veces** (al
+comprar y al pagar). Además pedía asignarle una cuenta, que no es lo que corresponde.
+
+Ahora las compras con tarjeta de crédito quedan fuera de «sin cuenta» (del neto, del conteo y
+de la alerta). Las de **débito** y el efectivo sí cuentan: ese dinero sí sale.
+
+Tests: **236 en verde** (1 nuevo).

@@ -6,7 +6,7 @@ import calendar
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from .jerarquia import etiqueta_completa, mapa_etiquetas
@@ -18,6 +18,8 @@ from .models import (
     IngresoRecurrente,
     Poliza,
     Suscripcion,
+    Tarjeta,
+    TipoTarjeta,
     TipoTransaccion,
     Transaccion,
 )
@@ -25,6 +27,25 @@ from .recurrencia import factor_mensual, hoy
 from .tasas import convertir
 
 CERO = Decimal("0.00")
+
+
+def _no_es_de_credito(usuario_id):
+    """Condición: el movimiento **no** es una compra con tarjeta de crédito.
+
+    Una compra con tarjeta de crédito **no** es «sin cuenta»: es deuda de la tarjeta, y ese
+    dinero no sale de ninguna cuenta hasta que pagas la tarjeta (ahí sí, con el pago). Al
+    contarla como «sin cuenta» el Resumen la restaba dos veces: al comprar y al pagar, y
+    además pedía asignarle una cuenta, que no es lo que corresponde.
+    """
+    return or_(
+        Transaccion.tarjeta_id.is_(None),
+        ~Transaccion.tarjeta_id.in_(
+            select(Tarjeta.id).where(
+                Tarjeta.usuario_id == usuario_id,
+                Tarjeta.tipo == TipoTarjeta.CREDITO,
+            )
+        ),
+    )
 
 
 def _sumar_mes(fecha: date, n: int) -> date:
@@ -145,6 +166,7 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
                 Transaccion.usuario_id == usuario_id,
                 Transaccion.cuenta_id.is_(None),
                 until_hoy_sin_cuenta,
+                _no_es_de_credito(usuario_id),
             )
             .group_by(Transaccion.tipo)
         ).all()
@@ -157,6 +179,7 @@ def saldo_cuentas(db: Session, usuario_id) -> dict:
                 Transaccion.usuario_id == usuario_id,
                 Transaccion.cuenta_id.is_(None),
                 until_hoy_sin_cuenta,
+                _no_es_de_credito(usuario_id),
             )
         )
         or 0
@@ -398,6 +421,8 @@ def diagnostico(db: Session, usuario_id) -> dict:
                 Transaccion.cuenta_id.is_(None),
                 # Tampoco se cuentan los movimientos futuros sin cuenta
                 Transaccion.fecha <= hoy(),
+                # Ni las compras con tarjeta de crédito (son deuda de la tarjeta)
+                _no_es_de_credito(usuario_id),
             )
         )
         or 0
