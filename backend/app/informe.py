@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
-from .models import ConsumoIa, Plan, Usuario
+from .models import ConsumoIa, Pago, Plan, Usuario
 from .recurrencia import hoy
 from .tasas import convertir
 
@@ -213,6 +213,30 @@ def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
         fila["archivos_dia"].append(float(consumo.archivos_dia or 0))
         fila["dias_medidos"].append(int(consumo.dias_medidos or 0))
 
+    # Lo que **de verdad** entró este mes: los pagos cobrados. El precio del plan por sus clientes
+    # es lo que se esperaría cobrar cada mes, y no es lo mismo: alguien puede haber comprado a
+    # mitad de mes, o haber cambiado de plan. Mezclarlas sería mentir en el informe del dinero.
+    cobrado = float(
+        db.scalar(
+            select(func.coalesce(func.sum(Pago.monto), 0)).where(
+                Pago.estado == "pagado",
+                func.to_char(Pago.pagado_en, "YYYY-MM") == periodo,
+            )
+        )
+        or 0
+    )
+    cobrado_por_plan: dict[str, float] = {}
+    for codigo, total in db.execute(
+        select(Pago.codigo, func.coalesce(func.sum(Pago.monto), 0))
+        .where(
+            Pago.estado == "pagado",
+            Pago.tipo == "plan",
+            func.to_char(Pago.pagado_en, "YYYY-MM") == periodo,
+        )
+        .group_by(Pago.codigo)
+    ).all():
+        cobrado_por_plan[codigo] = float(total)
+
     # A cuánto está el dólar hoy, para poder comparar contra el precio en pesos
     trm = convertir(db, "USD", "COP", Decimal("1"))
     cop_por_usd = float(trm) if trm else None
@@ -245,6 +269,7 @@ def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
                 "precio_mes": fila["precio_mes"],
                 "usuarios": usuarios_plan,
                 "ingreso_cop": round(ingreso, 2),
+                "cobrado_cop": round(cobrado_por_plan.get(fila["codigo"], 0.0), 2),
                 "lecturas": _resumen_de(fila["lecturas"]),
                 "consultas": _resumen_de(fila["consultas"]),
                 "tokens_entrada": _resumen_de(fila["tokens_entrada"]),
@@ -295,6 +320,9 @@ def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
         "dias_del_mes": hoy().day,
         "cuentas_del_dueno_excluidas": cuentas_del_dueno,
         "usuarios": totales["usuarios"],
+        # Dos cifras distintas, cada una con su nombre: lo cobrado este mes y lo que se esperaría
+        # cobrar cada mes con los planes que hay.
+        "cobrado_cop": round(cobrado, 2),
         "ingreso_cop": round(totales["ingreso_cop"], 2),
         "costo_ia_usd": round(totales["costo_ia_usd"], 6),
         "costo_ia_cop": round(totales["costo_ia_usd"] * cop_por_usd, 2) if cop_por_usd else None,

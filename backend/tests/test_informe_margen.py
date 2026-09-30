@@ -217,3 +217,33 @@ def test_el_informe_por_usuario_tiene_tope_y_dice_cuantos_quedan_fuera(client, e
     completo = client.get("/ia/informe/usuarios", headers=h).json()
     assert completo["mostrados"] == 4
     assert completo["nota_limite"] is None
+
+
+def test_el_informe_distingue_lo_cobrado_de_lo_que_se_esperaria(client, engine, monkeypatch):
+    """«Ingreso» no es lo mismo que «lo que pagarían»: si alguien compró a mitad de mes, se ve."""
+    _, h = _admin(client, monkeypatch)
+    _trm(engine)
+    _, h_cliente = _registrar(client, email="cliente@example.com")
+
+    # el cliente compra el plan Pro (paga 29.000) y el informe lo tiene que ver
+    orden = client.post("/pagos/orden", headers=h_cliente, json={"tipo": "plan", "codigo": "pro"}).json()
+    assert client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h_cliente).status_code == 200
+
+    datos = client.get("/ia/informe", headers=h).json()
+    pro = next(p for p in datos["planes"] if p["codigo"] == "pro")
+    assert pro["cobrado_cop"] == 29000.0, "lo cobrado este mes por el plan Pro"
+    assert datos["cobrado_cop"] == 29000.0, "y el total cobrado"
+    # el plan del cliente es Pro, así que lo que se esperaría cada mes también es 29.000
+    assert pro["usuarios"] == 1
+    assert datos["ingreso_cop"] == 29000.0
+
+
+def test_lo_cobrado_no_cuenta_los_pagos_pendientes(client, engine, monkeypatch):
+    """Una orden sin pagar no es dinero: no puede aparecer como cobrado."""
+    _, h = _admin(client, monkeypatch)
+    _trm(engine)
+    _, h_cliente = _registrar(client, email="cliente@example.com")
+    client.post("/pagos/orden", headers=h_cliente, json={"tipo": "plan", "codigo": "pro"})
+
+    datos = client.get("/ia/informe", headers=h).json()
+    assert datos["cobrado_cop"] == 0.0, "la orden quedó pendiente: no hay dinero"

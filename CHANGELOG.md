@@ -2533,3 +2533,22 @@ Dos cosas más de la revisión de lo que toca dinero y datos, y una nota de lo q
   no perderlo de vista.
 
 Tests: **387 en verde** (2 nuevos).
+
+### v1.94 — El informe del dinero dice lo que **entró**, no lo que entraría
+
+El informe llamaba **«ingreso»** a *lo que los clientes pagarían al mes* ✗, cuando la tabla de pagos
+tiene **lo que de verdad se cobró** ✗. Son dos cosas distintas y mezclarlas es mentir en la cuenta
+que decide los precios: alguien puede haber comprado a mitad de mes, o haber cambiado de plan.
+
+- **Dos cifras, cada una con su nombre**: **cobrado este mes** (los pagos con estado `pagado` de ese
+  mes) y **esperado al mes** (los clientes que hay × el precio de su plan). Se ven en la cabecera del
+  panel y por plan.
+- **Una orden sin pagar no es dinero** ✅: no aparece en lo cobrado (hay test).
+- Y el asistente, si le preguntan por tu plan, ahora puede decir **hasta cuándo vale** (`vence`,
+  `dias_de_plan`, `por_vencer`), igual que la pantalla.
+
+**Revisado y ya estaba bien** ✅ (queda dicho): la cuota se recorta a cero con `max(0, …)`, así que
+un cliente que usó 100 lecturas y luego bajó al Básico (10 incluidas) ve **«0 restantes»** y **nunca
+un número negativo** ✗→✅.
+
+Tests: **390 en verde** (3 nuevos).

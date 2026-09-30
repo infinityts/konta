@@ -7,6 +7,9 @@ interface PlanInforme {
   nombre: string
   precio_mes: number
   usuarios: number
+  /** Lo que de verdad se cobró este mes (pagos) */
+  cobrado_cop: number
+  /** Lo que se esperaría cobrar cada mes con los planes que hay */
   ingreso_cop: number
   lecturas: { total: number; promedio: number; p50: number; p90: number; max: number }
   consultas: { total: number; promedio: number; p50: number; p90: number; max: number }
@@ -25,6 +28,9 @@ interface Informe {
   dias_del_mes: number
   cuentas_del_dueno_excluidas: number
   usuarios: number
+  /** Lo que de verdad se cobró este mes (pagos) */
+  cobrado_cop: number
+  /** Lo que se esperaría cobrar cada mes con los planes que hay */
   ingreso_cop: number
   costo_ia_usd: number
   costo_ia_cop: number | null
@@ -129,10 +135,19 @@ export default function Informe() {
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-5">
         {[
           { t: 'Clientes', v: num(informe.usuarios, 0), d: `${informe.periodo}` },
-          { t: 'Ingreso del mes', v: pesos(informe.ingreso_cop), d: 'lo que pagan' },
+          {
+            t: 'Cobrado este mes',
+            v: pesos(informe.cobrado_cop),
+            d: 'lo que de verdad entró',
+          },
+          {
+            t: 'Esperado al mes',
+            v: pesos(informe.ingreso_cop),
+            d: `${informe.usuarios} cliente(s) × su plan`,
+          },
           {
             t: 'Coste real de IA',
             v: pesos(informe.costo_ia_cop),
@@ -175,7 +190,8 @@ export default function Informe() {
               <th className="px-3 py-2">Plan</th>
               <th className="px-3 py-2">Clientes</th>
               <th className="px-3 py-2">Precio</th>
-              <th className="px-3 py-2">Ingreso</th>
+              <th className="px-3 py-2">Esperado/mes</th>
+              <th className="px-3 py-2">Cobrado</th>
               <th className="px-3 py-2">Coste real</th>
               <th className="px-3 py-2">Margen</th>
               <th className="px-3 py-2">Lecturas p50 / p90</th>
@@ -191,6 +207,7 @@ export default function Informe() {
                 <td className="px-3 py-2">{p.usuarios}</td>
                 <td className="px-3 py-2">{pesos(p.precio_mes)}</td>
                 <td className="px-3 py-2">{pesos(p.ingreso_cop)}</td>
+                <td className="px-3 py-2">{pesos(p.cobrado_cop)}</td>
                 <td className="px-3 py-2">
                   {pesos(p.costo_total_cop)}
                   {p.costo_total_cop == null && (

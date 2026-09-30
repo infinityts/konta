@@ -463,9 +463,15 @@ def _mi_plan(db: Session, usuario: Usuario) -> dict:
     from .archivos import resumen as resumen_archivos
 
     cupo = cuotas.resumen(db, usuario)
+    from .pagos import estado_del_plan
+
+    estado = estado_del_plan(usuario)
     return {
         "pantalla": "Facturas (arriba, el cupo del mes)",
         "plan": cupo["plan_nombre"],
+        "vence": str(estado["hasta"]) if estado["hasta"] else None,
+        "dias_de_plan": estado["dias"],
+        "por_vencer": estado["por_vencer"],
         "precio_mes": cupo["precio_mes"],
         "lecturas_ia_restantes": cupo["lecturas"]["restantes"],
         "consultas_restantes": cupo["consultas"]["restantes"],

@@ -167,3 +167,33 @@ def test_queda_registrado_para_el_informe(client, engine, monkeypatch):
         ).one()
     assert fila.pregunta == "¿cómo voy este mes?"
     assert fila.tokens_entrada == 120
+
+
+def test_la_herramienta_del_plan_dice_hasta_cuando_vale(client, engine):
+    """Si el asistente habla del plan, tiene que poder decir cuándo vence (o que no vence)."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app import asistente
+    from app.models import Usuario
+
+    _, h = _registrar(client, email="u@example.com")
+    sf = sessionmaker(bind=engine)
+    with sf.begin() as s:
+        usuario = s.query(Usuario).filter(Usuario.email == "u@example.com").one()
+        sin_vencimiento = asistente._mi_plan(s, usuario)
+        assert sin_vencimiento["vence"] is None, "el plan base no vence"
+        assert sin_vencimiento["por_vencer"] is False
+
+        # ahora con un plan de pago comprado
+        from app.pagos import activar_plan
+
+        activar_plan(s, usuario, "pro")
+    orden = client.post("/pagos/orden", headers=h, json={"tipo": "plan", "codigo": "pro"}).json()
+    client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h)
+
+    with sf.begin() as s:
+        usuario = s.query(Usuario).filter(Usuario.email == "u@example.com").one()
+        con_vencimiento = asistente._mi_plan(s, usuario)
+    assert con_vencimiento["vence"] is not None
+    assert con_vencimiento["dias_de_plan"] == 60, "30 del activar_plan de prueba + 30 del pago"
+    assert con_vencimiento["por_vencer"] is False
