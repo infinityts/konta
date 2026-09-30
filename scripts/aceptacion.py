@@ -84,6 +84,8 @@ def main() -> int:
     parser.add_argument("--dsn", default="", help="para borrar el usuario de prueba y sus archivos")
     parser.add_argument("--sin-ia", action="store_true", help="salta lo que cuesta dinero real")
     parser.add_argument("--disco", default="", help="ruta local para mirar el espacio libre")
+    parser.add_argument("--esperado", default="", help="commit que debería estar corriendo (por defecto, el local)")
+    parser.add_argument("--web", default="", help="URL de la pantalla, para mirar su /version")
     args = parser.parse_args()
 
     app = App(args.base)
@@ -116,6 +118,37 @@ def main() -> int:
     if libre is not None:
         revisar("queda sitio en el disco (los despliegues lo necesitan)", libre >= 1.0,
                 f"{libre:.2f} GB libres")
+
+    # 0c. que lo desplegado sea lo que se cree: un build que falla en silencio deja la imagen vieja
+    # corriendo y todo parece bien hasta que algo no llega. Se compara con el commit local.
+    esperado = args.esperado
+    if not esperado:
+        try:
+            import subprocess
+
+            esperado = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=str(Path(__file__).resolve().parent.parent),
+            ).stdout.strip()
+        except Exception:  # noqa: BLE001 — sin git no se puede comparar
+            esperado = ""
+    if esperado:
+        corriendo = salud.get("version")
+        revisar(
+            "la versión desplegada es la del código",
+            corriendo == esperado,
+            f"corre {corriendo} · el código dice {esperado}",
+        )
+        if args.web:
+            try:
+                with urllib.request.urlopen(args.web.rstrip("/") + "/version", timeout=20) as r:
+                    web = r.read().decode().strip()
+                revisar("la pantalla sirve la misma versión", web == esperado, f"sirve {web}")
+            except Exception as e:  # noqa: BLE001 — se reporta como fallo
+                revisar("la pantalla sirve la misma versión", False, f"{type(e).__name__}: {e}")
 
     # 1. catálogo y cupo
     codigo, planes = app.pedir("/ia/planes", metodo="GET")
@@ -195,7 +228,7 @@ def main() -> int:
             f"{antes['lecturas_restantes']} → {despues['lecturas_restantes']}")
     _, recibos = app.pedir("/pagos/mios", metodo="GET")
     revisar("queda el recibo", len(recibos) == 1 and recibos[0]["estado"] == "pagado", str(recibos)[:70])
-    codigo, sin_sesion = app.pedir_publico(f"/pagos/webhook/simulada",
+    codigo, sin_sesion = app.pedir_publico("/pagos/webhook/simulada",
                                            {"referencia": orden["referencia"], "estado": "pagado"})
     revisar("el aviso simulado exige sesión (no se acredita sin firma)", codigo == 401, f"HTTP {codigo}")
 

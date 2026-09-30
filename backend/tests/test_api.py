@@ -5,6 +5,7 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
+from app.config import get_settings
 from app.defaults import DEFAULT_CATEGORIAS
 from app.recurrencia import hoy as hoy_app
 
@@ -2364,7 +2365,14 @@ def test_health_ok(client):
     """Con la base en pie, el estado es ok y lo dice explícitamente."""
     r = client.get("/health")
     assert r.status_code == 200, r.text
-    assert r.json() == {"status": "ok", "app": "konta", "base": "ok", "error": None}
+    # la versión va en el health: es lo que permite comprobar que lo desplegado es lo que se cree
+    assert r.json() == {
+        "status": "ok",
+        "app": "konta",
+        "version": get_settings().version,
+        "base": "ok",
+        "error": None,
+    }
 
 
 def test_health_503_si_la_base_no_responde(client):
@@ -2732,3 +2740,13 @@ def test_editar_y_borrar_un_producto(client):
     _, h2 = _registrar(client)
     assert client.patch(f"/productos/{otro['id']}", headers=h2, json={"nombre": "X"}).status_code == 404
     assert client.delete(f"/productos/{otro['id']}", headers=h2).status_code == 404
+
+
+def test_el_health_dice_que_version_corre(client, monkeypatch):
+    """"Desplegado" tiene que poder comprobarse: si el build no llegó, se ve aquí."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "version", "abc1234")
+    datos = client.get("/health").json()
+    assert datos["status"] == "ok"
+    assert datos["version"] == "abc1234"

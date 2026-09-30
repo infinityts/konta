@@ -253,6 +253,9 @@ class SaludOut(BaseModel):
 
     status: str  # 'ok' | 'error'
     app: str
+    # Qué commit está corriendo (lo pone el build): permite comprobar que lo desplegado es lo que
+    # se cree, que es como se caza un despliegue que falló en silencio.
+    version: str = "dev"
     base: str  # 'ok' | 'sin conexión'
     # Solo el tipo de excepción: el healthcheck no filtra la cadena de conexión
     error: str | None = None

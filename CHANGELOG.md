@@ -2475,3 +2475,20 @@ mientras el coste de IA y almacenamiento corría todos los meses. Ingreso único
   con el recordatorio de renovar.
 
 Tests: **381 en verde** (4 nuevos).
+
+### v1.91 — «Desplegado» tiene que poder comprobarse
+
+El incidente del disco dejó una lección incómoda: el build **falló en silencio**, siguió corriendo la
+imagen vieja y yo anuncié un despliegue que no había llegado. Nada se rompió, pero la afirmación era
+falsa.
+
+- **La app dice qué versión corre**: `/health` devuelve `version` (el commit), y la imagen lo lleva
+  grabado desde el build (`--build-arg FINANZAS_VERSION=$(git rev-parse --short HEAD)`).
+- **La pantalla también**: nginx sirve `/version` con el mismo sello, para cazar el caso peor —una
+  pantalla vieja con un backend nuevo— que es justo lo que pasó.
+- **La pasada de aceptación lo compara**: *«la versión desplegada es la del código»* y *«la pantalla
+  sirve la misma versión»*. Si el build no llegó, sale como **comprobación fallida**, no como un
+  despliegue fantasma.
+- Y sigue mirando el **disco** (`--disco`): las dos formas en que un despliegue puede mentir.
+
+Tests: **382 en verde** (1 nuevo).

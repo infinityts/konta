@@ -133,8 +133,9 @@ def health(db: Session = Depends(get_db)):
             content={
                 "status": "error",
                 "app": "konta",
+                "version": get_settings().version,
                 "base": "sin conexión",
                 "error": type(exc).__name__,
             },
         )
-    return {"status": "ok", "app": "konta", "base": "ok"}
+    return {"status": "ok", "app": "konta", "version": get_settings().version, "base": "ok"}

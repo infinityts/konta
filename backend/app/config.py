@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     ia_precio_salida: float = 1.20
 
     # ── Informe de promedios y margen (solo para el dueño de la app) ─────────────────────
+    # Qué versión (commit) está corriendo. La pone el build: es lo que permite comprobar que lo
+    # desplegado es lo que se cree, y cazar un despliegue que falló en silencio.
+    version: str = "dev"
+
     # Correos separados por coma que pueden ver el informe de todos los clientes.
     informe_admins: str = ""
     # ── Ayuda paso a paso ────────────────────────────────────────────────────────────────
