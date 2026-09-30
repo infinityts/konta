@@ -98,3 +98,13 @@ def test_un_monto_que_no_cabe_se_explica_no_revienta(client):
     assert client.patch(
         f"/facturas/{factura['id']}", headers=h, json={"monto_detectado": "99999999999.99"}
     ).status_code == 200
+
+
+def test_avisa_por_numero_de_documento_aunque_no_sea_enorme(client):
+    """La rama «sale de un número de documento»: un CUS de 69 millones no es enorme, pero no
+    es el valor pagado."""
+    _, h = _registrar(client)
+    factura = _factura(client, h, "Transacción/CUS: 69541765\nMonto: $46.477\n")
+    client.patch(f"/facturas/{factura['id']}", headers=h, json={"monto_detectado": "69541765"})
+    aviso = client.get(f"/facturas/{factura['id']}", headers=h).json()["aviso_monto"]
+    assert aviso and "número de documento" in aviso, aviso
