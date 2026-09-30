@@ -2552,3 +2552,26 @@ un cliente que usó 100 lecturas y luego bajó al Básico (10 incluidas) ve **«
 un número negativo** ✗→✅.
 
 Tests: **390 en verde** (3 nuevos).
+
+### v1.95 — Un tope, y en los ajustes (el mismo defecto estaba dos veces)
+
+Hice una auditoría de dos cosas que ya me habían mordido: ajustes declarados que nadie lee y
+**números escritos a mano que pisan un ajuste**.
+
+- **Auditoría de ajustes** ✅: 36 declarados, **todos se leen** en algún sitio. Esa clase de mentira
+  no existe en la configuración.
+- **Pero el defecto del tope estaba dos veces** ✗: además del de la subida (arreglado en v1.93),
+  el camino de los **extractos** tenía su propio `TAMANO_MAXIMO = 12 MB` que dejaba el ajuste de
+  15 MB sin efecto, con su propio mensaje (*«El archivo supera los 12 MB»*). Fuera ✅: **un solo
+  tope, el del ajuste**, y hay test con el ajuste en 1 MB que comprueba que manda.
+- **Código muerto fuera** ✗: `limpiar_planes_vencidos` quedó sin usar cuando el mantenimiento diario
+  pasó a llamar a `vencer_planes` (v1.92). Se va ✅: el código que nadie llama solo confunde.
+- **Un docstring que prometía de más** ✗: `_a_imagen` decía que *«una factura de varios folios se lee
+  folio a folio si hace falta»* — no es cierto: se manda **solo la primera página** ✗. Ahora dice lo
+  que hace y **por qué** (es lo que mantiene acotado el coste de cada lectura: una factura de 50
+  folios no multiplica el gasto).
+
+La regla que saco de esto, para que no vuelva: **un límite, y en los ajustes** ✅ — si aparece un
+número a mano al lado de un ajuste, uno de los dos está mintiendo ✗.
+
+Tests: **391 en verde** (1 nuevo).

@@ -2766,3 +2766,19 @@ def test_el_tope_de_tamano_lo_pone_el_ajuste(client, monkeypatch):
     assert r.status_code == 413, r.status_code
     assert "más de 1 MB" in r.json()["detail"], r.json()["detail"]
     assert "10 MB" not in r.json()["detail"], "el mensaje viejo no puede seguir apareciendo"
+
+
+def test_el_tope_de_los_extractos_tambien_lo_pone_el_ajuste(client, monkeypatch):
+    """Había un segundo tope a mano (12 MB) que dejaba el ajuste sin efecto, igual que en la subida."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "tamano_maximo_archivo_mb", 1)
+    _, h = _registrar(client)
+    grande = b"fecha,monto\n" + b"2026-09-01,1000\n" * 100_000  # ~1,7 MB
+    r = client.post(
+        "/extractos",
+        headers=h,
+        files={"archivo": ("extracto.csv", grande, "text/csv")},
+    )
+    assert r.status_code == 413, r.status_code
+    assert "más de 1 MB" in r.json()["detail"], r.json()["detail"]

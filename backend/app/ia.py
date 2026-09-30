@@ -86,8 +86,10 @@ def configurada() -> bool:
 def _a_imagen(contenido: bytes, tipo: str | None, contrasena: str | None = None) -> tuple[str, str]:
     """Devuelve (mime, base64). El proveedor solo acepta imágenes: un PDF se convierte.
 
-    Se reutiliza el mismo `pdf2image` que el OCR local (ya está instalado por él), con la
-    primera página: una factura de varios folios se lee folio a folio si hace falta.
+    Se reutiliza el mismo `pdf2image` que el OCR local (ya está instalado por él) y se manda
+    **solo la primera página**: es lo que mantiene acotado el coste de cada lectura (una factura de
+    50 folios no multiplica el gasto). Si algún día hace falta leer un folio concreto, se pide esa
+    página a propósito, no todas.
     """
     if (tipo or "").lower() in TIPOS_IMAGEN:
         return (tipo or "image/jpeg").lower(), base64.b64encode(contenido).decode()

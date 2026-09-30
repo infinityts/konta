@@ -68,7 +68,6 @@ from ..valor_extractos import (
 router = APIRouter(prefix="/extractos", tags=["extractos"])
 
 EXTENSIONES = (".pdf", ".xlsx", ".xlsm", ".csv")
-TAMANO_MAXIMO = 12 * 1024 * 1024
 
 
 def _moneda_valida(db: Session, codigo: str | None, por_defecto: str = "COP") -> str:
@@ -152,9 +151,6 @@ def subir_extracto(
         )
     if not contenido:
         raise HTTPException(400, "El archivo está vacío")
-    if len(contenido) > TAMANO_MAXIMO:
-        raise HTTPException(400, "El archivo supera los 12 MB")
-
     if cuenta_id is not None:
         get_owned(db, Cuenta, cuenta_id, user.id)
     if tarjeta_id is not None:

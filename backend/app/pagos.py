@@ -20,7 +20,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
-from .db import make_engine, make_session_factory
 from .models import Pago, PaqueteLecturas, Plan, Usuario
 from .pasarelas import pasarela_actual
 from .recurrencia import hoy
@@ -139,17 +138,6 @@ def vencer_planes(s: Session) -> list[str]:
         usuario.plan_codigo = base
         usuario.plan_hasta = None
     return [usuario.email or str(usuario.id) for usuario in vencidos]
-
-
-def limpiar_planes_vencidos() -> int:
-    """Trabajo programado: devuelve al plan base los planes de pago vencidos."""
-    engine = make_engine()
-    sf = make_session_factory(engine)
-    try:
-        with sf.begin() as s:
-            return len(vencer_planes(s))
-    finally:
-        engine.dispose()
 
 
 def _acreditar(db: Session, pago: Pago) -> str:
