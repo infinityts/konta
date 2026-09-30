@@ -915,6 +915,9 @@ def corregir(
 @router.delete("/{id}", status_code=204)
 def eliminar(id: uuid.UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     factura = get_owned(db, Factura, id, user.id)
+    # Borrar la factura tiene que borrar también su archivo: si no, queda basura en el disco
+    # que nadie reclama y que ya no se puede borrar desde la app.
+    archivos.borrar_archivo(db, factura)
     db.delete(factura)
     db.commit()
 

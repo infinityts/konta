@@ -192,3 +192,18 @@ def test_el_mismo_archivo_no_se_duplica_en_el_almacen(client):
     d2 = client.get(f"/facturas/{otra['id']}", headers=h).json()
     assert almacen.leer(f"{d1['usuario_id']}/{una['id']}.pdf")
     assert almacen.leer(f"{d2['usuario_id']}/{otra['id']}.pdf")
+
+
+def test_borrar_la_factura_borra_su_archivo(client):
+    """Sin esto, el disco se llena de archivos que ya nadie puede borrar desde la app."""
+    _, h = _registrar(client)
+    factura = _factura(client, h)
+    detalle = client.get(f"/facturas/{factura['id']}", headers=h).json()
+    clave = f"{detalle['usuario_id']}/{factura['id']}.pdf"
+    assert almacen.leer(clave)
+
+    assert client.delete(f"/facturas/{factura['id']}", headers=h).status_code == 204
+    with pytest.raises(almacen.ArchivoNoEncontrado):
+        almacen.leer(clave)
+    # y el cupo vuelve a quedar libre
+    assert client.get("/ia/cuota", headers=h).json()["archivos_usados"] == 0
