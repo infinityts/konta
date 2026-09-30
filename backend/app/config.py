@@ -29,8 +29,10 @@ class Settings(BaseSettings):
     # Por debajo de esta similitud, la ayuda dice que no tiene el tema (mejor que inventar).
     # Usa los embeddings de Ollama de arriba (`ollama_url`): si no está, busca por palabras.
     ayuda_similitud_minima: float = 0.45
-    # Indexar el manual es trabajo de una sola vez: se le da más margen que al clasificador
+    # Indexar el manual es trabajo de una sola vez (en segundo plano): se le da margen
     ayuda_ollama_timeout: float = 20.0
+    # Preguntar no puede hacer esperar a nadie: si el modelo está frío, se busca por palabras
+    ayuda_consulta_timeout: float = 8.0
 
     # ── Cobro ────────────────────────────────────────────────────────────────────────────
     # Qué pasarela se usa. Hoy solo `simulada` (para probar el circuito completo sin llaves);

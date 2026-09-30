@@ -170,11 +170,18 @@ def temas() -> list[str]:
     return list(TEMAS)
 
 
-def _embedder():
-    """El embedder local, con más margen de espera que el del clasificador."""
+def _embedder(timeout: float | None = None):
+    """El embedder local.
+
+    Para **indexar** se le da margen (es trabajo de una vez, en segundo plano); para **preguntar**
+    se le da poco: si el modelo está frío, Ollama puede tardar 30 s en cargarlo, y al usuario no se
+    le hace esperar eso — se responde por palabras y ya.
+    """
     if not get_settings().ollama_url:
         return None
-    return embeddings.make_embedding(timeout=get_settings().ayuda_ollama_timeout)
+    return embeddings.make_embedding(
+        timeout=timeout if timeout is not None else get_settings().ayuda_ollama_timeout
+    )
 
 
 def _vector_de_temas() -> list[tuple[str, list[float]]]:
@@ -230,19 +237,21 @@ def _por_palabras(consulta: str, limite: int) -> list[dict]:
     ]
 
 
-def buscar(consulta: str | None, limite: int = 3) -> dict:
-    """Los temas que mejor responden a lo que se pregunta.
+def buscar(consulta: str | None, limite: int = 5) -> dict:
+    """Los temas que podrían responder a lo que se pregunta, con su similitud.
 
-    Devuelve `resultados` (con su similitud, para que el asistente sepa si son de fiar) y el
-    `minimo` exigido. Si ningún tema se parece lo suficiente, `resultados` va vacío y el asistente
-    dice que no lo tiene — que es mejor que inventarse los pasos.
+    **Quien decide es el modelo, no el número**: con `nomic-embed-text` una pregunta que no está en
+    el manual puntúa ~0,63 y una que sí está ~0,62, así que un umbral absoluto no separa nada
+    (medido). Por eso se devuelven los 5 candidatos con su puntuación y el asistente juzga si
+    alguno responde de verdad; si ninguno lo hace, tiene que decir que no lo tiene.
     """
     consulta = (consulta or "").strip()
     if not consulta:
         return {"temas": temas(), "resultados": [], "minimo": 0.0, "como": "sin consulta"}
 
     minimo = get_settings().ayuda_similitud_minima
-    embed = _embedder()
+    # Poco margen para preguntar: si el modelo está frío, se responde por palabras
+    embed = _embedder(timeout=get_settings().ayuda_consulta_timeout)
     vector = embed(consulta, "consulta") if embed else None
     indices = _vector_de_temas() if vector else []
     if vector and indices:
@@ -252,15 +261,21 @@ def buscar(consulta: str | None, limite: int = 3) -> dict:
             for tema, v in indices
         ]
         puntos.sort(key=lambda x: -x["similitud"])
-        buenos = [p for p in puntos[:limite] if p["similitud"] >= minimo]
-        if buenos:
-            return {"resultados": buenos, "minimo": minimo, "como": "significado"}
+        candidatos = [p for p in puntos[:limite] if p["similitud"] >= minimo]
+        if candidatos:
+            return {
+                "resultados": candidatos,
+                "como": "significado",
+                "aviso": (
+                    "Estos son los temas del manual que más se parecen, pero la puntuación no "
+                    "decide: si ninguno responde a lo que preguntan, di que no lo tienes."
+                ),
+            }
         return {
             "temas": temas(),
             "resultados": [],
-            "minimo": minimo,
             "como": "significado",
-            "nota": "Ningún tema del manual se parece lo suficiente: dile al usuario que no lo tienes.",
+            "nota": "Ningún tema del manual se parece: dile al usuario que no lo tienes.",
         }
 
     # Sin embeddings (Ollama caído o apagado), se busca por palabras

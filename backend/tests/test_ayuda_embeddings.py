@@ -46,7 +46,7 @@ def test_ordena_por_significado_no_por_palabras(monkeypatch):
     monkeypatch.setattr(
         manual,
         "_embedder",
-        lambda: _embedder_falso(
+        lambda timeout=None: _embedder_falso(
             {
                 "saber por qué mi saldo cambió": [1.0, 0.0, 0.0],
                 "no me cuadra la plata que me queda": [0.99, 0.01, 0.0],
@@ -59,7 +59,11 @@ def test_ordena_por_significado_no_por_palabras(monkeypatch):
     assert resultado["como"] == "significado"
     assert resultado["resultados"][0]["tema"] == "saber por qué mi saldo cambió"
     assert resultado["resultados"][0]["similitud"] > 0.9
-    assert all(r["similitud"] >= resultado["minimo"] for r in resultado["resultados"])
+    # el umbral es un piso: nada por debajo entra en los candidatos
+    assert all(
+        r["similitud"] >= get_settings().ayuda_similitud_minima for r in resultado["resultados"]
+    )
+    assert "aviso" in resultado, "el modelo tiene que saber que la puntuación no decide"
 
 
 def test_si_nada_se_parece_lo_suficiente_lo_dice(monkeypatch):
@@ -67,7 +71,7 @@ def test_si_nada_se_parece_lo_suficiente_lo_dice(monkeypatch):
     monkeypatch.setattr(
         manual,
         "_embedder",
-        lambda: _embedder_falso({"otra consulta": [0.0, 0.0, 1.0]}, resto=(0.0, 1.0, 0.0)),
+        lambda timeout=None: _embedder_falso({"otra consulta": [0.0, 0.0, 1.0]}, resto=(0.0, 1.0, 0.0)),
     )
     resultado = manual.buscar("otra consulta")
     assert resultado["resultados"] == []
@@ -84,7 +88,7 @@ def test_si_no_hay_ollama_configurado_se_busca_por_palabras(monkeypatch):
 
 def test_si_el_indice_queda_vacio_tambien_cae_a_palabras(monkeypatch):
     """Un embedder que no devuelve nada no puede dejar al usuario sin respuesta."""
-    monkeypatch.setattr(manual, "_embedder", lambda: (lambda texto, tipo="documento": None))
+    monkeypatch.setattr(manual, "_embedder", lambda timeout=None: (lambda texto, tipo="documento": None))
     resultado = manual.buscar("presupuesto")
     assert resultado["como"] == "palabras"
     assert resultado["resultados"]
