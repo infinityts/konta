@@ -2101,3 +2101,25 @@ catálogo y cuál es el tuyo.
   suelen venir así), igual que el lector normal.
 
 Tests: **299 en verde** (1 nuevo).
+
+### v1.74 — El archivo se guarda 7 días, y la IA se pide **desde la factura**
+
+Cambio de flujo, como pediste: primero se lee con el lector normal (gratis) y **solo si la
+lectura quedó dudosa** se ofrece la IA, en la propia factura. Antes el interruptor estaba antes
+de subir, y como el archivo se sube al elegirlo, para cuando lo veías ya era tarde.
+
+- **El archivo se guarda con retención limitada** (por plan: 30 archivos / 7 días / 60 MB en el
+  Básico; 100/30/200 en Personal; 300/90/600 en Pro), detrás de una **abstracción de
+  almacenamiento**: la ruta sale de configuración, así que en la máquina definitiva es otro
+  disco y mañana podría ser un almacén de objetos sin tocar la app.
+- **Un trabajo programado borra lo vencido** cada 12 h, y el usuario puede borrar el archivo
+  cuando quiera desde la factura (la factura y su lectura se quedan).
+- **Si el plan no da para más, la factura se sube igual**: solo se pierde la relectura, y el
+  aviso lo dice.
+- **«🤖 Leer con IA» dentro de la factura**: destacado en ámbar cuando la lectura es dudosa (sin
+  monto, o un mercado sin artículos), discreto el resto del tiempo, con las lecturas que quedan
+  a la vista. **Reemplaza** la lectura de esa misma factura: no crea otra, y **no toca** lo que
+  ya estaba registrado ni lo que añadiste a mano.
+- La cabecera muestra el cupo completo: lecturas, archivos guardados, MB y días de retención.
+
+Tests: **307 en verde** (8 nuevos).

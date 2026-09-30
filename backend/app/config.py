@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # 413 en HTML y el usuario ve un error que no le dice nada.
     tamano_maximo_archivo_mb: int = 15
 
+    # Dónde se guardan los archivos de las facturas (para poder releerlas con IA).
+    # Sale de configuración a propósito: en la máquina definitiva será otro disco.
+    almacen_ruta: str = "/var/lib/konta/archivos"
+
     # Scheduler de ingresos recurrentes (deshabilitar en tests)
     scheduler_enabled: bool = True
 

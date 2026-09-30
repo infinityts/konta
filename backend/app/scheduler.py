@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from .archivos import limpiar_archivos_vencidos
 from .notificaciones import procesar_notificaciones
 from .recurrencia import (
     procesar_ingresos_vencidos,
@@ -43,6 +44,15 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         hours=1,
         id="polizas-vencidas",
+        max_instances=1,
+        coalesce=True,
+    )
+    # Los archivos de las facturas se guardan con retención limitada: se limpia lo vencido
+    _scheduler.add_job(
+        limpiar_archivos_vencidos,
+        "interval",
+        hours=12,
+        id="archivos-vencidos",
         max_instances=1,
         coalesce=True,
     )

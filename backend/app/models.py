@@ -497,6 +497,19 @@ class Factura(Base):
     # formato (`nit:8903990034` o `nombre:CONSORCIO EMCALI`)
     emisor: Mapped[str | None] = mapped_column(String(140), nullable=True)
     emisor_nombre: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    # El archivo original, guardado con retención limitada para poder releerlo (con IA) y
+    # borrado solo. `archivo_clave` es la referencia en el almacén, no el contenido.
+    archivo_clave: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
+    archivo_tipo: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    archivo_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    archivo_expira_en: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, index=True
+    )
+    # Se releyó con el modelo de visión (alimenta el panel de calidad)
+    leida_con_ia: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     # Calidad de la lectura: si hubo que corregirla y si salió bien gracias a una plantilla
     # aprendida (es lo que alimenta el panel de calidad por emisor)
     corregida_en: Mapped[datetime | None] = mapped_column(
@@ -556,6 +569,13 @@ class Plan(Base):
     lecturas_ia: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     consultas_asistente: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
+    )
+    # Almacenamiento incluido: cuántos archivos guardados a la vez, cuántos días se guarda cada
+    # uno y cuánto peso. `archivos_incluidos` en NULL = ilimitado (planes «sin límite»).
+    archivos_incluidos: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    retencion_dias: Mapped[int] = mapped_column(Integer, nullable=False, default=7, server_default="7")
+    almacenamiento_mb: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=60, server_default="60"
     )
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     orden: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")

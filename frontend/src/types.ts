@@ -276,6 +276,11 @@ export interface Factura {
   duplicada: boolean
   /** Si el monto detectado no es de fiar: por qué (null = está bien) */
   aviso_monto?: string | null
+  /** El archivo guardado (para poder releer con IA) y hasta cuándo se guarda */
+  archivo_guardado?: boolean
+  archivo_expira_en?: string | null
+  archivo_aviso?: string | null
+  leida_con_ia?: boolean
   /** Lo mismo con la fecha (decide en qué mes cae el gasto) */
   aviso_fecha?: string | null
   creada_en: string
@@ -918,6 +923,11 @@ export interface CuotaIa {
   consultas_usadas: number
   consultas_restantes: number
   costo_usd: number
+  archivos_usados: number
+  archivos_incluidos: number | null
+  mb_usados: number
+  mb_incluidos: number
+  retencion_dias: number
 }
 
 /** Un plan del catálogo, tal como lo lee la app (los límites viven en la base). */

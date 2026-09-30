@@ -53,8 +53,6 @@ export default function Facturas() {
   const [error, setError] = useState('')
   // El archivo se guarda (no se sube al elegirlo) para poder escribir la contraseña del PDF
   const [archivo, setArchivo] = useState<File | null>(null)
-  // Lectura con IA: es de pago, así que se elige a propósito y con el cupo a la vista
-  const [usarIa, setUsarIa] = useState(false)
   const [cuota, setCuota] = useState<CuotaIa | null>(null)
   const [planes, setPlanes] = useState<PlanIa[]>([])
   const [verPlanes, setVerPlanes] = useState(false)
@@ -117,24 +115,6 @@ export default function Facturas() {
       // Las facturas electrónicas suelen venir en PDF protegido (la clave es el NIT del
       // emisor). Si el PDF no está protegido, la contraseña se ignora.
       if (contrasena) fd.append('contrasena', contrasena)
-
-      // Con el interruptor puesto, el documento lo lee el modelo de visión. Cuesta una lectura
-      // del plan, así que el cupo se comprueba antes y el aviso lo dice si se agotó.
-      if (usarIa) {
-        const detalle = await apiUpload<FacturaDetalle>('/ia/leer', fd)
-        setDetalles((d) => ({ ...d, [detalle.id]: detalle }))
-        setCuota(await api<CuotaIa>('/ia/cuota'))
-        setAviso(
-          detalle.aviso
-            ? `🤖 Leído con IA. ${detalle.aviso}`
-            : '🤖 Leído con IA. Revisa el monto y los artículos antes de registrarlo.',
-        )
-        setArchivo(null)
-        setContrasena('')
-        if (entradaArchivo.current) entradaArchivo.current.value = ''
-        await cargar()
-        return
-      }
 
       const subida = await apiUpload<Factura>('/facturas', fd)
       // Decir siempre el resultado y el paso siguiente: antes, si todo iba bien, no se decía
@@ -273,6 +253,31 @@ export default function Facturas() {
   }
 
   /** Parte el texto en líneas, las clasifica y las guarda. */
+  /** ¿La lectura quedó dudosa? Solo entonces se destaca el botón de IA. */
+  const lecturaDudosa = (f: Factura, d?: FacturaDetalle) =>
+    Boolean(f.aviso_monto) ||
+    f.monto_detectado == null ||
+    (d?.tipo_documento === 'mercado' && (d?.lineas.length ?? 0) === 0)
+
+  /** Relee ESTA factura con IA (reemplaza la lectura; cuesta una del plan). */
+  const releerConIa = (id: string) =>
+    conOcupado(id, async () => {
+      const detalle = await api<FacturaDetalle>(`/facturas/${id}/leer-con-ia`, { method: 'POST' })
+      setDetalles((d) => ({ ...d, [id]: detalle }))
+      setCuota(await api<CuotaIa>('/ia/cuota'))
+      setAviso(detalle.aviso ? `🤖 Leído con IA. ${detalle.aviso}` : '🤖 Leído con IA.')
+      await cargar()
+    })
+
+  const borrarArchivo = (id: string) =>
+    conOcupado(id, async () => {
+      await api(`/facturas/${id}/archivo`, { method: 'DELETE' })
+      const detalle = await api<FacturaDetalle>(`/facturas/${id}`)
+      setDetalles((d) => ({ ...d, [id]: detalle }))
+      setAviso('Archivo borrado. La factura y su lectura siguen igual.')
+      await cargar()
+    })
+
   const leerLineas = (id: string) =>
     conOcupado(id, async () => {
       // Si la factura ya está dentro de un movimiento, se avisa antes: el backend **no**
@@ -526,7 +531,54 @@ export default function Facturas() {
                   ? `te quedan ${cuota?.lecturas_restantes} de ${cuota?.lecturas_incluidas} lecturas este mes`
                   : 'sin lecturas este mes (puedes comprar o subir de plan)'}
             </span>
+            {cuota && (
+              <>
+                {' · '}
+                <span className="text-slate-500">
+                  🗄️ {cuota.archivos_usados}
+                  {cuota.archivos_incluidos === null ? '' : ` de ${cuota.archivos_incluidos}`}{' '}
+                  archivos ({cuota.mb_usados} MB, se borran a los {cuota.retencion_dias} días)
+                </span>
+                {' · '}
+                <button
+                  onClick={() => {
+                    setVerPlanes((v) => !v)
+                    if (planes.length === 0) void api<PlanIa[]>('/ia/planes').then(setPlanes)
+                  }}
+                  className="text-indigo-600 hover:underline"
+                >
+                  {verPlanes ? 'Ocultar planes' : 'Ver planes'}
+                </button>
+              </>
+            )}
           </p>
+          {verPlanes && planes.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {planes.map((pl) => (
+                <li
+                  key={pl.codigo}
+                  className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-xs ${
+                    pl.codigo === cuota?.plan
+                      ? 'border-indigo-300 bg-white'
+                      : 'border-slate-200 bg-white'
+                  }`}
+                >
+                  <span className="font-medium text-slate-700">
+                    {pl.nombre}
+                    {pl.codigo === cuota?.plan ? ' · tu plan' : ''}
+                  </span>
+                  <span className="text-slate-500">
+                    ${Number(pl.precio_mes).toLocaleString('es-CO')}/mes · {pl.lecturas_ia} lecturas
+                    IA · {pl.consultas_asistente} consultas
+                  </span>
+                </li>
+              ))}
+              <li className="pt-1 text-xs text-slate-400">
+                Para cambiar de plan o comprar lecturas sueltas, escríbenos: el cobro en línea está
+                en camino.
+              </li>
+            </ul>
+          )}
         </div>
         <Link to="/reglas-ocr" className="text-sm text-indigo-600 hover:underline">
           Ver lo que el OCR ha aprendido →
@@ -546,74 +598,11 @@ export default function Facturas() {
           de Konta. Si el documento es difícil (manuscrito, foto borrosa, formato raro), enciende
           antes <strong>Leer con IA</strong> y lo lee el modelo de visión.
         </p>
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={usarIa}
-                  disabled={cuota?.lecturas_restantes === 0}
-                  onChange={(e) => setUsarIa(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300"
-                />
-                <span className="font-medium">🤖 Leer con IA</span>
-                <span className="text-slate-500">
-                  {!cuota
-                    ? 'cuesta una lectura de tu plan y el servidor comprueba el cupo'
-                    : cuota?.lecturas_restantes > 0
-                      ? `te quedan ${cuota?.lecturas_restantes} de ${cuota?.lecturas_incluidas} este mes${
-                          cuota?.lecturas_extra > 0 ? ` (+${cuota?.lecturas_extra} compradas)` : ''
-                        }`
-                      : `se acabaron las ${cuota?.lecturas_incluidas} lecturas de tu plan ${
-                          cuota?.plan_nombre ?? ''
-                        }`}
-                </span>
-              </label>
-              <button
-                onClick={() => {
-                  setVerPlanes((v) => !v)
-                  if (planes.length === 0) {
-                    void api<PlanIa[]>('/ia/planes').then(setPlanes)
-                  }
-                }}
-                className="text-xs text-indigo-600 hover:underline"
-              >
-                {verPlanes ? 'Ocultar planes' : 'Ver planes'}
-              </button>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {!cuota || cuota?.lecturas_restantes > 0
-                ? 'Sirve para documentos que el lector normal no puede: manuscritos, fotos borrosas o formatos raros. Cuesta una lectura y se descuenta solo si sale bien.'
-                : 'Puedes comprar lecturas sueltas o subir de plan. Mientras tanto, el lector normal sigue funcionando igual.'}
-            </p>
-            {verPlanes && planes.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {planes.map((pl) => (
-                  <li
-                    key={pl.codigo}
-                    className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-xs ${
-                      pl.codigo === cuota?.plan
-                        ? 'border-indigo-300 bg-white'
-                        : 'border-slate-200 bg-white'
-                    }`}
-                  >
-                    <span className="font-medium text-slate-700">
-                      {pl.nombre}
-                      {pl.codigo === cuota?.plan ? ' · tu plan' : ''}
-                    </span>
-                    <span className="text-slate-500">
-                      ${Number(pl.precio_mes).toLocaleString('es-CO')}/mes · {pl.lecturas_ia}{' '}
-                      lecturas IA · {pl.consultas_asistente} consultas
-                    </span>
-                  </li>
-                ))}
-                <li className="pt-1 text-xs text-slate-400">
-                  Para cambiar de plan o comprar lecturas sueltas, escríbenos: el cobro en línea
-                  está en camino.
-                </li>
-              </ul>
-            )}
-        </div>
+        <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          Elige el archivo aquí abajo: <strong>se lee al instante</strong> con el lector normal de
+          Konta. Si queda dudosa (sin monto, o un mercado sin artículos), en la propia factura te
+          ofrecemos <strong>leerla con IA</strong>.
+        </p>
         <input
           ref={entradaArchivo}
           type="file"
@@ -690,6 +679,22 @@ export default function Facturas() {
                         ✏️ Corregir
                       </button>
                     )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {f.archivo_guardado && f.archivo_expira_en ? (
+                      <>
+                        🗄️ archivo guardado hasta el {f.archivo_expira_en.slice(0, 10)} ·{' '}
+                        <button
+                          onClick={() => void borrarArchivo(f.id)}
+                          className="text-slate-500 hover:text-red-600 hover:underline"
+                        >
+                          borrar el archivo
+                        </button>
+                      </>
+                    ) : (
+                      'sin archivo guardado: no se podrá releer con IA'
+                    )}
+                    {f.leida_con_ia ? ' · 🤖 leída con IA' : ''}
                   </p>
                   {f.aviso_monto && datosEditando !== f.id && (
                     <p className="mt-1 rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
@@ -780,7 +785,33 @@ export default function Facturas() {
                     <p className="mt-1 text-xs text-amber-600">Sin asociar</p>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
+                <div className="flex shrink-0 flex-wrap items-center gap-3">
+                  {f.archivo_guardado ? (
+                    <button
+                      onClick={() => void releerConIa(f.id)}
+                      disabled={ocupado === f.id}
+                      title={
+                        cuota
+                          ? `Te quedan ${cuota.lecturas_restantes} lecturas con IA este mes`
+                          : undefined
+                      }
+                      className={
+                        lecturaDudosa(f, detalles[f.id])
+                          ? 'rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50'
+                          : 'rounded-lg border border-amber-300 px-3 py-2 text-sm text-amber-800 hover:bg-amber-50 disabled:opacity-50'
+                      }
+                    >
+                      {ocupado === f.id
+                        ? 'Leyendo con IA…'
+                        : lecturaDudosa(f, detalles[f.id])
+                          ? `🤖 Leer con IA${cuota ? ` (${cuota.lecturas_restantes})` : ''}`
+                          : '🤖 Releer con IA'}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400" title="Sin archivo guardado no se puede releer">
+                      sin archivo para IA
+                    </span>
+                  )}
                   <button
                     onClick={() => leerLineas(f.id)}
                     disabled={ocupado === f.id}

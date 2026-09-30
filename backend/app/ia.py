@@ -20,6 +20,7 @@ import io
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 
 import httpx
@@ -90,6 +91,16 @@ def _json_de(texto: str) -> dict:
     if inicio == -1 or fin == -1:
         raise ValueError("El modelo no devolvió un JSON con la lectura")
     return json.loads(limpio[inicio : fin + 1])
+
+
+def fecha_valida(valor) -> date | None:
+    """La fecha que devolvió el modelo, si es una fecha de verdad."""
+    if not valor:
+        return None
+    try:
+        return date.fromisoformat(str(valor)[:10])
+    except ValueError:
+        return None
 
 
 def _decimal(valor) -> Decimal | None:

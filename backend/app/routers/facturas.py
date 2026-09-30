@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, Upl
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import archivos, cuotas, ia
 from ..clasificador import clasificar, normalizar
 from ..config import get_settings
 from ..crud_utils import get_owned
@@ -464,6 +465,7 @@ def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
             detalle.tipo_documento = plantilla.tipo_documento
     detalle.duplicada = _duplicada(db, factura)
     detalle.aviso_fecha = aviso_de_la_fecha(factura.fecha_detectada, hoy())
+    detalle.archivo_guardado = factura.archivo_clave is not None
     detalle.aviso_monto = aviso_del_monto(
         factura.monto_detectado,
         factura.texto_extraido or "",
@@ -618,6 +620,7 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
             factura.monto_detectado, factura.texto_extraido or ""
         )
         item.aviso_fecha = aviso_de_la_fecha(factura.fecha_detectada, hoy())
+        item.archivo_guardado = factura.archivo_clave is not None
         salida.append(item)
     return salida
 
@@ -697,9 +700,17 @@ async def subir(
         url_dian=url_dian_de_qr(qr),
     )
     db.add(factura)
+    db.flush()  # hace falta el id para la clave del archivo
+    # Se guarda el archivo para poder releerlo con IA si el lector normal falla. Si el plan no
+    # da para más, la factura se sube igual: solo se pierde esa segunda oportunidad.
+    guardado, motivo_sin_archivo = archivos.guardar_factura(
+        db, factura, user, contenido, archivo.content_type
+    )
     db.commit()
     db.refresh(factura)
     salida = FacturaOut.model_validate(factura)
+    salida.archivo_guardado = guardado
+    salida.archivo_aviso = None if guardado else motivo_sin_archivo
     salida.duplicada = _duplicada(db, factura)
     return salida
 
@@ -755,6 +766,107 @@ def borrar_plantilla(
     """Borra una plantilla: la próxima factura de ese emisor se vuelve a leer adivinando."""
     plantilla = get_owned(db, PlantillaLector, plantilla_id, user.id)
     db.delete(plantilla)
+    db.commit()
+
+
+@router.post("/{id}/leer-con-ia", response_model=FacturaDetalleOut)
+async def releer_con_ia(
+    id: uuid.UUID,
+    contrasena: str | None = Form(None),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Relee **esta** factura con el modelo de visión y reemplaza la lectura.
+
+    Es la segunda oportunidad para los documentos que el lector normal no pudo (manuscritos,
+    fotos borrosas, formatos raros): se pide a propósito, cuesta una lectura del plan y no crea
+    una factura nueva. Lo que ya estaba registrado en un movimiento no se toca.
+    """
+    factura = get_owned(db, Factura, id, user.id)
+    contenido = archivos.contenido_de(factura, contrasena)
+
+    resumen = cuotas.resumen(db, user)
+    if resumen["lecturas"]["restantes"] < 1:
+        raise cuotas.agotado(cuotas.LECTURA_IA, resumen)
+
+    try:
+        lectura = ia.leer_documento(
+            contenido, factura.nombre_archivo, factura.archivo_tipo, contrasena
+        )
+    except ia.IaNoConfigurada as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except Exception as error:  # un fallo del proveedor no se cobra
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "El proveedor de IA no pudo leer el documento; no se descontó ninguna lectura "
+                f"de tu plan. ({type(error).__name__})"
+            ),
+        ) from error
+
+    cuotas.consumir(db, user, cuotas.LECTURA_IA)
+    cuotas.registrar_gasto(
+        db, user, lectura.tokens_entrada, lectura.tokens_salida, lectura.costo_usd
+    )
+
+    campos = lectura.campos
+    texto = lectura.texto or factura.texto_extraido or ""
+    if texto.strip():
+        factura.texto_extraido = texto[:20000]
+    monto = campos.get("monto") or (detectar_monto(texto) if texto else None)
+    factura.monto_detectado = monto
+    if campos.get("fecha"):
+        fecha_leida = ia.fecha_valida(campos["fecha"])
+        if fecha_leida is not None:
+            factura.fecha_detectada = fecha_leida
+    emisor_detectado = detectar_emisor(texto) if texto else None
+    if emisor_detectado:
+        factura.emisor, factura.emisor_nombre = emisor_detectado
+    if campos.get("emisor"):
+        factura.emisor_nombre = str(campos["emisor"])[:140]
+    factura.leida_con_ia = True
+
+    # Las líneas del lector que no estaban registradas se reemplazan por las de la IA; lo que el
+    # usuario añadió a mano y lo ya confirmado se respeta.
+    for linea in _lineas(db, factura.id):
+        if linea.transaccion_id is None and linea.origen != "agregada":
+            db.delete(linea)
+    lineas_ia = campos.get("lineas") or []
+    if lineas_ia and detectar_tipo(texto, lineas_ia) not in ("parqueadero", "servicios"):
+        for orden, fila in enumerate(lineas_ia):
+            db.add(
+                FacturaLinea(
+                    factura_id=factura.id,
+                    orden=orden,
+                    descripcion=fila["descripcion"],
+                    valor_total=fila["valor"],
+                    origen="ia",
+                )
+            )
+    db.commit()
+    db.refresh(factura)
+    detalle = _detalle(db, factura)
+    avisos = [
+        a
+        for a in (
+            aviso_del_monto(factura.monto_detectado, factura.texto_extraido or ""),
+            aviso_de_la_fecha(factura.fecha_detectada, hoy()),
+        )
+        if a
+    ]
+    detalle.aviso = " ".join(avisos) or "Leído con IA."
+    return detalle
+
+
+@router.delete("/{id}/archivo", status_code=204)
+def borrar_archivo_de_factura(
+    id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Borra el archivo guardado (el usuario manda: la factura y su lectura se quedan)."""
+    factura = get_owned(db, Factura, id, user.id)
+    archivos.borrar_archivo(db, factura)
     db.commit()
 
 

@@ -64,6 +64,10 @@ def resumen(db: Session, usuario: Usuario) -> dict:
     lecturas_limite = _limite(db, usuario, LECTURA_IA)
     consultas_limite = _limite(db, usuario, CONSULTA_ASISTENTE)
     extra = usuario.lecturas_extra or 0
+    # Almacenamiento (importa aquí dentro para no crear un ciclo entre módulos)
+    from .archivos import resumen as resumen_almacen
+
+    almacen_resumen = resumen_almacen(db, usuario)
     return {
         "periodo": consumo.periodo,
         "plan": plan.codigo if plan else None,
@@ -84,6 +88,7 @@ def resumen(db: Session, usuario: Usuario) -> dict:
         "tokens_entrada": consumo.tokens_entrada,
         "tokens_salida": consumo.tokens_salida,
         "costo_usd": float(consumo.costo_usd),
+        **almacen_resumen,
     }
 
 

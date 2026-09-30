@@ -39,6 +39,11 @@ def _cuota_out(resumen: dict) -> CuotaOut:
         tokens_entrada=resumen["tokens_entrada"],
         tokens_salida=resumen["tokens_salida"],
         costo_usd=resumen["costo_usd"],
+        archivos_usados=resumen["archivos_usados"],
+        archivos_incluidos=resumen["archivos_incluidos"],
+        mb_usados=resumen["mb_usados"],
+        mb_incluidos=resumen["mb_incluidos"],
+        retencion_dias=resumen["retencion_dias"],
     )
 
 

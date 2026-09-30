@@ -627,6 +627,11 @@ class FacturaOut(BaseModel):
     aviso_fecha: str | None = None
     # Quién emitió el documento (lo que usa la plantilla aprendida)
     emisor_nombre: str | None = None
+    # El archivo guardado (para releer con IA) y hasta cuándo se guarda
+    archivo_guardado: bool = False
+    archivo_expira_en: datetime | None = None
+    archivo_aviso: str | None = None
+    leida_con_ia: bool = False
     creada_en: datetime
 
 
@@ -717,6 +722,12 @@ class CuotaOut(BaseModel):
     tokens_entrada: int = 0
     tokens_salida: int = 0
     costo_usd: float = 0.0
+    # Almacenamiento: cuántos archivos guarda y cuánto pesan
+    archivos_usados: int = 0
+    archivos_incluidos: int | None = None
+    mb_usados: float = 0.0
+    mb_incluidos: int = 0
+    retencion_dias: int = 7
 
 
 class CalidadEmisorOut(BaseModel):
