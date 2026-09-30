@@ -8,9 +8,17 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
 from test_api import _registrar
 
 from app.config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def almacen_temporal(tmp_path, monkeypatch):
+    """Los tests de cobro suben facturas: que guarden en una carpeta de prueba, no en el disco."""
+    monkeypatch.setattr(get_settings(), "almacen_ruta", str(tmp_path / "archivos"))
+    yield
 
 
 def _orden(client, h, tipo: str, codigo: str) -> dict:
@@ -263,3 +271,35 @@ def test_avisa_antes_de_que_venza_el_plan(client, engine):
     assert planes, [a["tipo"] for a in alertas]
     assert "vence" in planes[0]["titulo"]
     assert planes[0]["dias_restantes"] == 3
+
+
+def test_cambiar_de_plan_suma_los_dias_que_quedaban_y_ajusta_la_retencion(client, engine):
+    """Cambiar de plan vale desde ya, sin perder lo pagado, y los archivos pasan a la retención nueva."""
+
+    from test_api import _pdf_minimo
+
+    from app.recurrencia import hoy
+
+    _, h = _registrar(client)
+    orden = _orden(client, h, "plan", "personal")  # Personal: 30 días de retención
+    client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h)
+    subida = client.post(
+        "/facturas",
+        headers=h,
+        files={"archivo": ("f.pdf", _pdf_minimo("Monto: $1.000\n"), "application/pdf")},
+    ).json()
+    assert subida["archivo_guardado"] is True
+
+    # cambia a Pro (90 días de retención): vale desde ya y suma los días que quedaban
+    orden2 = _orden(client, h, "plan", "pro")
+    client.post(f"/pagos/simular-pago/{orden2['referencia']}", headers=h)
+    cuota = client.get("/ia/cuota", headers=h).json()
+    assert cuota["plan"] == "pro"
+    assert cuota["dias_de_plan"] == 60, "30 del Personal que quedaban + 30 del Pro"
+
+    # y el archivo que ya estaba guardado pasa a la retención del plan nuevo (90 días)
+    detalle = client.get(f"/facturas/{subida['id']}", headers=h).json()
+    expira = detalle["archivo_expira_en"][:10]
+    from datetime import timedelta
+
+    assert expira == str(hoy() + timedelta(days=90)), expira

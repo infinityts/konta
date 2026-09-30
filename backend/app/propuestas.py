@@ -205,6 +205,14 @@ def confirmar(db: Session, usuario: Usuario, propuesta_id) -> tuple[Propuesta, s
         return propuesta, f"Ya estaba confirmada: {anterior}".strip(), False
     if propuesta.estado == "rechazada":
         raise HTTPException(status_code=409, detail="Esa propuesta ya se descartó")
+    if propuesta.estado == "expirada":
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Esa propuesta expiró (pasaron más de unos días sin confirmarla). Vuelve a "
+                "pedírsela al asistente si todavía la quieres."
+            ),
+        )
 
     ejecutor = EJECUTORES.get(propuesta.tipo)
     if ejecutor is None:
@@ -231,6 +239,34 @@ def rechazar(db: Session, usuario: Usuario, propuesta_id) -> Propuesta:
         db.commit()
         db.refresh(propuesta)
     return propuesta
+
+
+DIAS_DE_PROPUESTA = 7
+
+
+def expirar_viejas(s: Session, dias: int = DIAS_DE_PROPUESTA) -> int:
+    """Marca como expiradas las propuestas que llevan demasiado esperando.
+
+    Una propuesta es «¿quieres que registre esto?»: si pasan los días, la pregunta ya no tiene
+    sentido (el usuario no la vio o cambió de idea). Dejarla pendiente para siempre llenaría la
+    pantalla de botones viejos, y confirmar algo de hace una semana registraría un movimiento con
+    una fecha que ya nadie recuerda.
+    """
+    from datetime import timedelta
+
+    limite = datetime.now(UTC) - timedelta(days=dias)
+    viejas = list(
+        s.scalars(
+            select(Propuesta).where(
+                Propuesta.estado == "pendiente", Propuesta.creada_en < limite
+            )
+        ).all()
+    )
+    for propuesta in viejas:
+        propuesta.estado = "expirada"
+        propuesta.resuelta_en = datetime.now(UTC)
+        propuesta.resultado = f"Expirada: pasaron más de {dias} días sin confirmarla"
+    return len(viejas)
 
 
 def pendientes(db: Session, usuario: Usuario) -> list[Propuesta]:

@@ -226,3 +226,49 @@ def test_el_asistente_sabe_que_dia_es_hoy(client, monkeypatch):
 
     assert "Hoy es" in sistema
     assert str(hoy_konta()) in sistema, "el prompt tiene que traer la fecha de hoy"
+
+
+def test_una_propuesta_vieja_expira_y_ya_no_se_puede_confirmar(client, engine, monkeypatch):
+    """Una pregunta de hace una semana ya no tiene sentido: ni se lista, ni se puede confirmar."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import text
+
+    from app.propuestas import expirar_viejas
+
+    _, h = _registrar(client)
+    monkeypatch.setattr(
+        ia, "chat",
+        _modelo_que_propone("registrar_movimiento", {
+            "tipo_movimiento": "gasto", "monto": 7000, "fecha": "2026-09-29", "descripcion": "Viejo",
+        }),
+    )
+    client.post("/asistente/preguntar", headers=h, json={"pregunta": "anota siete mil"})
+    propuesta_id = client.get("/asistente/propuestas", headers=h).json()[0]["id"]
+
+    # pasa más de una semana
+    with engine.begin() as conn:
+        conn.execute(
+            text("update propuestas set creada_en = :cuando"),
+            {"cuando": datetime.now(UTC) - timedelta(days=8)},
+        )
+
+    from sqlalchemy.orm import sessionmaker
+
+    with sessionmaker(bind=engine).begin() as s:
+        assert expirar_viejas(s) == 1
+
+    assert client.get("/asistente/propuestas", headers=h).json() == [], "ya no se lista"
+    rechazo = client.post(f"/asistente/propuestas/{propuesta_id}/confirmar", headers=h)
+    assert rechazo.status_code == 409, rechazo.text
+    assert "expiró" in rechazo.json()["detail"]
+    assert client.get("/transacciones", headers=h).json() == [], "y no registró nada"
+
+
+def test_el_mantenimiento_diario_hace_las_dos_cosas(client, engine):
+    """Una sola tarea al día: planes vencidos y propuestas viejas."""
+    from app.mantenimiento import mantenimiento_diario
+
+    hecho = mantenimiento_diario()
+    assert set(hecho) == {"planes_vencidos", "propuestas_expiradas"}
+    assert hecho["planes_vencidos"] == 0 and hecho["propuestas_expiradas"] == 0

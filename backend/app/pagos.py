@@ -92,9 +92,21 @@ def activar_plan(db: Session, usuario: Usuario, codigo: str) -> str:
     """
     from datetime import timedelta
 
+    from .archivos import reenmarcar_retencion
+
+    anterior = usuario.plan_codigo
     usuario.plan_codigo = codigo
+    # Cambiar de plan vale desde ya, y los días que le quedaban del anterior se suman al nuevo: así
+    # nadie pierde lo que ya pagó (y si renueva el mismo, simplemente acumula meses).
     desde = usuario.plan_hasta if (usuario.plan_hasta and usuario.plan_hasta > hoy()) else hoy()
     usuario.plan_hasta = desde + timedelta(days=get_settings().dias_de_plan)
+    archivos_afectados = reenmarcar_retencion(db, usuario)
+    if anterior != codigo:
+        return (
+            f"Plan cambiado de {anterior} a {codigo} (activo hasta el {usuario.plan_hasta}; se "
+            f"sumaron los días que te quedaban) · {archivos_afectados} archivo(s) con la retención "
+            "del plan nuevo"
+        )
     return f"Plan {codigo} activo hasta el {usuario.plan_hasta}"
 
 

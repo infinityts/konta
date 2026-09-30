@@ -2492,3 +2492,23 @@ falsa.
 - Y sigue mirando el **disco** (`--disco`): las dos formas en que un despliegue puede mentir.
 
 Tests: **382 en verde** (1 nuevo).
+
+### v1.92 — Lo que el cliente paga, hasta el final (tres huecos cerrados)
+
+Revisando lo que toca dinero y datos aparecieron tres cosas que no estaban bien:
+
+- **Cambiar de plan ahora ajusta la retención de los archivos guardados** ✗: si subías de plan, tus
+  documentos seguían con la retención del plan viejo (7 días) aunque hubieras pagado 90. Ahora se
+  recalculan con la retención del plan nuevo, que es parte de lo que compraste.
+- **La regla del cambio de plan queda dicha y probada**: el plan nuevo **vale desde ya** y **los días
+  que te quedaban se suman** (comprar Pro con 30 días de Personal pendientes deja 60 días). Nadie
+  pierde lo que pagó, y ya no es una regla que solo estaba en el código.
+- **Las propuestas del asistente caducan** ✗: una pregunta de «¿registro esto?» se quedaba pendiente
+  **para siempre**, llenando la pantalla de botones viejos y permitiendo confirmar un movimiento de
+  hace una semana con una fecha que ya nadie recuerda. Ahora expiran a los 7 días, desaparecen de la
+  lista y, si alguien las confirma por un enlace viejo, responde **409** con el motivo en vez de
+  registrar nada.
+- **Una sola tarea de mantenimiento al día** (00:10 Colombia) en vez de varias: planes que vencen y
+  propuestas que expiran, cada una idempotente.
+
+Tests: **387 en verde** (5 nuevos).

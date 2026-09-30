@@ -115,6 +115,23 @@ def guardar_factura(
     return True, ""
 
 
+def reenmarcar_retencion(db: Session, usuario: Usuario) -> int:
+    """Pone la retención del plan **nuevo** a los archivos que ya están guardados.
+
+    Al cambiar de plan, lo que el cliente paga cambia: si sube, sus documentos duran más (la
+    retención es parte de lo que compró); si baja, duran lo que dura su plan desde ahora. Se
+    recalcula desde hoy, que es lo que se puede explicar sin mentir.
+    """
+    _incluidos, dias, _mb = limites(db, usuario)
+    nueva = datetime.now(UTC) + timedelta(days=dias)
+    facturas = db.scalars(
+        select(Factura).where(Factura.usuario_id == usuario.id, Factura.archivo_clave.is_not(None))
+    ).all()
+    for factura in facturas:
+        factura.archivo_expira_en = nueva
+    return len(facturas)
+
+
 def borrar_archivo(db: Session, factura: Factura) -> None:
     """Borra el archivo de una factura (el usuario lo pide, o venció la retención)."""
     if factura.archivo_clave:

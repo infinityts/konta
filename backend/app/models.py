@@ -604,7 +604,7 @@ class Propuesta(Base):
     datos: Mapped[str] = mapped_column(Text, nullable=False)
     # La frase que ve el usuario antes de confirmar
     resumen: Mapped[str] = mapped_column(Text, nullable=False)
-    # pendiente | confirmada | rechazada | fallida
+    # pendiente | confirmada | rechazada | expirada | fallida
     estado: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pendiente", server_default="pendiente"
     )
