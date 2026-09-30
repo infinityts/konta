@@ -84,10 +84,15 @@ export default function Facturas() {
       // emisor). Si el PDF no está protegido, la contraseña se ignora.
       if (contrasena) fd.append('contrasena', contrasena)
       const subida = await apiUpload<Factura>('/facturas', fd)
+      // Decir siempre el resultado y el paso siguiente: antes, si todo iba bien, no se decía
+      // nada y no había forma de saber si la subida había entrado.
+      const leyo = (subida.texto_extraido ?? '').trim().length > 0
       setAviso(
         subida.duplicada
           ? '⚠ Esa factura ya la habías subido (mismo CUDE de la DIAN). Revísala antes de confirmarla.'
-          : ''
+          : leyo
+            ? '✅ Subida. Pulsa «Leer líneas» en la factura para partirla en artículos.'
+            : '⚠ Subida, pero no se pudo leer texto. Prueba con una foto más nítida o un PDF.'
       )
       setArchivo(null)
       setContrasena('')
@@ -417,9 +422,12 @@ export default function Facturas() {
           const pendientes = detalle?.lineas.filter((l) => !l.transaccion_id) ?? []
           return (
             <li key={f.id} className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{f.nombre_archivo}</p>
+              {/* `flex-wrap` y `min-w-0`: con un nombre de archivo largo, los botones
+                  («Leer líneas») se salían de la tarjeta y en una pantalla estrecha no se
+                  veían. Ahora bajan a la línea siguiente. */}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words font-medium">{f.nombre_archivo}</p>
                   <p className="text-sm text-slate-500">
                     Monto detectado:{' '}
                     <span className="font-medium text-slate-700">
