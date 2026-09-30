@@ -1636,3 +1636,26 @@ escaneado de 12 páginas y 2,6 MB devolvía **504 Gateway Time-out** (medido).
   necesitas») en vez de un número.
 
 Con esto entran archivos de **hasta 15 MB**, muy por encima de los 5 MB que pediste.
+
+## v1.59 — El OCR era 150 veces más lento de lo que debía (OpenMP)
+
+Lo que parecía un problema de pesos y tiempos era uno solo, y estaba escondido: **Tesseract usa
+OpenMP y, sin límite, lanza más hilos de los que el servidor puede atender**. Se pelean entre
+ellos y el OCR se arrastra. Medido en el contenedor, la misma página:
+
+| | tiempo |
+|---|---|
+| sin límite de hilos | **42,20 s** |
+| `OMP_THREAD_LIMIT=1` | **0,28 s** |
+
+Eso explicaba los tres síntomas que veníamos persiguiendo: el **504** al subir un escaneado de
+12 páginas, la CPU del contenedor al 190 % durante minutos y los **236 s por página**. El
+recibo real de parqueadero pasaba de 67 s a menos de uno.
+
+- `OMP_THREAD_LIMIT=1` antes de llamar a Tesseract (con `setdefault`, para poder subirlo por
+  entorno si algún día conviene). Va donde se usa el OCR: `app/facturas.py`.
+- Se mantienen el OCR a 150 ppp y el tope de 25 páginas: con el arreglo son unos segundos, y
+  el texto **digital** sigue sin pasar por el OCR ni tener tope.
+
+Con esto, los archivos de hasta 15 MB —y muy por encima de los 5 MB que pediste— se leen sin
+esperas. Tests: **231 en verde**.

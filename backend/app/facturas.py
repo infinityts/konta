@@ -14,6 +14,7 @@ Requiere los binarios `tesseract-ocr` (con el paquete de español) y
 from __future__ import annotations
 
 import io
+import os
 import re
 from datetime import date
 from decimal import Decimal
@@ -28,6 +29,12 @@ def es_imagen(nombre: str, content_type: str | None = None) -> bool:
     if content_type and content_type.split(";")[0].strip().lower() in TIPOS_IMAGEN:
         return True
     return nombre.lower().endswith(EXTENSIONES_IMAGEN)
+
+
+# Tesseract usa OpenMP y, sin límite, lanza más hilos de los que el servidor puede atender:
+# se pelean entre ellos y una página pasaba de **42 s a 0,28 s** solo con esta línea (medido
+# en el contenedor). Con el límite, leer un escaneado de 12 páginas es cuestión de segundos.
+os.environ.setdefault("OMP_THREAD_LIMIT", "1")
 
 
 def _preprocesar(imagen):
