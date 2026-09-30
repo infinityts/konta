@@ -2329,5 +2329,5 @@ nada**. Cuando entiende que quieres registrar un gasto o etiquetar un movimiento
 
 `GET /asistente/propuestas`, `POST /asistente/propuestas/{id}/confirmar`, `.../rechazar`.
 
-Tests: **359 en verde** (8 nuevos + los 74 del router de transacciones, que comprueban que el
+Tests: **356 en verde** (8 nuevos, más los 74 del router de transacciones que comprueban que el
 refactor no cambió nada).
