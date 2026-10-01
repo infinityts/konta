@@ -18,3 +18,7 @@ htmlcov/
 
 # Datos / logs
 *.log
+
+# Diagramas de arquitectura: son artefactos generados (se rehacen con la herramienta de diagramas),
+# así que no entran en git. Viven en docs/diagramas/ junto al proyecto.
+docs/diagramas/
