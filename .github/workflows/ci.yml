@@ -66,6 +66,13 @@ jobs:
       - name: Comprobar que no hay deriva de esquema
         run: alembic check
 
+      - name: Tests
+        # `set -o pipefail` es imprescindible: sin él, el código de salida sería el de `tee` y un
+        # fallo de los tests pasaría como verde (un CI que miente es peor que uno que no está).
+        run: |
+          set -o pipefail
+          pytest -q 2>&1 | tee /tmp/pytest.log
+
       - name: Publicar qué falló (y con qué)
         if: failure()
         run: |
@@ -85,13 +92,6 @@ jobs:
           else
             echo "::error title=Sin salida::pytest no dejó salida en /tmp/pytest.log"
           fi
-
-      - name: Tests
-        # `set -o pipefail` es imprescindible: sin él, el código de salida sería el de `tee` y un
-        # fallo de los tests pasaría como verde (un CI que miente es peor que uno que no está).
-        run: |
-          set -o pipefail
-          pytest -q 2>&1 | tee /tmp/pytest.log
 
   frontend:
     name: Frontend (tsc + build)
