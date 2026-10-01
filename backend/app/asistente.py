@@ -12,6 +12,7 @@ explica dónde se hace (las acciones con confirmación son otra fase).
 from __future__ import annotations
 
 import json
+import logging
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -35,6 +36,8 @@ from .recurrencia import hoy
 from .reportes import panel as reporte_panel
 from .reportes import reporte_categorias, reporte_mensual
 from .saldos import saldo_cuentas
+
+logger = logging.getLogger(__name__)
 
 MAX_VUELTAS = 4
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
@@ -678,7 +681,13 @@ def _preguntar_de_verdad(db: Session, usuario: Usuario, pregunta: str) -> dict:
                 # Un dato que no cuadra (categoría que no existe, monto raro) se le dice al modelo
                 # para que lo corrija o lo pregunte, en vez de tumbar la respuesta
                 resultado = {"error": str(error.detail)}
-            except Exception as error:  # noqa: BLE001 — una herramienta rota no tumba la respuesta
+            except Exception as error:
+                # Con rastro: antes se devolvía el error al modelo y no quedaba ni una línea en el
+                # log, así que un 502 en producción era indiagnosticable. Y se deshace la
+                # transacción: un error de base dejaba la sesión abortada y todo lo que viniera
+                # después fallaba en cascada (el usuario veía «error interno» sin más).
+                logger.exception("La herramienta %s falló", llamada.nombre)
+                db.rollback()
                 resultado = {"error": f"No pude consultar eso ({type(error).__name__})"}
             mensajes.append(
                 {

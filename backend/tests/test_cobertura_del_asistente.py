@@ -103,3 +103,29 @@ def test_el_asistente_sabe_de_las_cosas_que_se_preguntan_de_verdad():
         "importar movimientos de un extracto",
     ):
         assert imprescindible in temas, f"falta el tema: {imprescindible}"
+
+
+def test_las_herramientas_nuevas_contestan_sin_reventar(client, engine):
+    """Metas, seguros, recurrentes y flujo: devuelven su forma y dicen de qué pantalla salen.
+
+    Con un usuario sin datos tienen que decir «no hay nada», no fallar: es la diferencia entre «no
+    tienes metas» (útil) y un error (inútil).
+    """
+    from sqlalchemy.orm import sessionmaker
+    from test_api import _registrar
+
+    from app.asistente import ejecutar
+    from app.models import Usuario
+
+    _registrar(client)
+    with sessionmaker(bind=engine).begin() as s:
+        usuario = s.query(Usuario).one()
+        for nombre, clave, pantalla in (
+            ("metas", "metas", "Metas"),
+            ("polizas", "polizas", "Seguros"),
+            ("recurrentes", "recurrentes", "Gastos recurrentes"),
+            ("flujo", "flujo", "Flujo de caja"),
+        ):
+            salida = ejecutar(s, usuario, nombre, {})
+            assert salida["pantalla"] == pantalla, salida
+            assert clave in salida, f"{nombre} no devolvió «{clave}»: {salida}"

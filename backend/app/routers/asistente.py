@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,8 @@ from ..schemas import (
     PropuestaOut,
     RespuestaAsistenteOut,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/asistente", tags=["asistente"])
 
@@ -108,6 +111,7 @@ def preguntar(
     except ia.IaNoConfigurada as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except Exception as error:
+        logger.exception("El asistente falló respondiendo «%s»", peticion.pregunta[:80])
         raise HTTPException(
             status_code=502,
             detail=(
