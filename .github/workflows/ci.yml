@@ -66,19 +66,28 @@ jobs:
       - name: Comprobar que no hay deriva de esquema
         run: alembic check
 
-      - name: Publicar el motivo si fallan los tests
-        if: failure()
+      - name: Resumen de los tests
+        if: always()
         run: |
-          echo "### Fallaron los tests" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          grep -E "^(FAILED|ERROR)|^E  |assert" /tmp/pytest.log | tail -40 >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -30 /tmp/pytest.log >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Tests"
+            echo '```'
+            tail -3 /tmp/pytest.log 2>/dev/null || echo "(no hay salida)"
+            echo '```'
+            if grep -qE "^(FAILED|ERROR)" /tmp/pytest.log 2>/dev/null; then
+              echo "**Fallaron:**"
+              echo '```'
+              grep -E "^(FAILED|ERROR)" /tmp/pytest.log | head -20
+              echo '```'
+            fi
+          } >> $GITHUB_STEP_SUMMARY
 
       - name: Tests
-        # La salida se guarda además en un archivo: si falla, el paso siguiente publica el motivo
-        # en el resumen del trabajo. Un CI que dice «falló» y no dice qué falla obliga a adivinar.
-        run: pytest -q 2>&1 | tee /tmp/pytest.log
+        # `set -o pipefail` es imprescindible: sin él, el código de salida sería el de `tee` y un
+        # fallo de los tests pasaría como verde (un CI que miente es peor que uno que no está).
+        run: |
+          set -o pipefail
+          pytest -q 2>&1 | tee /tmp/pytest.log
 
   frontend:
     name: Frontend (tsc + build)
