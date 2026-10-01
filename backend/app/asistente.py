@@ -20,7 +20,8 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import cuotas, flujo, ia, manual, metas, polizas, propuestas
+from . import cuotas, flujo, ia, limites, manual, metas, polizas, propuestas
+from .config import get_settings
 from .models import (
     Categoria,
     ConsultaAsistente,
@@ -690,6 +691,14 @@ def preguntar(db: Session, usuario: Usuario, pregunta: str) -> dict:
     La consulta se **reserva antes** de llamar al modelo (si no hay cupo, no se gasta un token) y se
     **devuelve** si el modelo no llega a responder: no se cobra lo que no se hizo.
     """
+    # Freno de uso: va **antes** de la cuota para que ir rápido no gaste la consulta del plan
+    limites.revisar(
+        db,
+        f"user:{usuario.id}:consultas",
+        get_settings().limite_consultas_por_minuto,
+        60,
+        "las consultas al asistente",
+    )
     cuotas.reservar(db, usuario, cuotas.CONSULTA_ASISTENTE)
     try:
         return _preguntar_de_verdad(db, usuario, pregunta)

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import cuotas, ia
+from .. import cuotas, ia, limites
 from .. import informe as informe_mod
 from ..config import get_settings
 from ..deps import get_current_user, get_db
@@ -132,6 +132,14 @@ async def leer_con_ia(
 
     # 1) La lectura se **cobra antes** de llamar al proveedor: si no hay cupo, no se gasta un token,
     #    y cinco peticiones a la vez no pueden pasar las cinco con una sola lectura disponible.
+    # Freno de uso: va **antes** de la cuota para que ir rápido no gaste la consulta del plan
+    limites.revisar(
+        db,
+        f"user:{user.id}:lecturas",
+        get_settings().limite_lecturas_por_minuto,
+        60,
+        "las lecturas con IA",
+    )
     cuotas.reservar(db, user, cuotas.LECTURA_IA)
 
     # 2) La lectura

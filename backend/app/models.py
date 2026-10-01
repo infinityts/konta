@@ -105,6 +105,21 @@ class Moneda(Base):
     simbolo: Mapped[str] = mapped_column(String(10), nullable=False)
 
 
+class LimiteUso(Base):
+    """Un contador por clave y ventana de tiempo (usuario, IP…), para frenar el uso abusivo.
+
+    Se guarda **una fila por clave** con el inicio de la ventana y cuántos usos lleva: al pasar la
+    ventana se reinicia sola, así que no hace falta guardar cada llamada ni limpiar nada. En memoria
+    no serviría: con dos procesos del backend, cada uno llevaría su cuenta.
+    """
+
+    __tablename__ = "limites_uso"
+
+    clave: Mapped[str] = mapped_column(String(180), primary_key=True)
+    ventana_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    usos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class IntentosLogin(Base):
     """Los fallos de contraseña, por correo y por IP.
 

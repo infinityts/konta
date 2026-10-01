@@ -43,6 +43,20 @@ class Settings(BaseSettings):
     # Intentos de contraseña: 5 fallos bloquean la cuenta 10 minutos. Se cuenta por correo (lo que
     # protege a esa cuenta) y por IP con un umbral más alto, porque varias personas pueden compartir
     # una oficina y no es justo dejar fuera a todas por los dedos de una.
+    # Freno de uso en lo que **cuesta dinero** (cada consulta y cada lectura las pagamos nosotros).
+    # No es un tope del plan —eso lo pone la cuota— sino un freno a ir muy rápido: un cliente normal
+    # no hace 10 consultas en un minuto, un script sí. Y la cuota se revisa **después**, así que
+    # frenar por ir rápido no le gasta la consulta del plan.
+    # Holgados a propósito: el tope del plan ya impide gastar más de lo que el cliente tiene, así
+    # que esto **no** puede ser lo que le impida usar lo que pagó (con el Básico, 10 consultas al mes,
+    # un límite de 10 por minuto le cerraba la puerta justo cuando las usaba todas). Solo para a un
+    # script o a un bucle de reintentos.
+    limite_consultas_por_minuto: int = 20
+    limite_lecturas_por_minuto: int = 30
+    # Crear cuentas también cuesta: cada cuenta nueva trae plan gratis que pagamos nosotros.
+    # Sin esto, el hueco de verdad no es gastar rápido: es crear cuentas en serie.
+    limite_registros_por_hora: int = 5
+
     login_intentos: int = 5
     login_bloqueo_minutos: int = 10
     login_intentos_ip: int = 20

@@ -90,11 +90,20 @@ def test_muchos_correos_distintos_desde_la_misma_ip_tambien_se_frenan(client):
     ips = "203.0.113.7"
     for numero in range(20):
         correo = f"prueba{numero}@example.com"
-        _registrar(client, email=correo)
+        # Se registran desde IPs distintas: el freno de **registros** es otra cosa y se prueba aparte
+        client.post(
+            "/auth/register",
+            json={"email": correo, "nombre": "Prueba", "password": CLAVE},
+            headers={"X-Real-IP": f"203.0.113.{100 + numero}"},
+        )
         assert _entrar(client, correo, "mala", ip=ips).status_code == 401
 
     correo = "otro@example.com"
-    _registrar(client, email=correo)
+    client.post(
+        "/auth/register",
+        json={"email": correo, "nombre": "Prueba", "password": CLAVE},
+        headers={"X-Real-IP": "203.0.113.200"},
+    )
     respuesta = _entrar(client, correo, CLAVE, ip=ips)
     assert respuesta.status_code == 429, "20 fallos desde la misma IP tienen que frenar"
 

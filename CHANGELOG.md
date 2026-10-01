@@ -2921,3 +2921,36 @@ el día de la app ✅ y para comprobar la propiedad de verdad ✅ (el primer dí
 propia cuenta de MB-día ✅). Un fallo latente de la suite, destapado por el calendario ✗.
 
 Tests: **421 en verde** (7 nuevos).
+
+### v2.9 — Freno en lo que cuesta dinero (y una lección de diseño que dieron los tests)
+
+Cada consulta al asistente y cada lectura con IA las pagamos nosotros ✗ (≈4 COP y ≈5 COP ✗). El tope
+del plan limita **cuánto** puede gastar un cliente ✗, pero no **a qué velocidad** ✗: un script (o un
+bucle de reintentos ✗) podía gastar el mes entero en segundos ✗. Ahora hay tres frenos ✗, con claves
+distintas según el riesgo ✗:
+
+| qué | clave | límite | por qué |
+|---|---|---|---|
+| **crear cuenta** | IP | 5 / hora | es el hueco de verdad: cada cuenta nueva trae plan gratis que pagamos nosotros ✗ |
+| **consultas** | usuario | 20 / minuto | para un script, no para una persona ✗ |
+| **lecturas con IA** | usuario | 30 / minuto | igual ✗ |
+
+**El freno va antes que la cuota** ✗: si te freno por ir rápido ✗, **no** se te gasta la consulta que
+pagaste ✗ — y el mensaje lo dice ✅ («No se descontó nada de tu plan» ✅). El contador es una **ventana de
+tiempo** ✗ (una fila por clave ✗, con el inicio y los usos ✗): se reinicia sola ✅, sin guardar cada
+llamada ✗ y sin trabajos de limpieza ✗. Y vive en la base ✗, no en memoria ✗: con dos procesos del
+backend, cada uno llevaría su cuenta ✗.
+
+## La lección: mis primeros números chocaban con el plan ✗✗
+
+Puse **10 consultas por minuto** ✗ y **10 lecturas por minuto** ✗… y el plan Básico trae **justo 10
+consultas al mes** ✗. O sea: un cliente que quería usar **las que había pagado** se encontraba el freno ✗✗
+— el cliente pagando por algo que no podía usar ✗. **Tres tests lo cazaron** ✗ (y luego un cuarto ✗).
+
+Los corregí a **20/min** y **30/min** ✗ y dejé escrito el criterio ✅, que es lo que importa ✅:
+
+> En lo que el cliente **ya pagó**, el freno de velocidad es un **freno de cordura** ✗, no el guardián
+> del dinero ✗. El guardián es **la cuota** ✅, que no deja pasar ni una más de las que tiene ✗.
+
+Tests: **426 en verde** (12 nuevos). Migraciones: `25bc10d5296e` (intentos de contraseña) y
+`9255aeb6c29a` (límites de uso).

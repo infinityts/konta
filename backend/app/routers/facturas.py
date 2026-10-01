@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, Upl
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import archivos, cuotas, ia
+from .. import archivos, cuotas, ia, limites
 from ..clasificador import clasificar, normalizar
 from ..config import get_settings
 from ..crud_utils import get_owned
@@ -799,6 +799,14 @@ async def releer_con_ia(
     contenido = archivos.contenido_de(factura, contrasena)
 
     # Igual que en la lectura con IA: se reserva antes de llamar al proveedor
+    # Freno de uso: va **antes** de la cuota para que ir rápido no gaste la consulta del plan
+    limites.revisar(
+        db,
+        f"user:{user.id}:lecturas",
+        get_settings().limite_lecturas_por_minuto,
+        60,
+        "las lecturas con IA",
+    )
     cuotas.reservar(db, user, cuotas.LECTURA_IA)
 
     try:

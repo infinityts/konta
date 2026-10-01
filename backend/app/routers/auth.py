@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import intentos
+from .. import intentos, limites
+from ..config import get_settings
 from ..defaults import DEFAULT_CATEGORIAS, sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..models import Categoria, TipoCategoria, Usuario
@@ -17,7 +18,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
-def register(data: UserCreate, db: Session = Depends(get_db)) -> Usuario:
+def register(data: UserCreate, peticion: Request, db: Session = Depends(get_db)) -> Usuario:
+    """Crea una cuenta.
+
+    Se cuenta por **IP**: cada cuenta nueva trae un plan gratis que pagamos nosotros, así que crear
+    cuentas en serie es el hueco de verdad (más que gastar rápido dentro de una sola cuenta).
+    """
+    limites.revisar(
+        db,
+        f"ip:{intentos.ip_del_cliente(peticion)}:registros",
+        get_settings().limite_registros_por_hora,
+        3600,
+        "crear cuentas",
+    )
     if db.scalar(select(Usuario).where(Usuario.email == data.email)):
         raise HTTPException(status_code=409, detail="El email ya está registrado")
 

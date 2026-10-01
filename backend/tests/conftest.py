@@ -53,7 +53,7 @@ def client(engine):
                 # CASCADE no la limpia: sin nombrarla, los contadores de fallos se acumularían
                 # entre tests y unos harían fallar a otros.
                 "TRUNCATE transacciones, suscripciones, tarjetas, "
-                "categorias, usuarios, tasas_cambio, intentos_login CASCADE"
+                "categorias, usuarios, tasas_cambio, intentos_login, limites_uso CASCADE"
             )
         )
 
