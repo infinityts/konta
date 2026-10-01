@@ -12,8 +12,10 @@ COPY app ./app
 COPY alembic ./alembic
 RUN pip install --no-cache-dir .
 
-# Qué versión (commit) está corriendo esta imagen. Va al final para no invalidar la caché del
-# código en cada despliegue, y es lo que permite comprobar que lo desplegado es lo que se cree.
+# Qué versión (commit) corre. Se pasa **al arrancar** el contenedor (`-e FINANZAS_VERSION=...`):
+# con un ARG de build, podman reutilizaba la capa cacheada y la imagen se quedaba con la versión
+# vieja aunque el build dijera «Successfully tagged» (pasó, y es justo lo que esta variable existe
+# para detectar). Aquí queda como valor por defecto para quien no lo pase.
 ARG FINANZAS_VERSION=desconocida
 ENV FINANZAS_VERSION=$FINANZAS_VERSION
 

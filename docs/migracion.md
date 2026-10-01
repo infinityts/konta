@@ -93,7 +93,9 @@ podman build -t konta-frontend ./frontend
 podman run -d --name konta-backend --network konta-net --network-alias backend \
   -e FINANZAS_DATABASE_URL="postgresql+psycopg://finanzas:finanzas@db:5432/finanzas" \
   -e FINANZAS_SECRET_KEY="<la misma de siempre: si cambia, se cierran todas las sesiones>" \
-  -e FINANZAS_TIMEZONE="America/Bogota" --env-file /etc/konta/ia.env \
+  -e FINANZAS_TIMEZONE="America/Bogota" \
+  # la versión se pasa al arrancar: con un ARG de build, la caché de podman se la come
+  -e FINANZAS_VERSION="$(git rev-parse --short HEAD)" --env-file /etc/konta/ia.env \
   -v /var/lib/konta/archivos:/var/lib/konta/archivos:Z -p 8000:8000 konta-backend:latest
 podman run -d --name konta-frontend --network konta-net -p 8082:80 konta-frontend:latest
 ```
