@@ -23,6 +23,10 @@ const NOMBRE_HERRAMIENTA: Record<string, string> = {
   facturas: 'tus facturas',
   mi_plan: 'tu plan',
   ayuda: 'la ayuda de la app',
+  metas: 'tus metas de ahorro',
+  polizas: 'tus seguros',
+  recurrentes: 'lo que se te repite cada mes',
+  flujo: 'tu proyección de los próximos meses',
 }
 
 /**
