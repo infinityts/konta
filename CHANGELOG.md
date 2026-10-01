@@ -2762,3 +2762,35 @@ que inventar ✅ (vacío, texto, booleano ✅) y el **camino completo** ✅ (un 
 devuelve `"45,000.50"` → la factura queda con **45000.50** ✅).
 
 Tests: **404 en verde** (4 nuevos).
+
+### v2.3 — Fui a buscar un bug y el bug era mi test
+
+Seguí con la familia de ayer (**un texto del modelo, de largo desconocido, en una columna con tope**
+✗): un `emisor` de 300 caracteres o una descripción de 400 ✗ harían que Postgres rechazara la fila ✗ y
+la lectura que el usuario ya pagó se perdería con un 500 ✗.
+
+**El código ya estaba bien** ✅: `leer_documento` (el único sitio por donde entran los datos del
+modelo ✅) **ya acorta todo** a lo que aguantan las columnas ✅ —emisor 140 ✅, descripción 200 ✅, NIT 40 ✅,
+texto 20.000 ✅— y **descarta** las líneas que no sirven ✅ (sin descripción, sin valor, con valor cero
+o con valor ilegible ✅).
+
+**Pero mi test estaba mal** ✗✗, y eso es lo que me llevo de la ronda ✅: yo sustituía
+`leer_documento` ✗… **y sustituir esa función también sustituye sus garantías** ✗. Luego le exigía al
+endpoint que protegiera unos textos que la función de verdad **ya protegía** ✗. Un **falso positivo** ✗
+que, si me lo creo, me habría llevado a añadir código redundante ✗ y a desconfiar de una frontera que
+está bien puesta ✗.
+
+Lo arreglé así ✅: los tests ahora ejercitan **la función de verdad** ✅, sustituyendo **solo la llamada
+al proveedor** (el HTTP ✅, sin red y sin gastar ⚠), y comprueban las garantías reales ✅:
+
+- los textos largos se acortan a lo que aguanta cada columna ✅
+- las líneas que no sirven se descartan en vez de guardarse ✅
+- un monto con decimales (`"45,000.50"`) se lee bien ✅ (la familia de ayer ✅)
+- si el proveedor no responde, se levanta el error ✅ (el endpoint lo convierte en 502 y **no cobra** ✅)
+
+**La lección** ✅, que es de método y me la apunto: **sustituir una función también sustituye sus
+promesas** ✗. Cuando un test falla contra un stub ✗, la primera pregunta no es «¿qué código falta?» ✗
+sino «¿la función de verdad ya lo evita?» ✗.
+
+**Nada que desplegar** ✅: esta ronda no cambió código de producción, solo la forma de probarlo ✅.
+Tests: **408 en verde** (4 nuevos, 4 viejos mal hechos reemplazados).
