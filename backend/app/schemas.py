@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -632,7 +632,28 @@ class FacturaOut(BaseModel):
     emisor_nombre: str | None = None
     # El archivo guardado (para releer con IA) y hasta cuándo se guarda
     archivo_guardado: bool = False
-    archivo_expira_en: datetime | None = None
+    # Fecha (del usuario) en la que se borra el archivo: es la promesa que se le hace
+    archivo_expira_en: date | None = None
+
+    @field_validator("archivo_expira_en", mode="before")
+    @classmethod
+    def _fecha_local(cls, valor):
+        """Un instante (UTC) se enseña como la **fecha del usuario**, no la de Greenwich.
+
+        La caducidad se guarda en UTC (el trabajo que borra compara en UTC, sin sorpresas), pero al
+        usuario se le promete un día: sin esto, un archivo que se borra el día 7 se anunciaba como
+        el 8 a partir de las 19:00 de Colombia.
+        """
+        from datetime import datetime as _datetime
+        from zoneinfo import ZoneInfo
+
+        from .config import get_settings
+
+        if isinstance(valor, _datetime):
+            if valor.tzinfo is None:
+                valor = valor.replace(tzinfo=UTC)
+            return valor.astimezone(ZoneInfo(get_settings().timezone)).date()
+        return valor
     archivo_aviso: str | None = None
     leida_con_ia: bool = False
     creada_en: datetime

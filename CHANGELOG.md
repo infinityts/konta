@@ -2679,3 +2679,33 @@ veces en tres rondas ✗, y siempre en el mismo sitio ✗ (donde el código comp
 algo en dos pasos ✗).
 
 Tests: **397 en verde** (2 nuevos).
+
+### v2.0 — El CI tenía razón: era un bug de zona horaria (y dos del propio CI)
+
+Dos rondas con el CI en rojo ✗ y mis tests pasando en local ✗. Dejé de adivinar y **hice que el CI
+dijera qué fallaba** ✗→✅: ahora publica los tests caídos como **anotaciones del commit** ✅ (que sí se
+pueden leer por API ✅) y el paso va **después** de los tests ✅ (lo puse antes ✗ y por eso no publicaba
+nada ✗). De paso: `pytest | tee` sin `pipefail` convertía un fallo en **verde falso** ✗ — un CI que
+miente es peor que no tenerlo ✗ — y ya lleva `set -o pipefail` ✅.
+
+## El bug que encontró
+
+El CI corre a las **19:15 de Colombia** ✗ = **00:15 UTC del día siguiente** ✗. La app piensa los meses
+en **Colombia** ✅ pero marcaba los pagos y la caducidad con la hora **UTC** ✗:
+
+- **Un pago hecho entre las 19:00 y la medianoche del último día del mes caía en el mes siguiente** ✗
+  del informe ✗ — justo la cifra que decide los precios ✗. No es un caso raro ✗: es una **ventana de
+  cinco horas todos los días** ✗, y el último día del mes es cuando más pagos entran ✗.
+- **La caducidad de un archivo se anunciaba un día tarde** ✗ a partir de las 19:00 ✗ (al usuario se le
+  promete un día: *«se borra el 7»* ✗).
+
+## Los arreglos
+
+- El informe cuenta los pagos por **el mes del usuario** ✅ (`timezone('America/Bogota', pagado_en)` ✅).
+- La caducidad se enseña como **fecha del usuario** ✅, con un validador en el esquema ✅ que vale para
+  los tres caminos (subida, listado y detalle ✅), y el trabajo que borra sigue comparando en UTC ✅
+  (donde no hay sorpresas ✅).
+- Y un test que **fija el límite** ✅: un pago de las 19:30 del último día del mes cuenta en **ese**
+  mes ✅ — determinista, sin tocar el reloj ✅.
+
+Tests: **398 en verde** (1 nuevo).

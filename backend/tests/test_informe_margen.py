@@ -277,3 +277,37 @@ def test_un_plan_que_ya_no_existe_no_deja_al_cliente_a_cero_ni_lo_esconde(client
     assert datos["planes_inexistentes"] == ["cliente@example.com"]
     assert any("cliente@example.com" in u["usuario"] for u in datos["usuarios"])
     assert any("plan base" in n for n in datos["notas"]), datos["notas"]
+
+
+def test_un_pago_de_ultima_hora_cuenta_en_el_mes_del_usuario(client, engine, monkeypatch):
+    """El bug que encontró el CI corriendo a las 19:15 de Colombia.
+
+    Un pago de las 19:30 del último día del mes es, en UTC, del mes siguiente. Contarlo por UTC lo
+    metía en el informe del mes equivocado — y justo en la cifra que decide los precios.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import text
+
+    from app.recurrencia import hoy
+
+    _, h = _admin(client, monkeypatch)
+    _trm(engine)
+    _, h_cliente = _registrar(client, email="cliente@example.com")
+    orden = client.post("/pagos/orden", headers=h_cliente, json={"tipo": "plan", "codigo": "pro"}).json()
+    assert client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h_cliente).status_code == 200
+
+    # el pago se marca a las 19:30 de Colombia del último día del mes (= 00:30 UTC del día siguiente)
+    ultimo_dia = hoy().replace(day=1) - timedelta(days=1)
+    momento = datetime(ultimo_dia.year, ultimo_dia.month, ultimo_dia.day, 19, 30, tzinfo=UTC) + timedelta(hours=5)
+    with engine.begin() as conn:
+        conn.execute(
+            text("update pagos set pagado_en = :cuando where referencia = :ref"),
+            {"cuando": momento, "ref": orden["referencia"]},
+        )
+
+    datos = client.get(f"/ia/informe?periodo={ultimo_dia:%Y-%m}", headers=h).json()
+    assert datos["cobrado_cop"] == 29000.0, (
+        "un pago de las 19:30 del último día del mes tiene que contar en ESE mes, "
+        f"no en el siguiente (quedó en {datos['cobrado_cop']})"
+    )

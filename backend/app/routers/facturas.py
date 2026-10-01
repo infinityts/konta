@@ -19,6 +19,7 @@ import uuid
 from collections import Counter
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy import func, select
@@ -466,6 +467,7 @@ def _detalle(db: Session, factura: Factura) -> FacturaDetalleOut:
     detalle.duplicada = _duplicada(db, factura)
     detalle.aviso_fecha = aviso_de_la_fecha(factura.fecha_detectada, hoy())
     detalle.archivo_guardado = factura.archivo_clave is not None
+    detalle.archivo_expira_en = _fecha_del_usuario(factura.archivo_expira_en)
     detalle.aviso_monto = aviso_del_monto(
         factura.monto_detectado,
         factura.texto_extraido or "",
@@ -621,6 +623,7 @@ def listar(db: Session = Depends(get_db), user: Usuario = Depends(get_current_us
         )
         item.aviso_fecha = aviso_de_la_fecha(factura.fecha_detectada, hoy())
         item.archivo_guardado = factura.archivo_clave is not None
+        item.archivo_expira_en = _fecha_del_usuario(factura.archivo_expira_en)
         salida.append(item)
     return salida
 
@@ -765,6 +768,18 @@ def borrar_plantilla(
     plantilla = get_owned(db, PlantillaLector, plantilla_id, user.id)
     db.delete(plantilla)
     db.commit()
+
+
+def _fecha_del_usuario(momento: datetime | None) -> date | None:
+    """La fecha de un instante, en la zona del usuario.
+
+    La caducidad de un archivo se guarda en UTC (el trabajo que lo borra compara en UTC y así no hay
+    sorpresas), pero al usuario se le enseña **su** fecha: si no, un archivo que se borra el día 7 se
+    le anunciaba como el 8 a partir de las 19:00.
+    """
+    if momento is None:
+        return None
+    return momento.astimezone(ZoneInfo(get_settings().timezone)).date()
 
 
 @router.post("/{id}/leer-con-ia", response_model=FacturaDetalleOut)

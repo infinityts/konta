@@ -234,7 +234,10 @@ def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
         db.scalar(
             select(func.coalesce(func.sum(Pago.monto), 0)).where(
                 Pago.estado == "pagado",
-                func.to_char(Pago.pagado_en, "YYYY-MM") == periodo,
+                # El mes del pago contado como lo vive el usuario (Colombia). Con la hora
+                # UTC, un pago de las 19:30 del último día del mes caía en el mes siguiente.
+                func.to_char(func.timezone(get_settings().timezone, Pago.pagado_en), "YYYY-MM")
+                == periodo,
             )
         )
         or 0
@@ -245,7 +248,8 @@ def informe_del_mes(db: Session, periodo: str | None = None) -> dict:
         .where(
             Pago.estado == "pagado",
             Pago.tipo == "plan",
-            func.to_char(Pago.pagado_en, "YYYY-MM") == periodo,
+            func.to_char(func.timezone(get_settings().timezone, Pago.pagado_en), "YYYY-MM")
+            == periodo,
         )
         .group_by(Pago.codigo)
     ).all():
