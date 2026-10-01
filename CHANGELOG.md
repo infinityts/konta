@@ -2794,3 +2794,11 @@ sino «¿la función de verdad ya lo evita?» ✗.
 
 **Nada que desplegar** ✅: esta ronda no cambió código de producción, solo la forma de probarlo ✅.
 Tests: **408 en verde** (4 nuevos, 4 viejos mal hechos reemplazados).
+
+### v2.4 — Estado del plan, en un solo documento
+
+`docs/estado-del-plan.md`: qué está hecho y verificado ✅, qué falta y **por qué** ⏳ (la máquina de
+500 GB y tus llaves de comercio), cómo comprobar que todo sigue bien ✅, y las cuatro familias de
+fallos que aparecieron revisando lo que ya estaba en producción ✅ — con la regla que saca cada una ✅.
+
+Existe para que no dependa de esta conversación ✅: es lo que hay que leer dentro de un mes ✅.
