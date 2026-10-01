@@ -5,20 +5,32 @@ from __future__ import annotations
 from test_api import _pdf_minimo, _registrar
 from test_impuestos import FACTURA
 
+from app.recurrencia import hoy
+
+
+def _factura_del_mes() -> str:
+    """La factura de ejemplo, con la fecha **de este mes**.
+
+    La constante `FACTURA` trae una fecha fija (2026/9/16). El panel informa del **mes en curso**, así
+    que con una fecha fija este test fallaba el día 1 de cada mes: pasó, y por eso ahora se calcula.
+    """
+    return FACTURA.replace("2026/9/16", f"{hoy():%Y/%-m/%-d}")
+
 
 def test_panel_devuelve_todo(client):
     _, h = _registrar(client)
+    factura = _factura_del_mes()
     f = client.post(
-        "/facturas", headers=h, files={"archivo": ("f.pdf", _pdf_minimo(FACTURA), "application/pdf")}
+        "/facturas", headers=h, files={"archivo": ("f.pdf", _pdf_minimo(factura), "application/pdf")}
     ).json()
-    client.post(f"/facturas/{f['id']}/lineas", headers=h, json={"texto": FACTURA})
+    client.post(f"/facturas/{f['id']}/lineas", headers=h, json={"texto": factura})
     client.post(f"/facturas/{f['id']}/confirmar-total", headers=h, json={})  # una compra
 
     cats = {c["nombre"]: c["id"] for c in client.get("/categorias", headers=h).json()}
     client.post(
         "/transacciones",
         headers=h,
-        json={"tipo": "gasto", "monto": "50000", "fecha": "2026-09-10",
+        json={"tipo": "gasto", "monto": "50000", "fecha": str(hoy()),
               "descripcion": "otro mercado", "categoria_id": cats["Mercado"]},
     )
 

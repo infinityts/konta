@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import intentos
 from ..defaults import DEFAULT_CATEGORIAS, sembrar_etiquetas_diccionario
 from ..deps import get_current_user, get_db
 from ..models import Categoria, TipoCategoria, Usuario
@@ -52,10 +53,21 @@ def register(data: UserCreate, db: Session = Depends(get_db)) -> Usuario:
 
 
 @router.post("/login", response_model=Token)
-def login(data: LoginIn, db: Session = Depends(get_db)) -> Token:
+def login(data: LoginIn, peticion: Request, db: Session = Depends(get_db)) -> Token:
+    """Entra con correo y contraseña.
+
+    Cinco fallos bloquean la cuenta diez minutos (ver `app/intentos.py`): sin esto, nada impide
+    probar contraseñas a lo bruto. El bloqueo se revisa **antes** de mirar la contraseña, así que
+    mientras dure ni se compara el hash.
+    """
+    ip = intentos.ip_del_cliente(peticion)
+    intentos.revisar(db, data.email, ip)
     usuario = db.scalar(select(Usuario).where(Usuario.email == data.email))
     if usuario is None or not verify_password(data.password, usuario.password_hash):
+        # El mensaje es el mismo exista o no el correo: decirlo sería regalar la mitad del trabajo
+        intentos.anotar_fallo(db, data.email, ip)
         raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
+    intentos.anotar_exito(db, data.email, ip)
     return Token(access_token=create_access_token(usuario.id))
 
 

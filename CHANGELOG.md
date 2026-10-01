@@ -2890,3 +2890,34 @@ pueden hacer ✅— deja de poder caerse ✗.
 
 Tests: **414 en verde** (2 nuevos: las herramientas nuevas contestan sin reventar, y las fechas como
 texto del modelo).
+
+### v2.8 — Freno a los intentos de contraseña (5 fallos, 10 minutos)
+
+Sin esto, nada impedía probar contraseñas a lo bruto ✗: una lista de las mil más usadas contra un
+correo conocido es cuestión de minutos ✗. Ahora **cinco fallos bloquean la cuenta diez minutos** ✅,
+con tres detalles que marcan la diferencia ✗:
+
+- **Se cuenta por cuenta *y* por IP** ✅ (5 y 20 fallos ✗). Contar solo por correo permite que
+  cualquiera **te deje fuera** fallando cinco veces con tu email a propósito ✗; contar solo por IP no
+  frena a quien reparte intentos desde muchos sitios ✗. El umbral de IP es más alto porque en una
+  oficina varias personas comparten salida ✗.
+- **El contador se borra al acertar** ✅ y el bloqueo **caduca solo** ✅: nada de desbloqueos a mano ✅.
+- **El mensaje dice cuántos minutos faltan** ✅ y **no revela si el correo existe** ✗: eso sería regalar
+  la mitad del trabajo ✗.
+
+**El contador vive en la base** ✅, no en memoria ✗: si se reinicia el backend, el bloqueo sigue en pie ✗
+(lo contrario sería que esperar a un despliegue bastara para volver a probar ✗). Y se reserva la fila al
+sumar un fallo ✅, que es la misma lección de siempre: garantizar, no comprobar ✅.
+
+**Un detalle que habría sido grave** ✗: la app está detrás de nginx ✗, así que `request.client.host` es
+**la IP del proxy para todo el mundo** ✗. Bloquear por esa IP habría dejado fuera a **todos** los
+usuarios a la vez ✗✗. nginx ya mandaba la IP real en `X-Real-IP` ✅ (lo que faltaba era leerla ✗), así que
+ahora se usa esa ✅.
+
+**Y la sorpresa de la ronda** ✗✗: al correr la suite fallaron **dos tests** ✗ y **no era mi cambio** ✗ —
+**acababa de cambiar el mes** ✗ (`hoy()` = 1 de octubre ✗). Los dos tenían fechas **fijas de septiembre** ✗
+y afirmaban sobre «el mes en curso» ✗: habrían fallado **el día 1 de cada mes** ✗. Arreglados para usar
+el día de la app ✅ y para comprobar la propiedad de verdad ✅ (el primer día del mes siguiente estrena su
+propia cuenta de MB-día ✅). Un fallo latente de la suite, destapado por el calendario ✗.
+
+Tests: **421 en verde** (7 nuevos).

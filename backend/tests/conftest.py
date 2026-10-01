@@ -49,8 +49,11 @@ def client(engine):
     with engine.begin() as conn:
         conn.execute(
             text(
+                # `intentos_login` no cuelga de `usuarios` (se indexa por texto), así que el
+                # CASCADE no la limpia: sin nombrarla, los contadores de fallos se acumularían
+                # entre tests y unos harían fallar a otros.
                 "TRUNCATE transacciones, suscripciones, tarjetas, "
-                "categorias, usuarios, tasas_cambio CASCADE"
+                "categorias, usuarios, tasas_cambio, intentos_login CASCADE"
             )
         )
 

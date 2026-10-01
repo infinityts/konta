@@ -40,6 +40,14 @@ class Settings(BaseSettings):
 
     # ── Cobro ──
     # A qué plan se vuelve cuando vence el de pago (y cuántos días dura un pago)
+    # Intentos de contraseña: 5 fallos bloquean la cuenta 10 minutos. Se cuenta por correo (lo que
+    # protege a esa cuenta) y por IP con un umbral más alto, porque varias personas pueden compartir
+    # una oficina y no es justo dejar fuera a todas por los dedos de una.
+    login_intentos: int = 5
+    login_bloqueo_minutos: int = 10
+    login_intentos_ip: int = 20
+    login_ventana_minutos: int = 15
+
     plan_base: str = "basico"
     dias_de_plan: int = 30
     # Con cuántos días de antelación se avisa de que el plan vence

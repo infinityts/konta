@@ -227,14 +227,15 @@ def test_el_almacenamiento_se_mide_por_dia_y_no_se_cuenta_dos_veces(client, engi
     Y tiene que ser idempotente: si el trabajo corre dos veces el mismo día, el cliente no puede
     pagar dos veces por lo mismo.
     """
-    from datetime import date
-
     from app.db import make_session_factory
+    from app.recurrencia import hoy as hoy_de_la_app
 
     _, h = _registrar(client)
     _factura(client, h)
     sf = make_session_factory(engine)
-    hoy_ = date(2026, 9, 30)
+    # El día de la app, no una fecha fija: con una fecha fija, este test fallaba en cuanto cambiaba
+    # el mes (el archivo se guarda con la caducidad de hoy y no se contaba en la fecha del test).
+    hoy_ = hoy_de_la_app()
 
     with sf.begin() as s:
         assert archivos.medir_almacenamiento(s, cuando=hoy_) == 1
@@ -248,12 +249,17 @@ def test_el_almacenamiento_se_mide_por_dia_y_no_se_cuenta_dos_veces(client, engi
     assert cuota["mb_promedio"] > 0
     assert cuota["mb_dia"] > 0
 
-    # al día siguiente vuelve a sumar
+    # Otro día vuelve a sumar, pero **en su propio mes**: el 1 del mes siguiente estrena cuenta y el
+    # mes en curso se queda con el día que ya tenía. Se calcula en vez de fijarlo: con fechas fijas
+    # este test se rompía en cuanto cambiaba el mes (pasó el 1 de octubre).
+    from datetime import timedelta
+
+    primer_dia_del_siguiente = (hoy_.replace(day=1) + timedelta(days=32)).replace(day=1)
     with sf.begin() as s:
-        assert archivos.medir_almacenamiento(s, cuando=date(2026, 10, 1)) == 1
+        assert archivos.medir_almacenamiento(s, cuando=primer_dia_del_siguiente) == 1
     cuota = client.get("/ia/cuota", headers=h).json()
     assert cuota["dias_medidos"] == 1, "el mes nuevo empieza su propia cuenta"
-    assert cuota["periodo"] == "2026-09"  # el periodo de la cuota sigue siendo el de hoy
+    assert cuota["periodo"] == hoy_.strftime("%Y-%m"), "el periodo de la cuota sigue siendo el de hoy"
 
 
 def test_un_usuario_sin_archivos_no_se_mide(client, engine):

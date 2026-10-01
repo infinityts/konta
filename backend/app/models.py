@@ -15,6 +15,7 @@ from decimal import Decimal
 from sqlalchemy import (
     Boolean,
     Date,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -102,6 +103,26 @@ class Moneda(Base):
     codigo: Mapped[str] = mapped_column(String(3), primary_key=True)
     nombre: Mapped[str] = mapped_column(String(60), nullable=False)
     simbolo: Mapped[str] = mapped_column(String(10), nullable=False)
+
+
+class IntentosLogin(Base):
+    """Los fallos de contraseña, por correo y por IP.
+
+    Vive en la base y no en memoria: si se reinicia el backend, el bloqueo tiene que seguir en pie
+    (si no, bastaría con esperar a un despliegue para volver a probar).
+    """
+
+    __tablename__ = "intentos_login"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    # "email:alguien@ejemplo.com" o "ip:1.2.3.4"
+    clave: Mapped[str] = mapped_column(String(180), nullable=False, unique=True, index=True)
+    intentos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Hasta cuándo está bloqueada esa clave (UTC). None = no está bloqueada.
+    bloqueado_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
 
 
 class Usuario(Base):
