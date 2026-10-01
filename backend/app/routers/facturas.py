@@ -826,7 +826,7 @@ async def releer_con_ia(
     texto = lectura.texto or factura.texto_extraido or ""
     if texto.strip():
         factura.texto_extraido = texto[:20000]
-    monto = campos.get("monto") or (detectar_monto(texto) if texto else None)
+    monto = ia._decimal(campos.get("monto")) or (detectar_monto(texto) if texto else None)
     factura.monto_detectado = monto
     if campos.get("fecha"):
         fecha_leida = ia.fecha_valida(campos["fecha"])
@@ -847,12 +847,15 @@ async def releer_con_ia(
     lineas_ia = campos.get("lineas") or []
     if lineas_ia and detectar_tipo(texto, lineas_ia) not in ("parqueadero", "servicios"):
         for orden, fila in enumerate(lineas_ia):
+            valor = ia._decimal(fila.get("valor"))
+            if valor is None:
+                continue  # sin valor legible no se inventa el artículo
             db.add(
                 FacturaLinea(
                     factura_id=factura.id,
                     orden=orden,
                     descripcion=fila["descripcion"],
-                    valor_total=fila["valor"],
+                    valor_total=valor,
                     origen="ia",
                 )
             )

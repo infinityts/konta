@@ -162,7 +162,9 @@ async def leer_con_ia(
     campos = lectura.campos
     texto = lectura.texto or ""
     emisor_detectado = detectar_emisor(texto) if texto else None
-    monto = campos.get("monto")
+    # El monto del modelo se lee con el mismo lector que el resto de la app: guardarlo tal cual
+    # metía en la base un texto como "45.000" (que Postgres lee como 45) o reventaba con "45,000.50".
+    monto = ia._decimal(campos.get("monto"))
     if monto is None:
         monto = detectar_monto(texto) if texto else None
     fecha = None
@@ -187,12 +189,15 @@ async def leer_con_ia(
     lineas = campos.get("lineas") or []
     if lineas and detectar_tipo(texto, lineas) not in ("parqueadero", "servicios"):
         for orden, fila in enumerate(lineas):
+            valor = ia._decimal(fila.get("valor"))
+            if valor is None:
+                continue  # un artículo sin valor legible no se inventa: se deja fuera
             db.add(
                 FacturaLinea(
                     factura_id=factura.id,
                     orden=orden,
                     descripcion=fila["descripcion"],
-                    valor_total=fila["valor"],
+                    valor_total=valor,
                     origen="ia",
                 )
             )

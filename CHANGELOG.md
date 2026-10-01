@@ -2735,3 +2735,30 @@ ronda ✗. Añadí dos que fijan el límite horario ✅: un recibo pagado a las 
 **ese** día ✅, y el tipo convierte bien ✅.
 
 Tests: **400 en verde** (2 nuevos).
+
+### v2.2 — La familia del dinero: tres formas de leer mal un monto
+
+Fui a cazar la siguiente familia: **la aritmética del dinero** ✗. Tres instancias ✗, y la tercera es
+la peor de todo lo que he encontrado en estas rondas ✗:
+
+1. **Las propuestas del asistente** ✗: el monto se leía con un `replace` a mano ✗ → si el modelo
+   mandaba `45000.5`, la propuesta decía **450.005** ✗ (diez veces más ✗); con `"45000.50"`,
+   **4.500.050** ✗ (cien veces ✗). Y el usuario **confirma** esa propuesta ✗.
+2. **La lectura con IA** ✗: el mismo `replace` ✗ → `"45000.50"` daba **4.500.050** ✗ y `"$ 45.000,50"`
+   daba **nada** ✗ (se rendía ✗).
+3. **Y la peor** ✗✗ — la encontró **el test**, no mi lectura del código ✗: los endpoints de la IA
+   guardaban el monto del modelo **tal cual** ✗, sin leerlo ✗. Con `"45,000.50"` **reventaba** Postgres
+   ✗ (un error 500 ✗) y con `"45.000"` se habría guardado **45** ✗ — **mil veces menos, en silencio** ✗,
+   porque Postgres lee `'45.000'` como el número 45 ✗. Toda la sapiencia de formatos que el OCR ya
+   tenía ✗ (Colombia vs. Estados Unidos ✗) quedaba **saltada** ✗ en el camino de la IA ✗.
+
+**El arreglo** ✅: **una sola** forma de leer dinero en la app ✅ — `app.dinero.parsear_monto` ✅, que ya
+distinguía `45.000` de `45000.50` y de `45,000.50` ✅ — usada por la lectura con IA ✅, por las
+propuestas del asistente ✅ y por los dos endpoints ✅. Y en el **prompt** se pide el monto como
+**número entero** ✅, para quitar la ambigüedad en el origen ✗.
+
+**Los tests** ✅ (4 nuevos): la tabla de los ocho casos en los dos módulos ✅, los casos donde **no** hay
+que inventar ✅ (vacío, texto, booleano ✅) y el **camino completo** ✅ (un modelo de mentira que
+devuelve `"45,000.50"` → la factura queda con **45000.50** ✅).
+
+Tests: **404 en verde** (4 nuevos).

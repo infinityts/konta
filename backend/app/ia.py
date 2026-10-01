@@ -26,6 +26,7 @@ from decimal import Decimal
 import httpx
 
 from .config import get_settings
+from .dinero import parsear_monto
 
 # Lo que se le pide al modelo. Corto a propósito: cada palabra del prompt se paga en cada
 # lectura, y el prompt se cachea (la parte repetida cuesta una décima parte).
@@ -38,7 +39,8 @@ INSTRUCCIONES = (
     '"nit": "NIT del emisor" o null, '
     '"lineas": [{"descripcion": "artículo", "valor": número}]}\n'
     "Reglas: si un dato no se ve con claridad, pon null en vez de inventarlo. El monto es el "
-    "total final. No incluyas los artículos si el documento es un recibo de pago de servicio."
+    "total final. No incluyas los artículos si el documento es un recibo de pago de servicio. "
+    "Los montos van como número entero de pesos, sin puntos, comas ni símbolos: 45000."
 )
 
 TIPOS_IMAGEN = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -126,10 +128,20 @@ def fecha_valida(valor) -> date | None:
 
 
 def _decimal(valor) -> Decimal | None:
+    """El monto que devolvió el modelo, leído con **el mismo lector** que usa el OCR.
+
+    Antes hacía su propio `replace` y se equivocaba con los separadores: `"45000.50"` se convertía
+    en 4.500.050 (cien veces más) y `"$ 45.000,50"` en nada. El resto de la app ya sabe distinguir
+    `45.000` (Colombia) de `45000.50`, así que aquí se usa lo mismo: una sola forma de leer dinero.
+    """
     if valor is None or valor == "":
         return None
     try:
-        return Decimal(str(valor).replace(".", "").replace(",", ".")) if isinstance(valor, str) else Decimal(str(valor))
+        if isinstance(valor, bool):
+            return None
+        if isinstance(valor, (int, float, Decimal)):
+            return Decimal(str(valor))
+        return parsear_monto(str(valor))
     except Exception:  # noqa: BLE001 — un valor raro se trata como «no lo sé», no rompe la lectura
         return None
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from . import movimientos
 from .crud_utils import get_owned
+from .dinero import parsear_monto
 from .models import Categoria, Etiqueta, Propuesta, Transaccion, Usuario
 from .recurrencia import hoy
 from .schemas import TransaccionIn
@@ -75,10 +76,21 @@ def _resolver_etiqueta(db: Session, usuario: Usuario, nombre: str | None):
 
 
 def _monto(valor) -> Decimal:
-    try:
-        return Decimal(str(valor).replace(".", "").replace(",", "."))
-    except (InvalidOperation, ValueError) as error:
-        raise HTTPException(status_code=422, detail=f"«{valor}» no es un monto") from error
+    """El monto que propuso el modelo, con **el mismo lector** que usa el OCR y la lectura con IA.
+
+    Antes hacía un `replace` a mano: `45000.5` se convertía en 450005 (diez veces más) y `"45000.50"`
+    en 4500050 (cien veces). Un monto mal leído en una acción que el usuario confirma es dinero mal
+    apuntado, así que hay **una sola** forma de leer dinero en la app.
+    """
+    if isinstance(valor, bool) or valor is None:
+        raise HTTPException(status_code=422, detail=f"«{valor}» no es un monto")
+    if isinstance(valor, (int, float, Decimal)):
+        monto = Decimal(str(valor))
+    else:
+        monto = parsear_monto(str(valor))
+    if monto is None or monto <= 0:
+        raise HTTPException(status_code=422, detail=f"«{valor}» no es un monto válido")
+    return monto
 
 
 def preparar_movimiento(db: Session, usuario: Usuario, datos: dict) -> tuple[str, dict, str]:
