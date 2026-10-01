@@ -66,21 +66,25 @@ jobs:
       - name: Comprobar que no hay deriva de esquema
         run: alembic check
 
-      - name: Resumen de los tests
-        if: always()
+      - name: Publicar qué falló (y con qué)
+        if: failure()
         run: |
-          {
-            echo "### Tests"
-            echo '```'
-            tail -3 /tmp/pytest.log 2>/dev/null || echo "(no hay salida)"
-            echo '```'
-            if grep -qE "^(FAILED|ERROR)" /tmp/pytest.log 2>/dev/null; then
-              echo "**Fallaron:**"
-              echo '```'
-              grep -E "^(FAILED|ERROR)" /tmp/pytest.log | head -20
-              echo '```'
-            fi
-          } >> $GITHUB_STEP_SUMMARY
+          # Los `::error::` salen como anotaciones del commit, que sí se pueden leer por API
+          # (el resumen del trabajo solo se ve en la web). Un CI que dice «falló» y no dice qué
+          # obliga a adivinar, y adivinar cuesta rondas.
+          if [ -f /tmp/pytest.log ]; then
+            grep -E "^(FAILED|ERROR)" /tmp/pytest.log | head -10 | while read -r linea; do
+              echo "::error title=Test fallido::$linea"
+            done
+            grep -E "^E  " /tmp/pytest.log | head -10 | while read -r linea; do
+              echo "::error title=Detalle::$linea"
+            done
+            tail -5 /tmp/pytest.log | while read -r linea; do
+              echo "::error title=Resumen de pytest::$linea"
+            done
+          else
+            echo "::error title=Sin salida::pytest no dejó salida en /tmp/pytest.log"
+          fi
 
       - name: Tests
         # `set -o pipefail` es imprescindible: sin él, el código de salida sería el de `tee` y un
