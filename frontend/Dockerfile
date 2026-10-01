@@ -13,7 +13,8 @@ COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 
-# Qué versión (commit) sirve esta pantalla: se consulta en /version para comprobar que lo
+# Qué versión (commit) sirve esta pantalla: se consulta en /version.txt para comprobar que lo
 # desplegado es lo que se cree (una pantalla vieja con un backend nuevo es un fallo real).
-ARG FINANZAS_VERSION=desconocida
-RUN echo "$FINANZAS_VERSION" > /usr/share/nginx/html/version.txt
+# Lo escribe el script del arranque, no el build: ver 40-version.sh.
+COPY 40-version.sh /docker-entrypoint.d/40-version.sh
+RUN chmod +x /docker-entrypoint.d/40-version.sh
