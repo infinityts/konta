@@ -2954,3 +2954,18 @@ Los corregí a **20/min** y **30/min** ✗ y dejé escrito el criterio ✅, que 
 
 Tests: **426 en verde** (12 nuevos). Migraciones: `25bc10d5296e` (intentos de contraseña) y
 `9255aeb6c29a` (límites de uso).
+
+### v2.10 — El proyecto se mudó a su propio espacio
+
+Konta vivía en `DeepseekHarness/finanzas`, compartiendo raíz con el arnés y con otros proyectos ✗.
+Ahora vive en **`/home/infinity/konta`** ✅, con su propio espacio de trabajo ✅ (y su proyecto propio en
+el RAG ✅).
+
+**Lo que hay que saber si alguien mueve la carpeta otra vez** ✗: el entorno de Python **no sobrevive** ✗
+—`.venv` guarda rutas absolutas ✗ y queda con el intérprete roto ✗ («bad interpreter» ✗—, así que hay que
+**recrearlo** ✅ (`.venv` no está en git ✅ y las dependencias salen de `pyproject.toml` ✅: dos minutos ✅).
+El resto sí sobrevive ✅: git con su historia y su remoto ✅, el código ✅ (no menciona ninguna ruta
+absoluta ✅ ✅) y `node_modules` ✅.
+
+De paso quedó un aviso ✗: comprobar el entorno con un atajo ✗ (`sys.path.insert` ✗) da **falso verde** ✗,
+porque se salta justo lo que está roto ✗. Hay que ejecutar **lo de verdad** ✅.
