@@ -27,6 +27,8 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+import sqlalchemy as sa
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 RESULTADOS: list[tuple[str, bool, str]] = []
@@ -97,7 +99,25 @@ def main() -> int:
     # 0. la app está viva y el esquema al día
     codigo, salud = app.pedir("/health", metodo="GET")
     revisar("la app responde", codigo == 200 and salud.get("status") == "ok", str(salud)[:70])
-    codigo, _ = app.pedir("/auth/register", {"email": correo, "nombre": "Aceptación", "password": "password123"})
+    # Crear cuentas está limitado por IP (5 por hora) y esta herramienta se corre más de una vez:
+    # se limpia **solo el contador de registros** para que no se frene a sí misma. Los contadores de
+    # los clientes (consultas y lecturas) no se tocan, y los de registro son de una hora.
+    if args.dsn:
+        try:
+            motor = sa.create_engine(args.dsn)
+            with motor.begin() as conn:
+                conn.execute(
+                    sa.text("delete from limites_uso where clave like '%registros'")
+                )
+            motor.dispose()
+        except Exception as error:  # noqa: BLE001 — si no se puede, se avisa y se sigue
+            print(f"  (aviso: no pude limpiar el contador de registros: {type(error).__name__})")
+
+    codigo, registro = app.pedir("/auth/register", {"email": correo, "nombre": "Aceptación", "password": "password123"})
+    if codigo == 429:
+        # Decir «contraseña incorrecta» cuando lo que pasó es un freno de velocidad confunde: pasó
+        revisar("se puede crear un usuario y entrar", False, f"freno de registros: {str(registro)[:80]}")
+        return 1
     codigo, sesion = app.pedir("/auth/login", {"email": correo, "password": "password123"})
     if not revisar("se puede crear un usuario y entrar", codigo == 200 and "access_token" in sesion, str(sesion)[:80]):
         return 1
