@@ -111,7 +111,7 @@ def preguntar(
     except ia.IaNoConfigurada as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except Exception as error:
-        logger.exception("El asistente falló respondiendo «%s»", peticion.pregunta[:80])
+        logger.exception("El asistente falló respondiendo «%s»", pregunta[:80])
         raise HTTPException(
             status_code=502,
             detail=(
