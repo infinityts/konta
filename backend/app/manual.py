@@ -157,6 +157,38 @@ TEMAS: dict[str, list[str]] = {
         "Entra en Configuración → Notificaciones.",
         "Elige qué quieres que te avise: vencimientos, cobros, presupuestos.",
     ],
+    "transferir dinero entre mis cuentas": [
+        "Entra en Movimientos → Transacciones y pulsa «Nuevo movimiento».",
+        "En el tipo elige «Transferencia entre cuentas».",
+        "Pon el monto y la fecha, y elige la cuenta de **origen** y la de **destino**.",
+        "Una transferencia no lleva categoría ni etiqueta: no es un gasto, es mover plata tuya.",
+        "Ojo con el saldo: la transferencia **baja** el saldo de la cuenta de origen y **sube** el de "
+        "la de destino; el total de tu dinero no cambia.",
+        "Para pagar una tarjeta de crédito se hace igual, pero en el destino eliges la **tarjeta**: "
+        "eso registra el pago y baja la deuda.",
+    ],
+    "crear una cuenta y poner su saldo inicial": [
+        "Entra en Movimientos → Cuentas y pulsa «Nueva».",
+        "Pon el nombre (Bancolombia, Efectivo…), el tipo y el **saldo inicial**: la plata que hay "
+        "hoy en esa cuenta.",
+        "El saldo que ves después es ese saldo inicial más lo que ha entrado y menos lo que ha "
+        "salido.",
+        "Si el saldo del banco no coincide, corrige el **saldo inicial** en la misma pantalla: se "
+        "ajusta sin tocar tus movimientos.",
+    ],
+    "corregir o borrar un movimiento": [
+        "Entra en Movimientos → Transacciones y busca el movimiento.",
+        "Pulsa «Editar» para cambiar el monto, la fecha, la descripción, la categoría o la cuenta.",
+        "Pulsa «Eliminar» para borrarlo (y el saldo se recompone solo).",
+        "Si el movimiento salió de una factura, es mejor corregirlo desde Facturas: así la factura y "
+        "el movimiento siguen contando lo mismo.",
+    ],
+    "el IVA de mis facturas": [
+        "Cuando subes una factura con IVA, Konta lo guarda aparte del total.",
+        "En Análisis → Reportes ves el IVA del mes y su peso sobre tus compras.",
+        "Sirve para saber cuánto de lo que gastaste fue impuesto.",
+        "Si la factura no trae el IVA desglosado, no se inventa: queda sin ese dato.",
+    ],
     "preguntarle al asistente": [
         "Entra en Herramientas → Asistente.",
         "Escribe tu pregunta o pulsa una de las sugerencias.",

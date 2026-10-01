@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { Outlet } from 'react-router-dom'
+import ChatFlotante from './ChatFlotante'
 import TopNav from './TopNav'
 import { Cargando } from './loading-ui/cargando'
 
@@ -18,6 +19,8 @@ export default function Layout() {
           <Outlet />
         </Suspense>
       </main>
+      {/* El asistente, a mano en cualquier pantalla */}
+      <ChatFlotante />
     </div>
   )
 }

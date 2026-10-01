@@ -117,3 +117,25 @@ def test_el_endpoint_de_busqueda_responde(client, monkeypatch):
     assert r.status_code == 200, r.text
     assert r.json()["resultados"]
     assert client.get("/asistente/manual", headers=h).json()["cuantos"] >= 20
+
+
+def test_el_manual_cubre_las_cosas_que_la_app_sabe_hacer(client):
+    """Un hueco real: la app soporta transferencias entre cuentas y el manual no las explicaba.
+
+    El asistente dijo la verdad («no tengo ese tema»), que es justo lo que se le pide; el fallo era
+    del manual, no suyo. Aquí se fija que los temas que la app sí sabe hacer estén.
+    """
+    temas = manual.temas()
+    for imprescindible in (
+        "transferir dinero entre mis cuentas",
+        "crear una cuenta y poner su saldo inicial",
+        "corregir o borrar un movimiento",
+        "el IVA de mis facturas",
+    ):
+        assert imprescindible in temas, f"el manual no explica: {imprescindible}"
+
+    # y el de transferencias dice lo que de verdad hace la app (origen, destino y que el total no cambia)
+    pasos = " ".join(manual.TEMAS["transferir dinero entre mis cuentas"])
+    assert "origen" in pasos and "destino" in pasos
+    assert "no cambia" in pasos, "hay que decir que el total de tu dinero no cambia"
+    assert "tarjeta" in pasos, "y cómo se paga una tarjeta"

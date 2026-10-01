@@ -2802,3 +2802,28 @@ Tests: **408 en verde** (4 nuevos, 4 viejos mal hechos reemplazados).
 fallos que aparecieron revisando lo que ya estaba en producción ✅ — con la regla que saca cada una ✅.
 
 Existe para que no dependa de esta conversación ✅: es lo que hay que leer dentro de un mes ✅.
+
+### v2.5 — El asistente, siempre a mano (y cuatro temas que faltaban en la ayuda)
+
+Dos cosas que salieron de una prueba real tuya ✅:
+
+**1. Le preguntaste cómo funcionan las transferencias entre cuentas y no lo sabía** ✗. El asistente
+contestó la verdad («no tengo ese tema en el manual») ✗ — que es exactamente lo que se le pide ✅ — pero
+el hueco era del **manual** ✗: la app **sí** soporta transferencias entre cuentas ✗ (el backend las
+valida y la pantalla tiene la opción ✅) y el manual tenía 25 temas **sin ese** ✗. Revisé qué más sabe
+hacer la app y no estaba explicado ✗, y añadí **cuatro temas** (29 en total ✅):
+
+- **transferir dinero entre mis cuentas** ✅: origen, destino, que no lleva categoría (no es un gasto
+  ✅), que el total de tu dinero **no cambia** ✅ y cómo se paga una tarjeta con el mismo camino ✅.
+- **crear una cuenta y poner su saldo inicial** ✅.
+- **corregir o borrar un movimiento** ✅.
+- **el IVA de mis facturas** ✅.
+
+**2. El asistente estaba escondido** ✗: había que entrar en Herramientas → Asistente ✗. Ahora hay un
+**botón flotante abajo a la derecha en todas las pantallas** ✅ que abre el chat ✅ — y al cerrarlo **no
+se pierde la conversación** ✅ (sigue montado, solo se oculta ✅).
+
+De paso, el chat pasó a ser **un solo componente** ✅ que usan la página y el flotante ✅ (antes era
+código de la página ✅): una implementación, no dos ✅.
+
+Tests: **409 en verde** (1 nuevo: el manual tiene que explicar lo que la app sí sabe hacer).
