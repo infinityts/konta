@@ -373,3 +373,32 @@ def test_la_orden_se_reserva_para_que_dos_avisos_no_acrediten_dos_veces(client, 
     )
     assert aviso.status_code == 200 and aviso.json()["aplicado_ahora"] is False
     assert client.get("/ia/cuota", headers=h).json()["lecturas_restantes"] == 20, "una sola vez"
+
+
+def test_el_recibo_ensena_la_fecha_del_usuario_no_la_de_utc(client, engine):
+    """El bug de la ronda pasada, en el recibo: a partir de las 19:00 UTC ya es el día siguiente."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import text
+
+    from app.recurrencia import hoy
+
+    _, h = _registrar(client)
+    orden = _orden(client, h, "paquete", "lecturas10")
+    assert client.post(f"/pagos/simular-pago/{orden['referencia']}", headers=h).status_code == 200
+
+    # el pago se marca a las 19:30 de Colombia (= 00:30 UTC del día siguiente)
+    ayer = hoy() - timedelta(days=1)
+    momento = datetime(ayer.year, ayer.month, ayer.day, 19, 30, tzinfo=UTC) + timedelta(hours=5)
+    with engine.begin() as conn:
+        conn.execute(
+            text("update pagos set pagado_en = :cuando, creado_en = :cuando where referencia = :ref"),
+            {"cuando": momento, "ref": orden["referencia"]},
+        )
+
+    recibo = client.get("/pagos/mios", headers=h).json()[0]
+    assert recibo["pagado_en"] == str(ayer), (
+        f"a las 19:30 del {ayer} el recibo tiene que decir {ayer}, no el día siguiente "
+        f"(dijo {recibo['pagado_en']})"
+    )
+    assert recibo["creado_en"] == str(ayer)

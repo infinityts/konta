@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { hoyLocal } from '../utils/fechas'
 import { api } from '../api'
 import {
   fmtMoney,
@@ -15,7 +16,7 @@ const empty = {
   tipo: 'gasto',
   monto: '',
   moneda: 'COP',
-  fecha: new Date().toISOString().slice(0, 10),
+  fecha: hoyLocal(),
   descripcion: '',
   categoria_id: '',
   etiqueta_id: '',

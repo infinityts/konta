@@ -311,3 +311,31 @@ def test_un_pago_de_ultima_hora_cuenta_en_el_mes_del_usuario(client, engine, mon
         "un pago de las 19:30 del último día del mes tiene que contar en ESE mes, "
         f"no en el siguiente (quedó en {datos['cobrado_cop']})"
     )
+
+
+def test_las_fechas_que_se_ensenan_como_dia_son_las_del_usuario(client, engine):
+    """El tipo `FechaDelUsuario`: un instante UTC se enseña como el día del usuario.
+
+    Es la pieza que evita repetir el error campo a campo (recibos, reglas aprendidas, casos del
+    lector y la caducidad de los archivos).
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from pydantic import TypeAdapter
+
+    from app.recurrencia import hoy
+    from app.schemas import FechaDelUsuario
+
+    adaptador = TypeAdapter(FechaDelUsuario)
+    ayer = hoy() - timedelta(days=1)
+
+    # 19:30 en Colombia del día de ayer = 00:30 UTC de hoy
+    momento = datetime(ayer.year, ayer.month, ayer.day, 19, 30, tzinfo=UTC) + timedelta(hours=5)
+    assert adaptador.validate_python(momento) == ayer, "tiene que ser el día del usuario"
+
+    # a mediodía no hay diferencia
+    mediodia = datetime(ayer.year, ayer.month, ayer.day, 17, 0, tzinfo=UTC)
+    assert adaptador.validate_python(mediodia) == ayer
+
+    # y una fecha ya hecha se respeta
+    assert adaptador.validate_python(ayer) == ayer

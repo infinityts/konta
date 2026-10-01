@@ -5,10 +5,19 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
+from .config import get_settings
 from .models import (
     EstadoSuscripcion,
     Periodicidad,
@@ -18,6 +27,29 @@ from .models import (
     TipoTransaccion,
 )
 from .recurrencia import hoy
+
+
+def _a_fecha_del_usuario(valor):
+    """Un instante (UTC) se enseña como la **fecha del usuario**, no la de Greenwich.
+
+    La app piensa los días y los meses en Colombia. Todo lo que el usuario lee **como un día**
+    (cuándo pagó, hasta cuándo se guarda un archivo, cuándo se aprendió una regla) tiene que ser su
+    fecha: con UTC, a partir de las 19:00 se le enseña el día siguiente. Pasó, y se veía en el
+    informe del dinero y en la caducidad de los archivos.
+    """
+    from datetime import datetime as _datetime
+    from zoneinfo import ZoneInfo
+
+    if isinstance(valor, _datetime):
+        if valor.tzinfo is None:
+            valor = valor.replace(tzinfo=UTC)
+        return valor.astimezone(ZoneInfo(get_settings().timezone)).date()
+    return valor
+
+
+# Un instante que se enseña como el día del usuario. Se usa en los campos que la pantalla muestra
+# como fecha (recibos, reglas aprendidas, casos del lector…), para no repetir el error campo a campo.
+FechaDelUsuario = Annotated[date, BeforeValidator(_a_fecha_del_usuario)]
 
 # --- auth ---
 
@@ -285,7 +317,7 @@ class ReglaOcrOut(BaseModel):
     # Cuántas veces la ha usado el clasificador
     veces_usada: int
     creada_en: datetime
-    actualizada_en: datetime
+    actualizada_en: FechaDelUsuario
 
 
 # --- transacciones ---
@@ -633,27 +665,7 @@ class FacturaOut(BaseModel):
     # El archivo guardado (para releer con IA) y hasta cuándo se guarda
     archivo_guardado: bool = False
     # Fecha (del usuario) en la que se borra el archivo: es la promesa que se le hace
-    archivo_expira_en: date | None = None
-
-    @field_validator("archivo_expira_en", mode="before")
-    @classmethod
-    def _fecha_local(cls, valor):
-        """Un instante (UTC) se enseña como la **fecha del usuario**, no la de Greenwich.
-
-        La caducidad se guarda en UTC (el trabajo que borra compara en UTC, sin sorpresas), pero al
-        usuario se le promete un día: sin esto, un archivo que se borra el día 7 se anunciaba como
-        el 8 a partir de las 19:00 de Colombia.
-        """
-        from datetime import datetime as _datetime
-        from zoneinfo import ZoneInfo
-
-        from .config import get_settings
-
-        if isinstance(valor, _datetime):
-            if valor.tzinfo is None:
-                valor = valor.replace(tzinfo=UTC)
-            return valor.astimezone(ZoneInfo(get_settings().timezone)).date()
-        return valor
+    archivo_expira_en: FechaDelUsuario | None = None
     archivo_aviso: str | None = None
     leida_con_ia: bool = False
     creada_en: datetime
@@ -714,7 +726,7 @@ class PlantillaLectorOut(BaseModel):
     campo_fecha: str | None = None
     tipo_documento: str | None = None
     usos: int = 0
-    actualizada_en: datetime
+    actualizada_en: FechaDelUsuario
 
 
 class PreguntaAsistenteIn(BaseModel):
@@ -781,8 +793,8 @@ class PagoOut(BaseModel):
     moneda: str
     estado: str
     pasarela: str
-    creado_en: datetime
-    pagado_en: datetime | None = None
+    creado_en: FechaDelUsuario
+    pagado_en: FechaDelUsuario | None = None
 
 
 class OrdenPagoIn(BaseModel):
@@ -907,7 +919,7 @@ class CasoLectorOut(BaseModel):
     tiene_archivo: bool = False
     archivo_nombre: str | None = None
     estado: str = "abierto"
-    creado_en: datetime
+    creado_en: FechaDelUsuario
     resuelto_en: datetime | None = None
 
 
@@ -920,7 +932,7 @@ class PatronIgnoradoOut(BaseModel):
     patron: str
     ejemplo: str
     veces: int
-    actualizada_en: datetime
+    actualizada_en: FechaDelUsuario
 
 
 class MovimientoOut(BaseModel):

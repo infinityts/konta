@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { mesLocal } from '../utils/fechas'
 import { api } from '../api'
 import {
   fmtMoney,
@@ -125,7 +126,7 @@ export default function Dashboard() {
   }, [])
 
   const now = new Date()
-  const mes = now.toISOString().slice(0, 7)
+  const mes = mesLocal()
   const mesLabel = now.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
 
   const delMes = transacciones.filter((t) => t.fecha.startsWith(mes))

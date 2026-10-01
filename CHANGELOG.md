@@ -2709,3 +2709,29 @@ en **Colombia** ✅ pero marcaba los pagos y la caducidad con la hora **UTC** �
   mes ✅ — determinista, sin tocar el reloj ✅.
 
 Tests: **398 en verde** (1 nuevo).
+
+### v2.1 — La misma familia de bug, cazada hasta el final
+
+Después del informe del dinero (v2.0), fui a buscar **los otros sitios** donde un instante UTC se
+enseña como un día ✗. Había tres más ✗:
+
+- **Los recibos** ✗: a partir de las 19:00, un pago de hoy aparecía con la fecha de **mañana** ✗.
+  Arreglado con un **tipo reutilizable** (`FechaDelUsuario` ✅) aplicado a **siete campos** ✅, para que
+  no vuelva campo a campo ✗.
+- **La fecha que se pre-rellena al registrar un movimiento** ✗✗ — **el peor de los tres** ✗, porque no
+  se veía: `new Date().toISOString()` da el día en UTC, así que **pasadas las 19:00 un gasto se
+  registraba con la fecha de mañana** ✗, en silencio ✗. Ahora usa la fecha **del navegador** ✅.
+- **El mes del Resumen** ✗: la última noche del mes pedía el mes **siguiente** ✗ (y salía vacío ✗).
+  Ahora usa el mes del navegador ✅.
+
+**Comprobado, no supuesto** ✅: el planificador está **explícitamente en UTC** ✅, así que los
+comentarios («04:50 UTC = 23:50 en Colombia») dicen la verdad ✅ — no había nada que arreglar ahí ✅.
+
+**Y una limpieza** ✅: el validador suelto que había puesto en un esquema se fue ✅ (ahora el tipo lo
+cubre todo: una sola implementación, como con los bloqueos ✅).
+
+**Lo que me pillé a mí mismo** ✗: corrí la suite y vi que **no había añadido ni un test** ✗ en toda la
+ronda ✗. Añadí dos que fijan el límite horario ✅: un recibo pagado a las 19:30 del día anterior dice
+**ese** día ✅, y el tipo convierte bien ✅.
+
+Tests: **400 en verde** (2 nuevos).
