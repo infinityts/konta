@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -565,8 +566,74 @@ def _ayuda(tema: str | None = None) -> dict:
     return manual.buscar(tema)
 
 
+def _mes_del_modelo(valor) -> str | None:
+    """El mes que mandó el modelo, en AAAA-MM (o None para usar el actual).
+
+    El modelo escribe el mes de mil formas («2026-9», «septiembre de 2026», «este mes»). Aquí se
+    acepta lo razonable y, si no se entiende, se usa el mes en curso: es mejor contestar del mes
+    actual que fallar.
+    """
+    if valor is None or valor == "":
+        return None
+    texto = str(valor).strip().lower()
+    if texto in ("este mes", "mes actual", "actual", "hoy"):
+        return None
+    partes = texto.replace("/", "-").split("-")
+    if len(partes) >= 2 and partes[0].isdigit() and partes[1].strip().isdigit():
+        anio, mes = int(partes[0]), int(partes[1])
+        if 2000 <= anio <= 2100 and 1 <= mes <= 12:
+            return f"{anio:04d}-{mes:02d}"
+    nombres = {
+        "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7,
+        "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10, "noviembre": 11,
+        "diciembre": 12,
+    }
+    for nombre_mes, numero in nombres.items():
+        if nombre_mes in texto:
+            anio = next((int(p) for p in texto.split() if p.isdigit() and len(p) == 4), hoy().year)
+            return f"{anio:04d}-{numero:02d}"
+    return None
+
+
+def _fecha_del_modelo(valor) -> date | None:
+    """La fecha que mandó el modelo, como fecha de verdad.
+
+    El modelo manda las fechas **como texto** («2026-09-01») y la columna es `date`: Postgres se
+    negaba («operator does not exist: date >= character varying»), la transacción quedaba abortada y
+    la respuesta entera se caía con un error interno. Y era intermitente, porque depende de cómo el
+    modelo formule la llamada: la peor clase de fallo.
+    """
+    if valor is None or valor == "":
+        return None
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    try:
+        return date.fromisoformat(str(valor).strip()[:10])
+    except ValueError:
+        return None
+
+
+def _argumentos_limpios(argumentos: dict) -> dict:
+    """Normaliza lo que manda el modelo **antes** de que llegue al SQL (un solo sitio)."""
+    limpios = dict(argumentos or {})
+    if "mes" in limpios:
+        limpios["mes"] = _mes_del_modelo(limpios["mes"])
+    for campo in ("desde", "hasta", "fecha"):
+        if campo in limpios:
+            limpios[campo] = _fecha_del_modelo(limpios[campo])
+    if "limite" in limpios:
+        try:
+            limpios["limite"] = int(limpios["limite"])
+        except (TypeError, ValueError):
+            limpios.pop("limite")
+    return limpios
+
+
 def ejecutar(db: Session, usuario: Usuario, nombre: str, argumentos: dict) -> object:
     """Ejecuta una herramienta. Todo lee **solo** datos de este usuario."""
+    argumentos = _argumentos_limpios(argumentos)
     if nombre == "resumen":
         return _resumen(db, usuario, argumentos.get("mes"))
     if nombre == "movimientos":

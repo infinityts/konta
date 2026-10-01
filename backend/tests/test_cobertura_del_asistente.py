@@ -129,3 +129,54 @@ def test_las_herramientas_nuevas_contestan_sin_reventar(client, engine):
             salida = ejecutar(s, usuario, nombre, {})
             assert salida["pantalla"] == pantalla, salida
             assert clave in salida, f"{nombre} no devolvió «{clave}»: {salida}"
+
+
+def test_el_modelo_manda_las_fechas_como_texto_y_no_puede_romper_la_consulta(client, engine):
+    """Este fue un fallo real y además intermitente.
+
+    El modelo manda `{"desde": "2026-09-01"}` (texto) y la columna es `date`: Postgres se negaba
+    («operator does not exist: date >= character varying»), la transacción quedaba abortada y la
+    respuesta entera se caía con un error interno — dependiendo de cómo el modelo formulara la
+    llamada, que es la peor clase de fallo.
+    """
+    from datetime import date
+    from decimal import Decimal
+
+    from sqlalchemy.orm import sessionmaker
+    from test_api import _registrar
+
+    from app.asistente import _argumentos_limpios, _fecha_del_modelo, _mes_del_modelo, ejecutar
+    from app.models import Transaccion, Usuario
+
+    _registrar(client)
+    with sessionmaker(bind=engine).begin() as s:
+        usuario = s.query(Usuario).one()
+        s.add(
+            Transaccion(
+                usuario_id=usuario.id,
+                tipo="gasto",
+                monto=Decimal("250000"),
+                moneda="COP",
+                fecha=date(2026, 9, 5),
+                descripcion="Mercado del mes",
+            )
+        )
+        s.flush()
+
+        # exactamente lo que mandó el modelo cuando falló
+        salida = ejecutar(
+            s,
+            usuario,
+            "movimientos",
+            {"desde": "2026-09-01", "hasta": "2026-09-30", "texto": "mercado", "limite": "15"},
+        )
+        assert salida["pantalla"] == "Transacciones"
+        assert len(salida["movimientos"]) == 1, salida
+
+        # y el resumen con el mes escrito de otra forma
+        for mes in ("2026-9", "septiembre de 2026", "2026/09"):
+            assert _mes_del_modelo(mes) == "2026-09", mes
+        assert _mes_del_modelo("este mes") is None  # None = el mes en curso
+        assert _fecha_del_modelo("2026-09-30T00:00:00") == date(2026, 9, 30)
+        assert _fecha_del_modelo("lo que sea") is None
+        assert _argumentos_limpios({"limite": "no es un número"}) == {}

@@ -2854,3 +2854,39 @@ pantalla** ✗ (no una copia a mano, que se queda vieja ✗) y exige que cada un
 Si mañana se añade una pantalla y nadie la cubre ✗, **el test falla** ✗.
 
 Tests: **412 en verde** (3 nuevos).
+
+### v2.7 — La batería de preguntas encontró un fallo real (e intermitente)
+
+Probé el asistente con **8 preguntas reales** de casos de uso ✅. **6 respondieron bien** ✅ y **2 dieron
+error interno** ✗ — las dos de datos de gasto ✗. Lo bueno ✅: el reembolso funcionó ✅ («no se descontó
+ninguna consulta de tu plan» ✅, el trabajo de la ronda 20 ✅).
+
+**El problema para diagnosticarlo** ✗: el 502 no dejaba **ni una línea** en el log ✗ («502 Bad Gateway»
+y nada más ✗). Lo primero fue arreglar eso ✅: la herramienta que falla ahora **registra su traza** ✅ y
+**deshace la transacción** ✅, y el router registra el error antes de responder ✅. Con el rastro, la
+causa apareció en un minuto ✅:
+
+```
+psycopg.errors.UndefinedFunction: operator does not exist: date >= character varying
+parámetros: {'desde': '2026-09-01', 'hasta': '2026-09-30', 'texto': '%mercado%'}
+La herramienta movimientos falló
+```
+
+**El modelo manda las fechas como texto** ✗ y la herramienta las comparaba contra una columna `date` ✗:
+Postgres se negaba ✗, la transacción quedaba **abortada** ✗ y **todo lo que venía después fallaba en
+cascada** ✗ → error interno ✗. Y era **intermitente** ✗: dependía de cómo el modelo formulara la llamada ✗
+(la segunda vez, la misma pregunta respondió bien ✗). La peor clase de fallo ✗: el que no se reproduce ✗.
+
+**Los arreglos** ✅:
+
+- **Los argumentos del modelo se normalizan en un solo sitio** ✅, antes de llegar al SQL ✗: el mes ✅
+  («2026-9» ✅, «septiembre de 2026» ✅, «este mes» ✅ → el actual ✅) y las fechas ✅ (texto → fecha ✅, y lo
+  que no se entiende → sin filtro ✅, en vez de romper ✅).
+- **Una herramienta rota ya no envenena la respuesta** ✅: se registra y se deshace la transacción ✅.
+- **Un 502 deja rastro** ✅.
+
+Con esto, la pregunta «¿cuánto he gastado este mes y en qué?» ✅ —que es de las más normales que se
+pueden hacer ✅— deja de poder caerse ✗.
+
+Tests: **414 en verde** (2 nuevos: las herramientas nuevas contestan sin reventar, y las fechas como
+texto del modelo).
