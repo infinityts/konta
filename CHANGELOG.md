@@ -2827,3 +2827,30 @@ De paso, el chat pasó a ser **un solo componente** ✅ que usan la página y el
 código de la página ✅): una implementación, no dos ✅.
 
 Tests: **409 en verde** (1 nuevo: el manual tiene que explicar lo que la app sí sabe hacer).
+
+### v2.6 — Auditoría de casos de uso: el asistente sabía explicar la mitad y leer la otra mitad
+
+Pediste validar que el asistente pueda resolver **cualquier** pregunta sobre la app ✅. Lo hice
+cruzando **tres listas** ✗: las pantallas que existen ✅, los temas del manual ✅ y las herramientas de
+datos del asistente ✅.
+
+**Lo que encontré** ✗: hay **dos caminos** para preguntar algo ✅, y cada pantalla necesitaba al menos
+uno ✗.
+
+- **Cómo se hace** → el manual ✅: estaba **completo** ✅ (los cuatro temas de la ronda pasada cerraron
+  los huecos ✅).
+- **Mis datos** → las herramientas ✗: **solo llegaban a la mitad de la app** ✗. El asistente no podía
+  **mirar** las metas ✗, los seguros ✗, lo que se repite ✗ ni la proyección de flujo ✗. Así que
+  preguntas como *«¿cuánto llevo para mi meta?»* ✗ o *«¿qué seguros me vencen?»* ✗ no tenían respuesta ✗
+  — no porque no supiera cómo ✗, sino porque **no tenía con qué mirar** ✗.
+
+**Lo que añadí** ✅: cuatro herramientas ✅ — `metas` ✅, `polizas` ✅, `recurrentes` ✅ y `flujo` ✅ (18 en
+total ✅) —, cada una llamando al **mismo servicio que usa la pantalla** ✅, para que el asistente y la
+pantalla no puedan contar cosas distintas ✗.
+
+**Y la garantía de que no vuelva a pasar** ✅: un test que lee **la lista de pantallas del código de la
+pantalla** ✗ (no una copia a mano, que se queda vieja ✗) y exige que cada una tenga **tema** ✅,
+**herramienta** ✅ o **una excepción con su motivo** ✅ (el login ✗, el registro ✗ y el informe del dueño ✗).
+Si mañana se añade una pantalla y nadie la cubre ✗, **el test falla** ✗.
+
+Tests: **412 en verde** (3 nuevos).

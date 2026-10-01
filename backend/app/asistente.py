@@ -18,12 +18,14 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import cuotas, ia, manual, propuestas
+from . import cuotas, flujo, ia, manual, metas, polizas, propuestas
 from .models import (
     Categoria,
     ConsultaAsistente,
     Factura,
+    IngresoRecurrente,
     Presupuesto,
+    Suscripcion,
     Tarjeta,
     TipoTransaccion,
     Transaccion,
@@ -185,7 +187,31 @@ HERRAMIENTAS = [
     },
     _esquema("cuentas", "Las cuentas con su saldo actual y el total.", {}),
     _esquema("tarjetas", "Las tarjetas, su tipo, su cupo y la deuda por movimientos.", {}),
-    _esquema("presupuestos", "Los presupuestos activos con su monto.", {}),
+    _esquema(
+        "presupuestos",
+        "Los presupuestos activos: monto, lo gastado y lo que queda. Para «¿me estoy pasando?».",
+        {},
+    ),
+    _esquema(
+        "metas",
+        "Las metas de ahorro: cuánto se quiere juntar, cuánto se lleva y cuánto falta.",
+        {},
+    ),
+    _esquema(
+        "polizas",
+        "Los seguros activos: prima mensual, total al mes y vencimientos. Para «¿qué seguros tengo?».",
+        {},
+    ),
+    _esquema(
+        "recurrentes",
+        "Los cobros e ingresos que se repiten: qué son, cuánto y cuándo toca el próximo.",
+        {},
+    ),
+    _esquema(
+        "flujo",
+        "La proyección de los próximos meses: lo que entra, lo que sale y si alcanza.",
+        {},
+    ),
     _esquema(
         "facturas",
         "Las últimas facturas subidas, con su monto, si ya se registraron y si se leyeron con IA.",
@@ -440,6 +466,57 @@ def _presupuestos(db: Session, usuario: Usuario) -> list[dict]:
     ]
 
 
+def _metas(db: Session, usuario: Usuario) -> list[dict]:
+    """Las metas, con el mismo cálculo que la pantalla (aquí no se calcula nada a mano)."""
+    return metas.listar(db, usuario.id)[:MAX_FILAS]
+
+
+def _polizas(db: Session, usuario: Usuario) -> dict:
+    """Los seguros, con el mismo resumen que la pantalla."""
+    return polizas.resumen(db, usuario.id)
+
+
+def _recurrentes(db: Session, usuario: Usuario) -> dict:
+    """Lo que se repite cada mes: cobros (suscripciones) e ingresos."""
+    cobros = db.scalars(
+        select(Suscripcion)
+        .where(Suscripcion.usuario_id == usuario.id)
+        .order_by(Suscripcion.proximo_pago)
+    ).all()
+    ingresos = db.scalars(
+        select(IngresoRecurrente)
+        .where(IngresoRecurrente.usuario_id == usuario.id)
+        .order_by(IngresoRecurrente.proxima_ejecucion)
+    ).all()
+    return {
+        "cobros": [
+            {
+                "nombre": c.nombre,
+                "monto": float(c.monto),
+                "moneda": c.moneda,
+                "periodicidad": str(getattr(c.periodicidad, "value", c.periodicidad)),
+                "proximo_pago": str(c.proximo_pago) if c.proximo_pago else None,
+            }
+            for c in cobros[:MAX_FILAS]
+        ],
+        "ingresos": [
+            {
+                "nombre": i.nombre,
+                "monto": float(i.monto),
+                "moneda": i.moneda,
+                "periodicidad": str(getattr(i.periodicidad, "value", i.periodicidad)),
+                "proxima_ejecucion": str(i.proxima_ejecucion),
+            }
+            for i in ingresos[:MAX_FILAS]
+        ],
+    }
+
+
+def _flujo(db: Session, usuario: Usuario) -> dict:
+    """La proyección, con el mismo servicio que usa la pantalla de flujo de caja."""
+    return flujo.proyectar(db, usuario.id)
+
+
 def _facturas(db: Session, usuario: Usuario, limite: int | None = None) -> list[dict]:
     filas = db.scalars(
         select(Factura)
@@ -520,6 +597,14 @@ def ejecutar(db: Session, usuario: Usuario, nombre: str, argumentos: dict) -> ob
         return {"pantalla": "Tarjetas", "tarjetas": _tarjetas(db, usuario)}
     if nombre == "presupuestos":
         return {"pantalla": "Presupuestos", "presupuestos": _presupuestos(db, usuario)}
+    if nombre == "metas":
+        return {"pantalla": "Metas", "metas": _metas(db, usuario)}
+    if nombre == "polizas":
+        return {"pantalla": "Seguros", "polizas": _polizas(db, usuario)}
+    if nombre == "recurrentes":
+        return {"pantalla": "Gastos recurrentes", "recurrentes": _recurrentes(db, usuario)}
+    if nombre == "flujo":
+        return {"pantalla": "Flujo de caja", "flujo": _flujo(db, usuario)}
     if nombre == "facturas":
         return {"pantalla": "Facturas", "facturas": _facturas(db, usuario, argumentos.get("limite"))}
     if nombre == "mi_plan":
