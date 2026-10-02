@@ -222,6 +222,7 @@ export interface ConsolidadoMes {
   saldo_inicial: number
   ingresos: number
   gastos: number
+  transferencias_salientes: number
   balance: number
   saldo_final: number
 }

@@ -1467,6 +1467,9 @@ class ConsolidadoMesOut(BaseModel):
     saldo_inicial: float
     ingresos: float
     gastos: float
+    # Dinero que sale de las cuentas sin quedarse en otra tuya: el pago de la tarjeta
+    # de crédito, sobre todo. Va aparte de `gastos` porque no es consumo.
+    transferencias_salientes: float
     balance: float
     saldo_final: float
 

@@ -2989,3 +2989,25 @@ producción ✗ (el servidor estaba inalcanzable ✗). Se revisaron con hechos �
   correr ✗.
 
 Regla que queda: **una suite que no puede conectar no es una suite que falla** ✅.
+
+### v2.12 — El «Saldo final» del consolidado ya ve el pago de la tarjeta
+
+En la pantalla Cuentas, el **«Consolidado mes a mes»** y el **Resumen** decían cosas distintas ✗: el
+Resumen restaba el pago de la tarjeta ✅, pero el consolidado **ignoraba toda transferencia** ✗
+—daba por neutra también la que **no tiene cuenta destino** ✗, y pagar la tarjeta es exactamente
+eso: el dinero sale de la cuenta y **no llega a otra tuya** ✗. Con los datos reales la diferencia
+era de **8.807.981,38** ✗, al peso: el pago (8.912.816) ✅ menos las compras a crédito que el
+consolidado contaba como gasto ✗ (104.834,62).
+
+Qué se hizo ✅:
+
+- `_efecto_en_cuentas`: la transferencia solo es **neutra** si tiene `cuenta_destino_id` ✅ (mover
+  plata entre cuentas tuyas no te hace más pobre ✅). **Sin destino, resta** ✅.
+- El consolidado ya **no cuenta la compra con tarjeta de crédito como gasto** ✅: es deuda de la
+  tarjeta, igual que en el Resumen ✅.
+- Columna nueva **«Salidas»** ✅: lo que sale sin quedarse en otra cuenta tuya. Sin ella, el pago
+  habría quedado escondido dentro de «Gastos» ✗ y la tabla no cuadraría ✅.
+
+Pruebas: **429 en verde** ✅ (3 nuevas en `tests/test_consolidado_saldo.py` ✅), contra un PostgreSQL
+16.9 real ✅. La lección: **dos pantallas que enseñan «el saldo» tienen que salir del mismo sitio** ✅;
+si una lo calcula por su cuenta ✗, acaban discrepando sin que nadie lo note ✗.

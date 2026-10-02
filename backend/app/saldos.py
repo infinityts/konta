@@ -6,7 +6,7 @@ import calendar
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from .jerarquia import etiqueta_completa, mapa_etiquetas
@@ -78,6 +78,29 @@ def _neto(filas, signo_ingreso: bool = True) -> Decimal:
         else:
             total -= valor
     return total
+
+
+def _efecto_en_cuentas(usuario_id):
+    """Efecto de cada movimiento en el dinero que hay **en las cuentas** (expresión SQL).
+
+    - **Ingreso**: suma.
+    - **Gasto**: resta, salvo la compra con tarjeta de crédito: eso es deuda de la
+      tarjeta, no dinero que sale (sale cuando se paga la tarjeta).
+    - **Transferencia entre cuentas propias** (tiene `cuenta_destino_id`): neutra. El
+      dinero no sale, cambia de sitio.
+    - **Transferencia sin destino** (pagar la tarjeta, o dinero que se va a una cuenta
+      que no está registrada): **resta**. Antes se ignoraba, y por eso el «Saldo final»
+      del consolidado **no bajaba al pagar la tarjeta**, mientras el Resumen —que sí lo
+      resta— mostraba otro número. Los dos saldos tienen que decir lo mismo.
+    """
+    es_transferencia = Transaccion.tipo == TipoTransaccion.TRANSFERENCIA
+    return case(
+        (es_transferencia & Transaccion.cuenta_destino_id.is_(None), -Transaccion.monto),
+        (es_transferencia, 0),
+        (~_no_es_de_credito(usuario_id), 0),
+        (Transaccion.tipo == TipoTransaccion.INGRESO, Transaccion.monto),
+        else_=-Transaccion.monto,
+    )
 
 
 def saldo_cuentas(db: Session, usuario_id) -> dict:
@@ -268,42 +291,75 @@ def consolidado(db: Session, usuario_id, meses: int = 6) -> dict:
         )
         or 0
     )
-    saldo = saldo_inicial_total + _neto(
-        db.execute(
-            select(Transaccion.tipo, func.sum(Transaccion.monto))
-            .where(Transaccion.usuario_id == usuario_id, Transaccion.fecha < inicio)
-            .group_by(Transaccion.tipo)
-        ).all()
+    saldo = saldo_inicial_total + Decimal(
+        db.scalar(
+            select(func.coalesce(func.sum(_efecto_en_cuentas(usuario_id)), 0)).where(
+                Transaccion.usuario_id == usuario_id,
+                Transaccion.fecha < inicio,
+            )
+        )
+        or 0
     )
 
+    # Las tres columnas del mes: lo que entra, lo que se gasta de verdad y lo que sale
+    # sin quedarse en otra cuenta tuya (el pago de la tarjeta es lo segundo).
     mes_expr = func.to_char(Transaccion.fecha, "YYYY-MM")
     filas = db.execute(
-        select(mes_expr, Transaccion.tipo, func.sum(Transaccion.monto))
-        .where(
-            Transaccion.usuario_id == usuario_id,
-            Transaccion.fecha >= inicio,
-            # Mover dinero entre cuentas propias no cambia el total
-            Transaccion.tipo != TipoTransaccion.TRANSFERENCIA,
+        select(
+            mes_expr,
+            func.sum(
+                case(
+                    (Transaccion.tipo == TipoTransaccion.INGRESO, Transaccion.monto),
+                    else_=0,
+                )
+            ),
+            func.sum(
+                case(
+                    (
+                        (Transaccion.tipo == TipoTransaccion.GASTO)
+                        & _no_es_de_credito(usuario_id),
+                        Transaccion.monto,
+                    ),
+                    else_=0,
+                )
+            ),
+            func.sum(
+                case(
+                    (
+                        (Transaccion.tipo == TipoTransaccion.TRANSFERENCIA)
+                        & Transaccion.cuenta_destino_id.is_(None),
+                        Transaccion.monto,
+                    ),
+                    else_=0,
+                )
+            ),
         )
-        .group_by(mes_expr, Transaccion.tipo)
+        .where(Transaccion.usuario_id == usuario_id, Transaccion.fecha >= inicio)
+        .group_by(mes_expr)
     ).all()
-    por_mes: dict[str, dict[str, Decimal]] = {}
-    for mes, tipo, total in filas:
-        d = por_mes.setdefault(mes, {"ingresos": CERO, "gastos": CERO})
-        d["ingresos" if tipo.value == "ingreso" else "gastos"] += Decimal(total)
+    por_mes: dict[str, dict[str, Decimal]] = {
+        mes: {
+            "ingresos": Decimal(ing or 0),
+            "gastos": Decimal(gas or 0),
+            "transferencias": Decimal(sal or 0),
+        }
+        for mes, ing, gas, sal in filas
+    }
+    vacio = {"ingresos": CERO, "gastos": CERO, "transferencias": CERO}
 
     resultado = []
     for mes in _meses_desde(inicio, meses):
-        d = por_mes.get(mes, {"ingresos": CERO, "gastos": CERO})
+        d = por_mes.get(mes, vacio)
         inicial = saldo
-        saldo = inicial + d["ingresos"] - d["gastos"]
+        saldo = inicial + d["ingresos"] - d["gastos"] - d["transferencias"]
         resultado.append(
             {
                 "mes": mes,
                 "saldo_inicial": float(inicial),
                 "ingresos": float(d["ingresos"]),
                 "gastos": float(d["gastos"]),
-                "balance": float(d["ingresos"] - d["gastos"]),
+                "transferencias_salientes": float(d["transferencias"]),
+                "balance": float(d["ingresos"] - d["gastos"] - d["transferencias"]),
                 "saldo_final": float(saldo),
             }
         )

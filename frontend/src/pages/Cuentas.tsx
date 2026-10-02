@@ -198,6 +198,12 @@ export default function Cuentas() {
                   <th className="px-3 py-2 text-right">Saldo inicial</th>
                   <th className="px-3 py-2 text-right">Ingresos</th>
                   <th className="px-3 py-2 text-right">Gastos</th>
+                  <th
+                    className="px-3 py-2 text-right"
+                    title="Pagos a la tarjeta y dinero que sale sin quedarse en otra cuenta tuya"
+                  >
+                    Salidas
+                  </th>
                   <th className="px-3 py-2 text-right">Balance</th>
                   <th className="px-3 py-2 text-right">Saldo final</th>
                 </tr>
@@ -209,6 +215,7 @@ export default function Cuentas() {
                     <td className="px-3 py-2 text-right text-slate-600">{fmtMoney(m.saldo_inicial)}</td>
                     <td className="px-3 py-2 text-right text-emerald-600">{fmtMoney(m.ingresos)}</td>
                     <td className="px-3 py-2 text-right text-red-600">{fmtMoney(m.gastos)}</td>
+                    <td className="px-3 py-2 text-right text-red-600">{fmtMoney(m.transferencias_salientes)}</td>
                     <td className={`px-3 py-2 text-right font-medium ${m.balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtMoney(m.balance)}</td>
                     <td className={`px-3 py-2 text-right font-semibold ${m.saldo_final < 0 ? 'text-red-600' : 'text-slate-900'}`}>{fmtMoney(m.saldo_final)}</td>
                   </tr>
