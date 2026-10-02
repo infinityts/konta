@@ -1,6 +1,6 @@
 # Estado del plan de IA y planes
 
-Última revisión: **30 de septiembre de 2026**. Este documento dice qué está hecho, qué está
+Última revisión: **1 de octubre de 2026**. Este documento dice qué está hecho, qué está
 verificado y qué falta — y por qué.
 
 ## Resumen en una línea
@@ -22,6 +22,7 @@ la pasarela real.
 | 7 | PDFs ilimitados con tope de peso | ✅ | Subió **33 documentos** donde el Básico se queda en 30, y el aviso habla de peso y de días |
 | 8 | Panel de coste real y margen | ✅ | Encontró a un cliente que **paga 6.000 y cuesta 10.024** (margen −67 %) que el promedio del plan (16,41 %) escondía |
 | 9 | Migración a la máquina definitiva | ⏳ | Procedimiento, scripts y **restauración real comprobada** («la copia es fiel: los números cuadran»); falta la máquina |
+| 10 | Suite de pruebas (426) | ✅ | Re-ejecutada el 1 de octubre contra un **PostgreSQL 16.9 real**: **426 en verde**, 0 fallos. Sin base de datos: 136 en verde y 290 **omitidas** (no fallos). Los 288 errores de la última corrida eran de conexión, no de código |
 
 ## Lo que falta, y por qué
 
@@ -41,6 +42,10 @@ python scripts/aceptacion.py --base http://<ip>:8082/api --web http://<ip>:8082 
 23 comprobaciones contra la app de verdad: incluye **que lo desplegado sea el código** ✅ (una vez
 pilló un despliegue fantasma ✅) y el **espacio en disco** ✅ (una vez se llenó y los despliegues
 fallaban en silencio ✅). Borra lo que crea, incluidos los archivos.
+
+> **No se pudo correr el 1 de octubre**: el servidor `11.0.0.3` responde a ping pero tiene cerrados
+> `:8082`, `:8000` y `:5433` (contenedores caídos tras el reinicio del host). Las 23 comprobaciones
+> quedan **pendientes de un servidor en pie**; no fallaron, no se pudieron ejecutar.
 
 ## Lo que se aprendió por el camino (y quedó arreglado)
 

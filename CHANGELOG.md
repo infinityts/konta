@@ -2969,3 +2969,23 @@ absoluta ✅ ✅) y `node_modules` ✅.
 
 De paso quedó un aviso ✗: comprobar el entorno con un atajo ✗ (`sys.path.insert` ✗) da **falso verde** ✗,
 porque se salta justo lo que está roto ✗. Hay que ejecutar **lo de verdad** ✅.
+
+### v2.11 — La mudanza quedó verificada (1 de octubre)
+
+La mudanza dejó **dos cosas sin comprobar** ✗: la suite de pruebas ✗ (la base de pruebas era un túnel a
+`11.0.0.3` ✗, que quedó sin ruta ✗ y dio 288 errores **de conexión** ✗, no de código) y la aceptación en
+producción ✗ (el servidor estaba inalcanzable ✗). Se revisaron con hechos ✅:
+
+- **El `.venv` sí está sano** ✅: contra lo que se temía en la v2.10 ✗, el entorno ya se había recreado ✅
+  (el paquete editable apunta a `konta_backend` ✅) y funciona: importa `app` ✅, `ruff` limpio ✅ y
+  recolecta **las 426 pruebas** ✅. El aviso valía para el momento de la mudanza ✗, no después de
+  recrear el entorno ✅.
+- **La suite completa: 426 en verde** ✅ contra un **PostgreSQL 16.9 real** ✅ (binarios portátiles, sin
+  root ✅, con `pgcrypto` ✅). Los 288 errores de la última corrida eran de conexión ✗: **ni un fallo de
+  código** ✅.
+- **Sin base de datos, la suite no miente** ✅: 136 en verde ✅ y 290 omitidas ✅ — omitidas ✗, no fallos ✅.
+- **La aceptación en producción sigue pendiente** ✗: `11.0.0.3` responde a ping ✅ pero tiene cerrados
+  `:8082`, `:8000` y `:5433` ✗ (contenedores caídos ✗), así que las 23 comprobaciones no se pudieron
+  correr ✗.
+
+Regla que queda: **una suite que no puede conectar no es una suite que falla** ✅.
