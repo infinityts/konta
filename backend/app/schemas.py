@@ -18,6 +18,7 @@ from pydantic import (
 )
 
 from .config import get_settings
+from .dinero import parsear_monto
 from .models import (
     EstadoSuscripcion,
     Periodicidad,
@@ -58,6 +59,33 @@ FechaDelUsuario = Annotated[date, BeforeValidator(_a_fecha_del_usuario)]
 # cabe en la base de datos, y hasta ahora eso reventaba con un **500** en vez de decir qué
 # pasa (pasa con facilidad: una referencia o un CUS tienen más dígitos que un precio).
 MONTO_MAXIMO = Decimal("999999999999.99")
+
+
+def _leer_dinero(valor):
+    """Lee un número **como lo escribe una persona** (`dinero.parsear_monto`).
+
+    Los formularios son de texto libre: en Colombia se escribe `65.928,09` y aquí se
+    entendía como un decimal con punto inglés, así que la petición fallaba con un 422
+    («Input should be a valid decimal») que la pantalla enseñaba como `[object Object]`.
+
+    Peor era el caso sin aviso: `65.928` se aceptaba como **65,928 pesos** cuando el
+    usuario quería decir **65.928**. Con el parser de la casa —el mismo que lee las
+    facturas y los extractos— `65.928,09`, `65,928.09`, `$65.928,09`, `1.500.000` y
+    `65.928` significan lo que el usuario quiso decir.
+    """
+    if isinstance(valor, str):
+        leido = parsear_monto(valor)
+        if leido is None:
+            raise ValueError("No se entiende el monto. Escríbelo como 65.928,09 o 65928.09.")
+        return leido
+    return valor
+
+
+# Un **monto** que el usuario teclea. Se usa en todas las entradas para no repetir el error campo a
+# campo, igual que `FechaDelUsuario`. Ojo: las **tasas** (`0.292215` E.A.), los **porcentajes** y las
+# **cantidades** (`0.125` kg) se quedan como `Decimal` — no son dinero, pueden llevar más de dos
+# decimales y el parser de dinero los leería mal (`0.125` acabaría en 125).
+Monto = Annotated[Decimal, BeforeValidator(_leer_dinero)]
 
 
 def _cabe_en_la_columna(valor: Decimal | None) -> Decimal | None:
@@ -151,7 +179,7 @@ class TarjetaIn(BaseModel):
     moneda: str = "COP"
     dia_corte: int | None = Field(None, ge=1, le=31)
     dia_pago: int | None = Field(None, ge=1, le=31)
-    limite: Decimal | None = Field(None, ge=0)
+    limite: Monto | None = Field(None, ge=0)
     tasa_interes: Decimal | None = Field(None, ge=0)
     tasa_interes_ea: Decimal | None = Field(None, ge=0)
     cuenta_id: uuid.UUID | None = None
@@ -165,7 +193,7 @@ class TarjetaUpdate(BaseModel):
     moneda: str | None = None
     dia_corte: int | None = Field(None, ge=1, le=31)
     dia_pago: int | None = Field(None, ge=1, le=31)
-    limite: Decimal | None = Field(None, ge=0)
+    limite: Monto | None = Field(None, ge=0)
     tasa_interes: Decimal | None = Field(None, ge=0)
     tasa_interes_ea: Decimal | None = Field(None, ge=0)
     cuenta_id: uuid.UUID | None = None
@@ -181,7 +209,7 @@ class TarjetaOut(TarjetaIn):
 
 class DeudaIn(BaseModel):
     moneda: str = "COP"
-    monto: Decimal = Field(gt=0)
+    monto: Monto = Field(gt=0)
     fecha: date | None = None
     notas: str | None = None
 
@@ -205,7 +233,7 @@ class PagoTarjetaIn(BaseModel):
     """
 
     cuenta_id: uuid.UUID
-    monto: Decimal = Field(gt=0)
+    monto: Monto = Field(gt=0)
     moneda: str = "COP"
     fecha: date | None = None
     notas: str | None = None
@@ -243,7 +271,7 @@ class TarjetaConDeudaOut(TarjetaOut):
 
 class SuscripcionIn(BaseModel):
     nombre: str = Field(min_length=1, max_length=120)
-    monto: Decimal = Field(gt=0)
+    monto: Monto = Field(gt=0)
     moneda: str = "COP"
     periodicidad: Periodicidad = Periodicidad.MENSUAL
     fecha_inicio: date | None = None
@@ -260,7 +288,7 @@ class SuscripcionIn(BaseModel):
 
 class SuscripcionUpdate(BaseModel):
     nombre: str | None = None
-    monto: Decimal | None = Field(None, gt=0)
+    monto: Monto | None = Field(None, gt=0)
     moneda: str | None = None
     periodicidad: Periodicidad | None = None
     fecha_inicio: date | None = None
@@ -340,7 +368,7 @@ class RecurrenciaIn(BaseModel):
 
 class TransaccionBase(BaseModel):
     tipo: TipoTransaccion
-    monto: Decimal = Field(gt=0)
+    monto: Monto = Field(gt=0)
 
     _validar_monto = field_validator("monto")(_cabe_en_la_columna)
     moneda: str = "COP"
@@ -365,7 +393,7 @@ class TransaccionIn(TransaccionBase):
 
 class TransaccionUpdate(BaseModel):
     tipo: TipoTransaccion | None = None
-    monto: Decimal | None = Field(None, gt=0)
+    monto: Monto | None = Field(None, gt=0)
 
     _validar_monto = field_validator("monto")(_cabe_en_la_columna)
     moneda: str | None = None
@@ -445,9 +473,9 @@ class PolizaIn(BaseModel):
     marca: str | None = Field(default=None, max_length=60)
     modelo: str | None = Field(default=None, max_length=60)
     anio: int | None = Field(default=None, ge=1900, le=2100)
-    valor_asegurado: Decimal | None = Field(default=None, gt=0)
+    valor_asegurado: Monto | None = Field(default=None, gt=0)
     # Prima y periodicidad
-    prima: Decimal = Field(gt=0)
+    prima: Monto = Field(gt=0)
     moneda: str = "COP"
     periodicidad: Periodicidad = Periodicidad.MENSUAL
     # Vigencia
@@ -478,8 +506,8 @@ class PolizaUpdate(BaseModel):
     marca: str | None = Field(default=None, max_length=60)
     modelo: str | None = Field(default=None, max_length=60)
     anio: int | None = Field(default=None, ge=1900, le=2100)
-    valor_asegurado: Decimal | None = Field(default=None, gt=0)
-    prima: Decimal | None = Field(default=None, gt=0)
+    valor_asegurado: Monto | None = Field(default=None, gt=0)
+    prima: Monto | None = Field(default=None, gt=0)
     moneda: str | None = None
     periodicidad: Periodicidad | None = None
     fecha_inicio: date | None = None
@@ -532,7 +560,7 @@ class PolizaResumenOut(BaseModel):
 
 class IngresoRecurrenteIn(BaseModel):
     nombre: str = Field(min_length=1, max_length=120)
-    monto: Decimal = Field(gt=0)
+    monto: Monto = Field(gt=0)
     moneda: str = "COP"
     periodicidad: PeriodicidadIngreso
     # mensual: 1-31 · semanal: 0 (lunes) a 6 (domingo) · diario: ignorado
@@ -552,7 +580,7 @@ class IngresoRecurrenteIn(BaseModel):
 
 class IngresoRecurrenteUpdate(BaseModel):
     nombre: str | None = None
-    monto: Decimal | None = Field(None, gt=0)
+    monto: Monto | None = Field(None, gt=0)
     moneda: str | None = None
     periodicidad: PeriodicidadIngreso | None = None
     dia: int | None = None
@@ -1015,7 +1043,7 @@ class FacturaPatchIn(BaseModel):
     venga en la petición; mandar `null` lo borra.
     """
 
-    monto_detectado: Decimal | None = Field(default=None, gt=0)
+    monto_detectado: Monto | None = Field(default=None, gt=0)
     fecha_detectada: date | None = None
 
     _validar_monto = field_validator("monto_detectado")(_cabe_en_la_columna)
@@ -1025,7 +1053,7 @@ class LineaUpdateIn(BaseModel):
     """Editar una línea. `etiqueta_id` corregida se aprende en `reglas_ocr`."""
 
     descripcion: str | None = None
-    valor_total: Decimal | None = Field(default=None, gt=0)
+    valor_total: Monto | None = Field(default=None, gt=0)
     etiqueta_id: uuid.UUID | None = None
 
     _validar_monto = field_validator("valor_total")(_cabe_en_la_columna)
@@ -1039,9 +1067,9 @@ class LineaNuevaIn(BaseModel):
     """
 
     descripcion: str = Field(min_length=1, max_length=200)
-    valor_total: Decimal = Field(gt=0)
+    valor_total: Monto = Field(gt=0)
     cantidad: Decimal | None = Field(default=None, gt=0)
-    valor_unitario: Decimal | None = Field(default=None, gt=0)
+    valor_unitario: Monto | None = Field(default=None, gt=0)
     etiqueta_id: uuid.UUID | None = None
 
     _validar_montos = field_validator("valor_total", "valor_unitario")(_cabe_en_la_columna)
@@ -1113,7 +1141,7 @@ class ConfirmarTotalIn(ConfirmarLineasIn):
     total que trae el recibo cuando el OCR lo detectó distinto.
     """
 
-    monto: Decimal | None = Field(default=None, gt=0)
+    monto: Monto | None = Field(default=None, gt=0)
     # Por defecto se propone el nombre del artículo (si es uno) o «Compra de N artículos»
     descripcion: str | None = Field(default=None, max_length=200)
 
@@ -1123,12 +1151,12 @@ class ConfirmarTotalIn(ConfirmarLineasIn):
 
 class PresupuestoIn(BaseModel):
     categoria_id: uuid.UUID
-    monto_limite: Decimal = Field(gt=0)
+    monto_limite: Monto = Field(gt=0)
     moneda: str = "COP"
 
 
 class PresupuestoUpdate(BaseModel):
-    monto_limite: Decimal | None = Field(None, gt=0)
+    monto_limite: Monto | None = Field(None, gt=0)
     moneda: str | None = None
     activo: bool | None = None
 
@@ -1151,7 +1179,7 @@ class PresupuestoOut(BaseModel):
 class ImportarFilaIn(BaseModel):
     fecha: date
     descripcion: str | None = None
-    monto: Decimal = Field(gt=0)
+    monto: Monto = Field(gt=0)
     tipo: TipoTransaccion
     moneda: str = "COP"
     categoria_id: uuid.UUID | None = None
@@ -1192,7 +1220,7 @@ class ProductoOut(ProductoIn):
 
 class PrecioIn(BaseModel):
     tienda: str | None = None
-    precio: Decimal = Field(gt=0)
+    precio: Monto = Field(gt=0)
     moneda: str = "COP"
     fecha: date | None = None
 
@@ -1226,13 +1254,13 @@ class ItemListaIn(BaseModel):
     producto_id: uuid.UUID | None = None
     nombre: str = Field(min_length=1, max_length=120)
     cantidad: Decimal = Field(default=Decimal("1"), gt=0)
-    precio_estimado: Decimal | None = None
+    precio_estimado: Monto | None = None
 
 
 class ItemListaUpdate(BaseModel):
     nombre: str | None = None
     cantidad: Decimal | None = Field(None, gt=0)
-    precio_estimado: Decimal | None = None
+    precio_estimado: Monto | None = None
     comprado: bool | None = None
 
 
@@ -1332,7 +1360,7 @@ class FlujoCajaOut(BaseModel):
 
 class MetaIn(BaseModel):
     nombre: str = Field(min_length=1, max_length=120)
-    monto_objetivo: Decimal = Field(gt=0)
+    monto_objetivo: Monto = Field(gt=0)
     moneda: str = "COP"
     fecha_limite: date | None = None
     notas: str | None = None
@@ -1340,14 +1368,14 @@ class MetaIn(BaseModel):
 
 class MetaUpdate(BaseModel):
     nombre: str | None = None
-    monto_objetivo: Decimal | None = Field(None, gt=0)
+    monto_objetivo: Monto | None = Field(None, gt=0)
     moneda: str | None = None
     fecha_limite: date | None = None
     notas: str | None = None
 
 
 class AporteIn(BaseModel):
-    monto: Decimal = Field(gt=0)
+    monto: Monto = Field(gt=0)
     fecha: date | None = None
     notas: str | None = None
 
@@ -1422,7 +1450,7 @@ class DetectarTelegramOut(BaseModel):
 class CuentaIn(BaseModel):
     nombre: str = Field(min_length=1, max_length=80)
     tipo: str = "efectivo"
-    saldo_inicial: Decimal = Decimal("0")
+    saldo_inicial: Monto = Decimal("0")
     moneda: str = "COP"
     activa: bool = True
 
@@ -1430,7 +1458,7 @@ class CuentaIn(BaseModel):
 class CuentaUpdate(BaseModel):
     nombre: str | None = None
     tipo: str | None = None
-    saldo_inicial: Decimal | None = None
+    saldo_inicial: Monto | None = None
     moneda: str | None = None
     activa: bool | None = None
 

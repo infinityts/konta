@@ -3011,3 +3011,28 @@ Qué se hizo ✅:
 Pruebas: **429 en verde** ✅ (3 nuevas en `tests/test_consolidado_saldo.py` ✅), contra un PostgreSQL
 16.9 real ✅. La lección: **dos pantallas que enseñan «el saldo» tienen que salir del mismo sitio** ✅;
 si una lo calcula por su cuenta ✗, acaban discrepando sin que nadie lo note ✗.
+
+### v2.13 — El monto que se teclea se lee como dinero
+
+Al insertar un gasto de **65.928,09** fallaba ✗ y encima la pantalla lo enseñaba como
+`[object Object]` ✗, sin decir qué pasaba. Los formularios son de texto libre y el esquema esperaba
+un decimal «de máquina» ✗, así que cualquier importe escrito como se escribe en Colombia
+(`1.500.000`, `$89.900,50`) respondía 422 ✗. El caso silencioso era peor ✗: `65.928` se guardaba
+como **65,928 pesos** ✗ en vez de **65.928** ✅.
+
+La regla de la casa ya existía para las facturas y los extractos ✅ —«una sola forma de leer dinero»,
+`dinero.parsear_monto` ✅—; lo que faltaba era aplicarla a lo que se teclea a mano ✅:
+
+- Tipo **`Monto`** ✅ (`Annotated[Decimal, BeforeValidator]`) en los campos de dinero de las
+  entradas (transacciones, cuentas, suscripciones, pólizas, presupuestos, metas, lista de mercado…).
+  Una definición, no campo a campo ✅.
+- Las **tasas** y las **cantidades** se quedan como `Decimal` ✅: `0.292215` E.A. y `0.125` kg no son
+  dinero y el parser los leería mal ✗ (`0.125` habría acabado en **125** ✗). Lo cazaron dos pruebas
+  de tasas que ya existían ✅.
+- `api.ts`: un error de validación ya no se pinta como `[object Object]` ✅ — la lista que devuelve
+  FastAPI se traduce a «campo: qué pasa» en castellano ✅.
+
+Pruebas: **432 en verde** ✅ (3 nuevas en `tests/test_monto_del_formulario.py` ✅).
+
+Lección: **un formulario de texto libre y un campo `Decimal` no se hablan** ✅; y un error que no se
+puede leer ✗ es un error que se repite ✗.

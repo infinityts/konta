@@ -1,5 +1,46 @@
 const API_URL = import.meta.env.VITE_API_URL ?? '/api'
 
+/** Los errores de validación de la API, dichos en cristiano. */
+const ERRORES_DE_CAMPO: Record<string, string> = {
+  missing: 'falta un dato obligatorio',
+  decimal_parsing: 'no es un número válido',
+  int_parsing: 'no es un número entero válido',
+  greater_than: 'tiene que ser mayor que cero',
+  less_than: 'es demasiado grande',
+  string_too_short: 'es demasiado corto',
+  string_too_long: 'es demasiado largo',
+  date_parsing: 'no es una fecha válida',
+  enum: 'no es una de las opciones válidas',
+}
+
+/**
+ * Traduce el error de la API a algo que el usuario pueda leer.
+ *
+ * FastAPI devuelve `detail` de dos formas: un **texto** cuando el error es nuestro (401,
+ * 404, 422 del router) y una **lista de objetos** cuando falla la validación del esquema.
+ * Al hacer `new Error(detail)` con la lista, el navegador la convertía en el texto
+ * «[object Object]» —pasó al insertar un gasto— y no había manera de saber qué campo
+ * estaba mal.
+ */
+export function mensajeDeError(body: unknown, status: number): string {
+  const detail = (body as { detail?: unknown } | null)?.detail
+  if (typeof detail === 'string' && detail.trim()) return detail
+  if (Array.isArray(detail)) {
+    const partes = detail
+      .map((d) => {
+        const fallo = d as { loc?: unknown[]; msg?: string; type?: string }
+        const campo = (fallo.loc ?? []).filter((p) => p !== 'body' && p !== 'query').join('.')
+        const limpio = (fallo.msg ?? '').replace(/^Value error, /, '')
+        const msg = ERRORES_DE_CAMPO[fallo.type ?? ''] || limpio
+        return campo ? `${campo}: ${msg}` : msg
+      })
+      .filter(Boolean)
+    if (partes.length) return `Revisa los datos: ${partes.join('; ')}`
+  }
+  if (detail) return JSON.stringify(detail)
+  return `HTTP ${status}`
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('konta_token')
   const res = await fetch(`${API_URL}${path}`, {
@@ -13,7 +54,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.detail ?? `HTTP ${res.status}`)
+    throw new Error(mensajeDeError(body, res.status))
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
@@ -43,7 +84,7 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
           'Prueba a subir solo las páginas que necesitas.'
       )
     }
-    throw new Error(body.detail ?? `HTTP ${res.status}`)
+    throw new Error(mensajeDeError(body, res.status))
   }
   return res.json() as Promise<T>
 }
